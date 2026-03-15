@@ -252,7 +252,8 @@ that handles Katharevousa, which mixes AG morphology with MG vocabulary.
 
 ## Credits
 
-Flag icon by [svg-flags](https://github.com/ciscoriordan/svg-flags).
+- Training data from [English Wiktionary](https://en.wiktionary.org/) and [Greek Wiktionary](https://el.wiktionary.org/) via [kaikki.org](https://kaikki.org/) JSONL dumps
+- Flag icons by [svg-flags](https://github.com/ciscoriordan/svg-flags)
 
 ## License
 
