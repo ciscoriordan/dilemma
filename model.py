@@ -144,24 +144,76 @@ class LemmaTransformer(nn.Module):
 
     @torch.no_grad()
     def generate(self, src, src_key_padding_mask=None, max_len=32,
-                 bos_id=1, eos_id=2):
-        """Greedy autoregressive decoding."""
+                 bos_id=1, eos_id=2, num_beams=1):
+        """Autoregressive decoding with optional beam search.
+
+        Args:
+            num_beams: 1 for greedy, >1 for beam search.
+                Returns top-num_beams candidates per input.
+
+        Returns:
+            If num_beams == 1: (batch, seq_len) tensor
+            If num_beams > 1: list of lists of (token_ids, score) tuples,
+                one list per batch item, sorted best-first.
+        """
         memory = self.encode(src, src_key_padding_mask)
         batch_size = src.size(0)
         device = src.device
 
-        # Start with BOS token
-        ys = torch.full((batch_size, 1), bos_id, dtype=torch.long, device=device)
-        finished = torch.zeros(batch_size, dtype=torch.bool, device=device)
+        if num_beams == 1:
+            # Greedy
+            ys = torch.full((batch_size, 1), bos_id, dtype=torch.long, device=device)
+            finished = torch.zeros(batch_size, dtype=torch.bool, device=device)
+            for _ in range(max_len):
+                logits = self.decode(ys, memory,
+                                     memory_key_padding_mask=src_key_padding_mask)
+                next_token = logits[:, -1, :].argmax(dim=-1)
+                next_token = next_token.masked_fill(finished, 0)
+                ys = torch.cat([ys, next_token.unsqueeze(1)], dim=1)
+                finished = finished | (next_token == eos_id)
+                if finished.all():
+                    break
+            return ys
 
-        for _ in range(max_len):
-            logits = self.decode(ys, memory,
-                                 memory_key_padding_mask=src_key_padding_mask)
-            next_token = logits[:, -1, :].argmax(dim=-1)  # (batch,)
-            next_token = next_token.masked_fill(finished, 0)  # pad finished seqs
-            ys = torch.cat([ys, next_token.unsqueeze(1)], dim=1)
-            finished = finished | (next_token == eos_id)
-            if finished.all():
-                break
+        # Beam search (per-item, not batched, for simplicity)
+        all_results = []
+        for i in range(batch_size):
+            mem_i = memory[i:i+1]  # (1, seq, d)
+            mask_i = src_key_padding_mask[i:i+1] if src_key_padding_mask is not None else None
 
-        return ys  # (batch, seq_len) including BOS
+            # Each beam: (token_ids_list, cumulative_log_prob)
+            beams = [([bos_id], 0.0)]
+            complete = []
+
+            for _ in range(max_len):
+                candidates = []
+                for ids, score in beams:
+                    if ids[-1] == eos_id:
+                        complete.append((ids, score))
+                        continue
+                    tgt = torch.tensor([ids], dtype=torch.long, device=device)
+                    logits = self.decode(tgt, mem_i, memory_key_padding_mask=mask_i)
+                    log_probs = logits[0, -1, :].log_softmax(dim=-1)
+                    topk = log_probs.topk(num_beams)
+                    for k in range(num_beams):
+                        token = topk.indices[k].item()
+                        new_score = score + topk.values[k].item()
+                        candidates.append((ids + [token], new_score))
+
+                if not candidates:
+                    break
+                # Keep top beams
+                candidates.sort(key=lambda x: x[1], reverse=True)
+                beams = candidates[:num_beams]
+
+                # Early stop if all beams ended
+                if all(ids[-1] == eos_id for ids, _ in beams):
+                    complete.extend(beams)
+                    break
+
+            # Add any incomplete beams
+            complete.extend(b for b in beams if b[0][-1] != eos_id)
+            complete.sort(key=lambda x: x[1], reverse=True)
+            all_results.append(complete[:num_beams])
+
+        return all_results
