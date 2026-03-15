@@ -32,8 +32,8 @@
   <line x1="52" y1="284" x2="76" y2="284" stroke="#c4b99a" stroke-width="1.5"/>
   <text x="80" y="288" fill="#1e40af" font-size="13" font-weight="700">Ancient Greek</text>
   <line x1="80" y1="296" x2="80" y2="346" stroke="#c4b99a" stroke-width="1" stroke-dasharray="2,3"/>
-  <text x="92" y="312" fill="#3a3a3a" font-size="11">Epic &middot; Attic &middot; Ionic &middot; Koine</text>
-  <text x="92" y="330" fill="#3a3a3a" font-size="11">Doric &middot; Aeolic &middot; Laconian</text>
+  <text x="92" y="312" fill="#3a3a3a" font-size="11">Epic &#xB7; Attic &#xB7; Ionic &#xB7; Koine</text>
+  <text x="92" y="330" fill="#3a3a3a" font-size="11">Doric &#xB7; Aeolic &#xB7; Laconian</text>
   <text x="92" y="346" fill="#999" font-size="9" font-style="italic">60K entries, 1.5M pairs</text>
 
   <!-- ── Center: funnel ── -->
@@ -49,7 +49,7 @@
   <rect x="370" y="62" width="300" height="26" rx="2" fill="#2d6a4f"/>
   <text x="520" y="80" text-anchor="middle" fill="#fff" font-size="12" font-weight="700" font-family="'Helvetica Neue',Helvetica,sans-serif">Lookup Table</text>
   <text x="520" y="108" text-anchor="middle" fill="#3a3a3a" font-size="11">6.5 million indexed forms</text>
-  <text x="520" y="126" text-anchor="middle" fill="#777" font-size="10">polytonic &middot; monotonic &middot; accent-stripped</text>
+  <text x="520" y="126" text-anchor="middle" fill="#777" font-size="10">polytonic &#xB7; monotonic &#xB7; accent-stripped</text>
   <text x="520" y="150" text-anchor="middle" fill="#2d6a4f" font-size="11" font-style="italic">instant resolution</text>
 
   <!-- miss arrow -->
@@ -60,8 +60,8 @@
   <rect x="370" y="198" width="300" height="26" rx="2" fill="#b45309"/>
   <text x="520" y="216" text-anchor="middle" fill="#fff" font-size="12" font-weight="700" font-family="'Helvetica Neue',Helvetica,sans-serif">Character Transformer</text>
   <text x="520" y="244" text-anchor="middle" fill="#3a3a3a" font-size="11">3-layer encoder + 3-layer decoder</text>
-  <text x="520" y="262" text-anchor="middle" fill="#3a3a3a" font-size="11">~160 char vocabulary &middot; 4M parameters</text>
-  <text x="520" y="284" text-anchor="middle" fill="#777" font-size="10">learns: -ωσε &#x2192; -ωνω &middot; -ουσαν &#x2192; -ω</text>
+  <text x="520" y="262" text-anchor="middle" fill="#3a3a3a" font-size="11">~160 char vocabulary &#xB7; 4M parameters</text>
+  <text x="520" y="284" text-anchor="middle" fill="#777" font-size="10">learns: -ωσε &#x2192; -ωνω &#xB7; -ουσαν &#x2192; -ω</text>
   <text x="520" y="306" text-anchor="middle" fill="#b45309" font-size="11" font-style="italic">&lt;1ms per word</text>
 
   <!-- output -->
