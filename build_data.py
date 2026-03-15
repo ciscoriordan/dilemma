@@ -288,6 +288,47 @@ def main():
         print(f"\nTraining pairs: {len(unique_pairs)} ({size_mb:.1f} MB)")
         print(f"  -> {pairs_path}")
 
+        # Break chained lookups: if form→lemma→X, the mapping is suspect.
+        # A valid lemma should map to itself (it's a headword).
+        headwords = set()
+        for k, v in all_lookup.items():
+            if k == v:
+                headwords.add(k)
+        chains_broken = 0
+        for k in list(all_lookup.keys()):
+            lemma = all_lookup[k]
+            if lemma != k and lemma in all_lookup and all_lookup[lemma] != lemma:
+                # This lemma is not a headword — it maps to something else.
+                # Follow the chain to find the real headword.
+                seen_chain = {k, lemma}
+                target = all_lookup[lemma]
+                depth = 0
+                while target in all_lookup and all_lookup[target] != target and depth < 5:
+                    if target in seen_chain:
+                        break  # cycle
+                    seen_chain.add(target)
+                    target = all_lookup[target]
+                    depth += 1
+                if target in headwords:
+                    all_lookup[k] = target
+                else:
+                    del all_lookup[k]
+                chains_broken += 1
+        print(f"Chained lookups fixed: {chains_broken}")
+
+        # Also remove from training pairs any pair whose lemma is not a headword
+        clean_pairs = []
+        all_lemmas = set(all_lookup.values()) | headwords
+        pairs_dropped = 0
+        for p in unique_pairs:
+            if p["lemma"] in all_lemmas:
+                clean_pairs.append(p)
+            else:
+                pairs_dropped += 1
+        if pairs_dropped:
+            print(f"Training pairs with invalid lemmas dropped: {pairs_dropped}")
+            unique_pairs = clean_pairs
+
         # Save lookup table
         lookup_path = DATA_DIR / f"{prefix}_lookup.json"
         with open(lookup_path, "w", encoding="utf-8") as f:
