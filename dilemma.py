@@ -144,24 +144,28 @@ class Dilemma:
     def lemmatize(self, word: str) -> str:
         """Lemmatize a single Greek word.
 
-        Checks lookup table first (instant), falls back to model.
-        Tries: exact -> lowercase -> monotonic -> accent-stripped -> model.
+        Resolution order:
+          1. Crasis table (small, hand-curated)
+          2. Lookup table (instant, 5M+ forms)
+          3. Model with beam search + headword filter
         """
-        # Exact match
-        if word in self._lookup:
-            return self._lookup[word]
-        # Case-insensitive
+        # Check crasis first (before lookup, since crasis forms are
+        # Wiktionary headwords that self-map in the lookup)
+        from crasis import resolve_crasis
+        crasis_result = resolve_crasis(word) or resolve_crasis(to_monotonic(word))
+        if crasis_result is not None:
+            return crasis_result
+
+        # Lookup: exact -> lowercase -> monotonic -> accent-stripped
         lower = word.lower()
-        if lower in self._lookup:
-            return self._lookup[lower]
-        # Monotonic (grave -> acute, strip breathings)
         mono = to_monotonic(lower)
-        if mono in self._lookup:
-            return self._lookup[mono]
-        # Accent-stripped
         stripped = strip_accents(lower)
-        if stripped in self._lookup:
-            return self._lookup[stripped]
+        lemma = (self._lookup.get(word)
+                 or self._lookup.get(lower)
+                 or self._lookup.get(mono)
+                 or self._lookup.get(stripped))
+        if lemma:
+            return lemma
 
         # Fall back to model
         self._load_model()
@@ -184,9 +188,15 @@ class Dilemma:
             if lemma:
                 results.append(lemma)
             else:
-                results.append(None)
-                model_indices.append(i)
-                model_words.append(word)
+                # Check crasis
+                from crasis import resolve_crasis
+                cr = resolve_crasis(word) or resolve_crasis(to_monotonic(word))
+                if cr:
+                    results.append(cr)
+                else:
+                    results.append(None)
+                    model_indices.append(i)
+                    model_words.append(word)
 
         if model_words:
             self._load_model()
