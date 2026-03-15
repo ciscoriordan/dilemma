@@ -6,12 +6,12 @@ inflection pairs spanning Modern Greek, Ancient Greek, and Medieval Greek.
 
 Most Greek words resolve instantly via the lookup table. For unseen forms,
 Dilemma uses a small encoder-decoder transformer that learns morphological
-patterns at the character level — the standard architecture from
+patterns at the character level,the standard architecture from
 [SIGMORPHON](https://sigmorphon.github.io/) shared tasks. At 4M parameters
 it trains from scratch in minutes and runs inference in under a millisecond,
 compared to fine-tuning approaches like *ByT5-small* (300M params) which take
 hours to train and ~10ms per word. Greek lemmatization is highly
-pattern-based — a small specialized model matches a large general-purpose
+pattern-based,a small specialized model matches a large general-purpose
 one, and the 6.5M lookup table handles the rest.
 
 Handles Standard Modern Greek, Katharevousa, Cypriot, Cretan, and other
@@ -200,7 +200,7 @@ morphological inflection shared tasks.
 | Parameters | ~4M |
 | Inference | <1ms/word (GPU), ~2ms/word (CPU) |
 
-No pretrained weights — the model is small enough to train from scratch
+No pretrained weights,the model is small enough to train from scratch
 on 500K+ pairs in minutes. The character vocabulary covers all Greek
 Unicode ranges (monotonic, polytonic, extended).
 
@@ -223,7 +223,7 @@ vocabulary (~160 tokens), so the same word is ~10 steps. Combined with
 
 The custom model trains **10-20x faster** and runs **10x faster** at
 inference, with no loss in accuracy for this task. Greek lemmatization
-is highly pattern-based — a small specialized model matches a large
+is highly pattern-based,a small specialized model matches a large
 general-purpose one.
 
 ## Data
