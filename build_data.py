@@ -215,19 +215,55 @@ def extract_pairs(jsonl_path: Path, lang: str,
     skip_all_forms_pos = {"article", "det"}
     filter_cross_forms_pos = {"pron"}
 
-    # First pass: collect headwords of closed-class POS for cross-contamination check
+    # First pass: collect closed-class headwords and article forms.
+    # Article forms leak into Katharevousa noun/adj declension templates
+    # (e.g. γωνιακός lists τῶν as its genitive plural "form").
     closed_class_headwords = set()
+    article_forms = set()
     with open(jsonl_path, encoding="utf-8") as f:
         for line in f:
             try:
                 entry = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            if entry.get("pos") in skip_all_forms_pos | filter_cross_forms_pos:
+            pos = entry.get("pos", "")
+            if pos in skip_all_forms_pos | filter_cross_forms_pos:
                 hw = strip_length_marks(entry.get("word", ""))
                 if hw:
                     closed_class_headwords.add(hw)
                     closed_class_headwords.add(hw.lower())
+            if pos in skip_all_forms_pos:
+                # Collect all forms from article/det entries, including
+                # polytonic variants that Katharevousa templates use
+                for fe in entry.get("forms", []):
+                    form = strip_length_marks(fe.get("form", ""))
+                    if form and _is_greek(form):
+                        article_forms.add(form)
+                        article_forms.add(form.lower())
+                        article_forms.add(to_monotonic(form))
+                        article_forms.add(to_monotonic(form).lower())
+                        article_forms.add(strip_accents(form.lower()))
+
+    # Add all known article forms (monotonic, polytonic, accented, stripped).
+    # MG Wiktionary article entries only have unaccented monotonic forms
+    # but Katharevousa templates use accented/polytonic variants.
+    _all_article_forms = {
+        # Monotonic (unaccented as in Wiktionary)
+        "ο", "η", "το", "τον", "την", "του", "της", "τους", "τις", "τα",
+        "των", "οι", "τη",
+        # Monotonic (accented, as in Katharevousa templates)
+        "τόν", "τήν", "τού", "τής", "τούς", "τό", "τά", "τών", "τώ",
+        "τή", "τοί", "ταί",
+        # Polytonic
+        "ὁ", "ἡ", "τό", "τόν", "τήν", "τοῦ", "τῆς", "τούς", "τάς",
+        "τά", "τῶν", "τῷ", "τῇ", "τοῖς", "ταῖς", "τοῖν", "ταῖν",
+        "αἱ", "οἱ", "τώ",
+    }
+    article_forms.update(_all_article_forms)
+    for f in _all_article_forms:
+        article_forms.add(to_monotonic(f))
+        article_forms.add(to_monotonic(f).lower())
+        article_forms.add(strip_accents(f.lower()))
 
     scanned = 0
     entries_with_data = 0
@@ -304,8 +340,14 @@ def extract_pairs(jsonl_path: Path, lang: str,
 
             entries_with_data += 1
 
-            # Skip all inflected forms from articles/determiners
+            # For articles/determiners: add forms as self-mappings (so they
+            # block contamination from Katharevousa templates) but don't
+            # create form->lemma training pairs.
             if pos in skip_all_forms_pos:
+                for fe in entry.get("forms", []):
+                    form = strip_length_marks(fe.get("form", ""))
+                    if form and _is_greek(form) and " " not in form:
+                        _add_lookup(lookup, form, form, confidence=3)
                 continue
 
             # Track current dialect from table-tags headers
@@ -334,6 +376,15 @@ def extract_pairs(jsonl_path: Path, lang: str,
                 # Pronoun cross-contamination filter
                 if pos in filter_cross_forms_pos:
                     if form in closed_class_headwords and form != lemma:
+                        continue
+
+                # Article form leaking into noun/adj Katharevousa templates.
+                # Check all variants (original, monotonic, stripped) since
+                # _add_lookup creates keys for all of them.
+                if form != lemma:
+                    form_variants = {form, form.lower(), to_monotonic(form),
+                                     to_monotonic(form).lower(), strip_accents(form.lower())}
+                    if form_variants & article_forms:
                         continue
 
                 # Proper noun plural filter
