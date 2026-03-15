@@ -321,8 +321,21 @@ present"). These are propagated to every form in that table section:
 
 Dilemma trains on **100x more data** than *stanza* or *spaCy*. *Morpheus*
 is more accurate on classical AG (decades of hand-tuned rules), but only
-covers one period. Dilemma covers all periods in one model - the only tool
+covers one period. Dilemma covers all periods in one model, the only tool
 that handles Katharevousa, which mixes AG morphology with MG vocabulary.
+
+### Related work
+
+[Swaelens et al. (2024)](https://aclanthology.org/2024.lrec-main.899/)
+tested lemmatization on unedited Byzantine Greek epigrams and found that
+transformer-based approaches scored 53-66% accuracy, while their best
+hybrid method (transformer embeddings + dictionary lookup) reached 72%.
+Classical Greek accuracy was ~95% but dropped 30+ points on Byzantine
+text due to itacism, crasis, and non-standard orthography. Dilemma's
+architecture (lookup table + character transformer) follows a similar
+hybrid strategy. Byzantine/Medieval forms are covered through the EL
+Wiktionary Medieval Greek dump and the AG inflection tables that include
+Koine and Byzantine-era paradigms.
 
 ## Credits
 
