@@ -138,9 +138,9 @@ Trains the character-level transformer on the extracted pairs. Use
 `--scale` to match your GPU and time budget.
 
 ```bash
-python train.py --scale 0                   # quick test (~30s)
-python train.py --scale 1                   # default (~10 min on RTX 2080)
-python train.py --scale 4                   # full data (~1h on 4090)
+python train.py --scale 0                   # quick test (~15s)
+python train.py --scale 1                   # default (~7 min on 2080 Ti)
+python train.py --scale 4                   # full data (~45 min)
 ```
 
 ### Training scales
@@ -151,11 +151,11 @@ The remaining budget is split 50/50 between Ancient Greek and standard MG.
 
 | Scale | Training pairs | Varieties | AG | SMG | Time (2080 Ti) |
 |:-----:|---------------:|----------:|-------:|-------:|:--------------:|
-| 0 | 20K | 7.7K (100%) | 6.1K | 6.1K | ~30 sec |
-| 1 | 500K | 7.7K (100%) | 246K | 246K | ~10 min |
-| 2 | 1M | 7.7K (100%) | 496K | 496K | ~20 min |
-| 3 | 2M | 7.7K (100%) | 996K | 996K | ~40 min |
-| 4 | 3.4M (all) | 7.7K (100%) | 1.48M (100%) | 1.93M (100%) | ~1 hr |
+| 0 | 20K | 7.7K (100%) | 6.1K | 6.1K | ~15 sec |
+| 1 | 500K | 7.7K (100%) | 246K | 246K | ~7 min |
+| 2 | 1M | 7.7K (100%) | 496K | 496K | ~13 min |
+| 3 | 2M | 7.7K (100%) | 996K | 996K | ~26 min |
+| 4 | 3.4M (all) | 7.7K (100%) | 1.48M (100%) | 1.93M (100%) | ~45 min |
 
 The lookup table is the **same for all scales** (6.5M forms). The model
 only handles words not in the lookup, so even scale 0 works well for
