@@ -280,14 +280,6 @@ def main():
                 seen.add(key)
                 unique_pairs.append(p)
 
-        # Save training pairs
-        pairs_path = DATA_DIR / f"{prefix}_pairs.json"
-        with open(pairs_path, "w", encoding="utf-8") as f:
-            json.dump(unique_pairs, f, ensure_ascii=False, indent=2)
-        size_mb = pairs_path.stat().st_size / (1024 * 1024)
-        print(f"\nTraining pairs: {len(unique_pairs)} ({size_mb:.1f} MB)")
-        print(f"  -> {pairs_path}")
-
         # Break chained lookups: if form→lemma→X, the mapping is suspect.
         # A valid lemma should map to itself (it's a headword).
         headwords = set()
@@ -316,18 +308,40 @@ def main():
                 chains_broken += 1
         print(f"Chained lookups fixed: {chains_broken}")
 
-        # Also remove from training pairs any pair whose lemma is not a headword
+        # Recompute headwords after chain-breaking
+        headwords = {k for k, v in all_lookup.items() if k == v}
+
+        # Fix training pairs: rewrite lemmas to match the cleaned lookup,
+        # drop pairs whose lemma can't be resolved to a headword.
         clean_pairs = []
-        all_lemmas = set(all_lookup.values()) | headwords
+        pairs_fixed = 0
         pairs_dropped = 0
         for p in unique_pairs:
-            if p["lemma"] in all_lemmas:
+            lemma = p["lemma"]
+            if lemma in headwords:
                 clean_pairs.append(p)
+            elif lemma in all_lookup:
+                # Lemma was rewritten during chain-breaking — follow it
+                resolved = all_lookup[lemma]
+                if resolved in headwords:
+                    clean_pairs.append({"form": p["form"], "lemma": resolved,
+                                        "pos": p.get("pos", ""), "tags": p.get("tags", [])})
+                    pairs_fixed += 1
+                else:
+                    pairs_dropped += 1
             else:
                 pairs_dropped += 1
-        if pairs_dropped:
-            print(f"Training pairs with invalid lemmas dropped: {pairs_dropped}")
+        if pairs_fixed or pairs_dropped:
+            print(f"Training pairs: {pairs_fixed} lemmas resolved, {pairs_dropped} dropped")
             unique_pairs = clean_pairs
+
+        # Save training pairs (after cleanup)
+        pairs_path = DATA_DIR / f"{prefix}_pairs.json"
+        with open(pairs_path, "w", encoding="utf-8") as f:
+            json.dump(unique_pairs, f, ensure_ascii=False, indent=2)
+        size_mb = pairs_path.stat().st_size / (1024 * 1024)
+        print(f"Training pairs: {len(unique_pairs)} ({size_mb:.1f} MB)")
+        print(f"  -> {pairs_path}")
 
         # Save lookup table
         lookup_path = DATA_DIR / f"{prefix}_lookup.json"

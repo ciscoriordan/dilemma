@@ -124,6 +124,28 @@ def run_lookup_tests():
         for e in ex[:5]:
             print(f"         {e}")
 
+    # Test: training pair lemmas are headwords (no dirty chains)
+    for prefix, name in [("mg", "MG"), ("ag", "AG")]:
+        pairs_path = DATA_DIR / f"{prefix}_pairs.json"
+        lookup_path = DATA_DIR / f"{prefix}_lookup.json"
+        if not pairs_path.exists() or not lookup_path.exists():
+            continue
+        pairs = json.load(open(pairs_path, encoding="utf-8"))
+        lookup = json.load(open(lookup_path, encoding="utf-8"))
+        bad = 0
+        bad_ex = []
+        for p in pairs:
+            lemma = p["lemma"]
+            if lemma in lookup and lookup[lemma] != lemma:
+                bad += 1
+                if len(bad_ex) < 5:
+                    bad_ex.append(f"{p['form']} -> {lemma} -> {lookup[lemma]}")
+        status = "PASS" if bad == 0 else "FAIL"
+        results.append((status, f"{name} training pair lemmas clean"))
+        print(f"\n  [{status}] {name} training pair lemmas clean: {bad}/{len(pairs)} dirty")
+        for e in bad_ex:
+            print(f"         {e}")
+
     # Test: training data has no non-Greek
     for prefix, name in [("mg", "MG"), ("ag", "AG")]:
         path = DATA_DIR / f"{prefix}_pairs.json"
