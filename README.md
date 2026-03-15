@@ -326,16 +326,30 @@ that handles Katharevousa, which mixes AG morphology with MG vocabulary.
 
 ### Related work
 
+[Vatri & McGillivray (2020)](https://brill.com/view/journals/jgl/20/2/article-p179_4.xml)
+assessed the state of the art in Ancient Greek lemmatization via a
+blinded evaluation by expert readers. They found that methods using
+large lexica combined with POS tagging (CLTK backoff lemmatizer,
+Diorisis corpus) consistently outperformed pure ML approaches with
+smaller lexica. Dilemma follows the same principle: a large lookup
+table (5.2M forms from Wiktionary) handles the vast majority of words,
+with a small model as fallback.
+
+[Celano (2025)](https://aclanthology.org/2025.lm4dh-1.5/) presented
+state-of-the-art morphosyntactic parsing and lemmatization for Ancient
+Greek using GreTa and PhilTa models trained on the AGDT and OGA
+corpora. Best lemmatization F1 was 95.6% on classical text. These
+models require POS context; Dilemma operates on isolated words but
+benefits from a much larger form inventory.
+
 [Swaelens et al. (2024)](https://aclanthology.org/2024.lrec-main.899/)
-tested lemmatization on unedited Byzantine Greek epigrams and found that
-transformer-based approaches scored 53-66% accuracy, while their best
-hybrid method (transformer embeddings + dictionary lookup) reached 72%.
-Classical Greek accuracy was ~95% but dropped 30+ points on Byzantine
-text due to itacism, crasis, and non-standard orthography. Dilemma's
-architecture (lookup table + character transformer) follows a similar
-hybrid strategy. Byzantine/Medieval forms are covered through the EL
-Wiktionary Medieval Greek dump and the AG inflection tables that include
-Koine and Byzantine-era paradigms.
+tested lemmatization on unedited Byzantine Greek epigrams and found
+that classical accuracy (~95%) dropped 30+ points on Byzantine text
+due to itacism, crasis, and non-standard orthography. Their best hybrid
+method (transformer embeddings + dictionary lookup) reached 72%.
+Dilemma's architecture follows a similar hybrid strategy, with
+Byzantine/Medieval coverage from the EL Wiktionary Medieval Greek dump
+and AG inflection tables that include Koine and Byzantine-era paradigms.
 
 ## Credits
 
