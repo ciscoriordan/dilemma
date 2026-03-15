@@ -169,9 +169,11 @@ d = Dilemma(scale=0)                  # use scale 0 model explicitly
 d = Dilemma()                         # auto-detect highest available
 ```
 
-Medieval Greek (Byzantine) is always folded into the default `"all"` mode
-rather than exposed as a separate language. The corpus is small (~3K
-entries) and primarily useful as a bridge between AG and MG morphology.
+Medieval/Byzantine Greek is treated as part of Modern Greek, not a
+separate language. The `"el"` mode includes Medieval forms alongside
+SMG, Katharevousa, and regional varieties. The Medieval corpus (~3K
+entries) covers Byzantine-era morphology that feeds directly into
+Katharevousa and formal MG.
 
 ### GPU quick start
 

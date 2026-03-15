@@ -69,8 +69,10 @@ class Dilemma:
         self._lookup: dict[str, str] = {}
 
         # Load lookup table(s)
+        # Medieval Greek is folded into MG — it's an earlier stage of
+        # the same language, not a separate period.
         if lang == "all":
-            # MG first (priority), then Medieval, then AG fills gaps
+            # MG + Medieval first, then AG fills gaps
             for path in [LOOKUP_PATH, MED_LOOKUP_PATH, AG_LOOKUP_PATH]:
                 if path.exists():
                     with open(path, encoding="utf-8") as f:
@@ -78,10 +80,17 @@ class Dilemma:
                     for k, v in data.items():
                         if k not in self._lookup:
                             self._lookup[k] = v
+        elif lang == "el":
+            # MG + Medieval
+            for path in [LOOKUP_PATH, MED_LOOKUP_PATH]:
+                if path.exists():
+                    with open(path, encoding="utf-8") as f:
+                        data = json.load(f)
+                    for k, v in data.items():
+                        if k not in self._lookup:
+                            self._lookup[k] = v
         else:
-            lookup_path = {
-                "el": LOOKUP_PATH, "grc": AG_LOOKUP_PATH, "mgr": MED_LOOKUP_PATH,
-            }[lang]
+            lookup_path = {"grc": AG_LOOKUP_PATH}[lang]
             if lookup_path.exists():
                 with open(lookup_path, encoding="utf-8") as f:
                     self._lookup = json.load(f)
