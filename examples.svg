@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 340" font-family="Georgia,serif">
+  <rect width="700" height="340" fill="#faf9f6"/>
+  <rect x="1" y="1" width="698" height="338" rx="3" fill="none" stroke="#d4d0c8" stroke-width="0.5"/>
+
+  <!-- Header -->
+  <text x="350" y="30" text-anchor="middle" fill="#1a1a1a" font-size="13" font-weight="700" font-family="'Helvetica Neue',Helvetica,sans-serif">Lemmatization examples across varieties</text>
+
+  <!-- Lookup section -->
+  <rect x="24" y="50" width="318" height="18" rx="1" fill="#2d6a4f"/>
+  <text x="183" y="63" text-anchor="middle" fill="#fff" font-size="10" font-weight="600" font-family="'Helvetica Neue',Helvetica,sans-serif">LOOKUP TABLE</text>
+
+  <!-- column headers -->
+  <text x="36" y="88" fill="#999" font-size="9" font-family="'Helvetica Neue',Helvetica,sans-serif">FORM</text>
+  <text x="174" y="88" fill="#999" font-size="9" font-family="'Helvetica Neue',Helvetica,sans-serif">LEMMA</text>
+  <text x="280" y="88" fill="#999" font-size="9" font-family="'Helvetica Neue',Helvetica,sans-serif">VARIETY</text>
+  <line x1="30" y1="93" x2="336" y2="93" stroke="#e0ddd6" stroke-width="0.5"/>
+
+  <!-- Lookup examples -->
+  <text x="36" y="112" fill="#1a1a1a" font-size="12.5">θεοὶ</text>
+  <text x="148" y="112" fill="#888" font-size="13">&#x2192;</text>
+  <text x="174" y="112" fill="#2d6a4f" font-size="12.5" font-weight="600">θεός</text>
+  <text x="280" y="112" fill="#777" font-size="10">Epic</text>
+
+  <text x="36" y="136" fill="#1a1a1a" font-size="12.5">ἐποίησεν</text>
+  <text x="148" y="136" fill="#888" font-size="13">&#x2192;</text>
+  <text x="174" y="136" fill="#2d6a4f" font-size="12.5" font-weight="600">ποιέω</text>
+  <text x="280" y="136" fill="#777" font-size="10">Attic</text>
+
+  <text x="36" y="160" fill="#1a1a1a" font-size="12.5">τρομερό</text>
+  <text x="148" y="160" fill="#888" font-size="13">&#x2192;</text>
+  <text x="174" y="160" fill="#2d6a4f" font-size="12.5" font-weight="600">τρομερός</text>
+  <text x="280" y="160" fill="#777" font-size="10">SMG</text>
+
+  <text x="36" y="184" fill="#1a1a1a" font-size="12.5">πολεμούσαν</text>
+  <text x="148" y="184" fill="#888" font-size="13">&#x2192;</text>
+  <text x="174" y="184" fill="#2d6a4f" font-size="12.5" font-weight="600">πολεμώ</text>
+  <text x="280" y="184" fill="#777" font-size="10">SMG</text>
+
+  <text x="36" y="208" fill="#1a1a1a" font-size="12.5">μήνιδος</text>
+  <text x="148" y="208" fill="#888" font-size="13">&#x2192;</text>
+  <text x="174" y="208" fill="#2d6a4f" font-size="12.5" font-weight="600">μῆνις</text>
+  <text x="280" y="208" fill="#777" font-size="10">Epic</text>
+
+  <text x="36" y="232" fill="#1a1a1a" font-size="12.5">ἐβασίλευσεν</text>
+  <text x="148" y="232" fill="#888" font-size="13">&#x2192;</text>
+  <text x="174" y="232" fill="#2d6a4f" font-size="12.5" font-weight="600">βασιλεύω</text>
+  <text x="280" y="232" fill="#777" font-size="10">Koine</text>
+
+  <text x="36" y="256" fill="#1a1a1a" font-size="12.5">κοπέλλα</text>
+  <text x="148" y="256" fill="#888" font-size="13">&#x2192;</text>
+  <text x="174" y="256" fill="#2d6a4f" font-size="12.5" font-weight="600">κοπέλα</text>
+  <text x="280" y="256" fill="#777" font-size="10">Cypriot</text>
+
+  <!-- speed note -->
+  <text x="183" y="286" text-anchor="middle" fill="#2d6a4f" font-size="9.5" font-style="italic">6.5M forms indexed &mdash; instant</text>
+
+  <!-- divider -->
+  <line x1="354" y1="50" x2="354" y2="310" stroke="#d4d0c8" stroke-width="0.5"/>
+
+  <!-- Transformer section -->
+  <rect x="366" y="50" width="310" height="18" rx="1" fill="#b45309"/>
+  <text x="521" y="63" text-anchor="middle" fill="#fff" font-size="10" font-weight="600" font-family="'Helvetica Neue',Helvetica,sans-serif">TRANSFORMER (unseen forms)</text>
+
+  <text x="378" y="88" fill="#999" font-size="9" font-family="'Helvetica Neue',Helvetica,sans-serif">FORM</text>
+  <text x="510" y="88" fill="#999" font-size="9" font-family="'Helvetica Neue',Helvetica,sans-serif">LEMMA</text>
+  <text x="620" y="88" fill="#999" font-size="9" font-family="'Helvetica Neue',Helvetica,sans-serif">PATTERN</text>
+  <line x1="372" y1="93" x2="670" y2="93" stroke="#e0ddd6" stroke-width="0.5"/>
+
+  <!-- Transformer examples — words NOT in Wiktionary -->
+  <text x="378" y="112" fill="#1a1a1a" font-size="12.5">εσκότωσε</text>
+  <text x="484" y="112" fill="#888" font-size="13">&#x2192;</text>
+  <text x="510" y="112" fill="#b45309" font-size="12.5" font-weight="600">σκοτώνω</text>
+  <text x="620" y="112" fill="#777" font-size="9.5">ε- augment strip</text>
+
+  <text x="378" y="136" fill="#1a1a1a" font-size="12.5">εφώναξε</text>
+  <text x="484" y="136" fill="#888" font-size="13">&#x2192;</text>
+  <text x="510" y="136" fill="#b45309" font-size="12.5" font-weight="600">φωνάζω</text>
+  <text x="620" y="136" fill="#777" font-size="9.5">-αξε &#x2192; -αζω</text>
+
+  <text x="378" y="160" fill="#1a1a1a" font-size="12.5">εσήκωσε</text>
+  <text x="484" y="160" fill="#888" font-size="13">&#x2192;</text>
+  <text x="510" y="160" fill="#b45309" font-size="12.5" font-weight="600">σηκώνω</text>
+  <text x="620" y="160" fill="#777" font-size="9.5">ε- + -ωσε &#x2192; -ωνω</text>
+
+  <text x="378" y="184" fill="#1a1a1a" font-size="12.5">ανδρειωμένων</text>
+  <text x="484" y="184" fill="#888" font-size="13">&#x2192;</text>
+  <text x="510" y="184" fill="#b45309" font-size="12.5" font-weight="600">ανδρειωμένος</text>
+  <text x="620" y="184" fill="#777" font-size="9.5">gen.pl &#x2192; nom.sg</text>
+
+  <text x="378" y="208" fill="#1a1a1a" font-size="12.5">εξηγήσεων</text>
+  <text x="484" y="208" fill="#888" font-size="13">&#x2192;</text>
+  <text x="510" y="208" fill="#b45309" font-size="12.5" font-weight="600">εξήγηση</text>
+  <text x="620" y="208" fill="#777" font-size="9.5">Kath. gen.pl</text>
+
+  <text x="378" y="232" fill="#1a1a1a" font-size="12.5">διεπραγματεύθη</text>
+  <text x="484" y="232" fill="#888" font-size="13">&#x2192;</text>
+  <text x="510" y="232" fill="#b45309" font-size="12.5" font-weight="600">διαπραγματεύομαι</text>
+  <text x="620" y="232" fill="#777" font-size="9.5">Kath. aorist pass.</text>
+
+  <!-- speed note -->
+  <text x="521" y="268" text-anchor="middle" fill="#b45309" font-size="9.5" font-style="italic">4M params &mdash; &lt;1ms per word</text>
+
+  <!-- Footer -->
+  <line x1="30" y1="300" x2="670" y2="300" stroke="#e0ddd6" stroke-width="0.5"/>
+  <text x="350" y="322" text-anchor="middle" fill="#aaa" font-size="9.5" font-family="'Helvetica Neue',Helvetica,sans-serif">Lookup handles 99%+ of known forms. Transformer generalizes to novel inflections, archaic augments, and cross-period morphology.</text>
+</svg>

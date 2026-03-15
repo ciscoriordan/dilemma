@@ -61,7 +61,11 @@ literary texts based on Homer.
 > `εσκότωσε` → `σκοτώνω` · `πολεμούσαν` → `πολεμώ` · `δώση` → `δίνω`
 
 <picture>
-  <img src="diagram.svg" width="720" alt="Dilemma architecture: Greek varieties → Wiktionary → Lookup + Transformer → lemma">
+  <img src="diagram.svg" width="700" alt="Dilemma architecture: Greek varieties flow through Wiktionary into lookup table and transformer">
+</picture>
+
+<picture>
+  <img src="examples.svg" width="700" alt="Lemmatization examples across Greek varieties, showing lookup and transformer paths">
 </picture>
 
 ---
