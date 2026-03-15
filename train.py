@@ -76,10 +76,13 @@ def load_pairs(lang: str, max_pairs: int = 0) -> list[dict]:
     lang="all" combines MG and AG pairs for a single model that handles
     katharevousa (which mixes AG morphology with MG vocabulary).
     """
+    # Medieval Greek is folded into MG — same language, earlier stage
     if lang == "all":
-        prefixes = ["mg", "ag", "med"]
+        prefixes = ["mg", "med", "ag"]
+    elif lang == "el":
+        prefixes = ["mg", "med"]
     else:
-        prefixes = [{"el": "mg", "grc": "ag", "mgr": "med"}[lang]]
+        prefixes = [{"grc": "ag"}[lang]]
 
     # Load raw pairs by source
     by_source = {}
@@ -109,15 +112,15 @@ def load_pairs(lang: str, max_pairs: int = 0) -> list[dict]:
         return result
 
     # Separate pools
-    varieties = []  # always 100%: non-SMG MG + Medieval
+    varieties = []  # always 100%: non-standard MG (including Medieval)
     ag_pool = []
     smg_pool = []
 
-    # All Medieval
+    # Medieval is part of MG — treat all Medieval pairs as varieties
     if "med" in by_source:
         med = dedup(by_source["med"])
         varieties.extend(med)
-        print(f"  varieties: {len(med)} Medieval pairs")
+        print(f"  varieties: {len(med)} Medieval MG pairs")
 
     # Non-standard MG (Katharevousa, Cypriot, Cretan, etc.)
     if "mg" in by_source:
@@ -334,7 +337,7 @@ def train(lang: str, epochs: int, batch_size: int, lr: float, eval_split: float,
 def main():
     parser = argparse.ArgumentParser(description="Train Dilemma lemmatizer")
     parser.add_argument("--lang", type=str, default="all",
-                        choices=["el", "grc", "all"],
+                        choices=["all", "el", "grc"],
                         help="Language: el (MG), grc (AG), mgr (Medieval), or both (MG+AG+Med, default)")
     parser.add_argument("--epochs", type=int, default=3,
                         help="Training epochs (default: 3)")
