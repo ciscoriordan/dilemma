@@ -2,7 +2,8 @@
 """Build training data for Dilemma from Wiktionary kaikki JSONL dumps.
 
 Scans both EN and EL Wiktionary dumps for Greek entries, extracts every
-inflected form -> lemma pair from inflection tables. Produces:
+inflected form -> lemma pair from inflection tables, form_of/alt_of
+references, and dialect-tagged paradigms. Produces:
   - data/mg_pairs.json: Modern Greek form->lemma training pairs
   - data/ag_pairs.json: Ancient Greek form->lemma training pairs
   - data/mg_lookup.json: flat lookup table {form: lemma}
@@ -23,6 +24,7 @@ import os
 import re
 import sys
 import unicodedata
+from collections import Counter
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -57,6 +59,12 @@ DOWNLOAD_URLS = {
         "https://kaikki.org/elwiktionary/Ancient%20Greek/kaikki.org-dictionary-AncientGreek.jsonl",
     "kaikki.org-el-dictionary-MedievalGreek.jsonl":
         "https://kaikki.org/elwiktionary/Medieval%20Greek/words/kaikki.org-dictionary-MedievalGreek-words.jsonl",
+}
+
+# Dialect prefixes found in table-tags (e.g. "Epic declension-1")
+DIALECT_PREFIXES = {
+    "Epic", "Attic", "Ionic", "Doric", "Aeolic", "Koine",
+    "Homeric", "Laconian", "Boeotian", "Arcadocypriot",
 }
 
 
@@ -108,6 +116,24 @@ def strip_accents(s: str) -> str:
         "".join(ch for ch in nfd if unicodedata.category(ch) != "Mn"))
 
 
+def _is_greek(s: str) -> bool:
+    """Check if string is entirely Greek characters + diacriticals."""
+    return all(
+        "\u0370" <= c <= "\u03FF"       # Greek and Coptic
+        or "\u1F00" <= c <= "\u1FFF"    # Greek Extended
+        or "\u0300" <= c <= "\u036F"    # Combining diacriticals
+        for c in s
+    )
+
+
+def _parse_dialect(table_tag: str) -> str:
+    """Extract dialect name from a table-tags value like 'Epic declension-1'."""
+    for dialect in DIALECT_PREFIXES:
+        if table_tag.startswith(dialect):
+            return dialect
+    return ""
+
+
 def download_dump(filename: str, dest_dir: Path):
     """Download a kaikki dump if missing."""
     url = DOWNLOAD_URLS.get(filename)
@@ -133,33 +159,59 @@ def download_dump(filename: str, dest_dir: Path):
         return False
 
 
-def _add_lookup(lookup: dict, form: str, lemma: str):
-    """Add a form to the lookup under original, lowercase, monotonic, and stripped keys."""
+def _add_lookup(lookup: dict, form: str, lemma: str, confidence: int = 1):
+    """Add a form to the lookup under original, lowercase, monotonic, and stripped keys.
+
+    Confidence levels (assigned during merge):
+        5 = both EN + EL have pages for this form
+        4 = EN Wiktionary has a page for this form (no EL page)
+        3 = EL Wiktionary has a page for this form (no EN page)
+        2 = EN + EL table entries agree on lemma (corroborated)
+        1 = single source, table-only (default)
+
+    Higher confidence always wins over lower.
+    """
     for key in (form, form.lower(), to_monotonic(form), to_monotonic(form).lower(),
                 strip_accents(form.lower())):
-        if key and key not in lookup:
-            lookup[key] = lemma
+        if not key:
+            continue
+        existing = lookup.get(key)
+        if existing is None or confidence > existing[1]:
+            lookup[key] = (lemma, confidence)
 
 
-def extract_pairs(jsonl_path: Path, lang: str) -> tuple[list[dict], dict]:
+def extract_pairs(jsonl_path: Path, lang: str,
+                   skip_name_plurals: set = None) -> tuple[list[dict], dict, set]:
     """Extract form->lemma pairs from a kaikki JSONL dump.
+
+    Extracts from three sources per entry:
+      1. forms[] array (inflection table cells)
+      2. form_of[] (this entry is a form of another headword)
+      3. alt_of[] (this entry is an alternative form of another headword)
+
+    Also extracts dialect tags from table-tags headers (e.g. "Epic declension-1")
+    and propagates them to forms that follow.
+
+    Args:
+        skip_name_plurals: if provided, skip plural forms of proper nouns unless
+            the form is in this set (filters EL template-generated garbage while
+            keeping EN-corroborated plurals).
 
     Returns:
         pairs: list of {form, lemma, pos, tags} dicts (for training)
-        lookup: flat {form: lemma} dict (for fast inference)
+        lookup: {form: (lemma, confidence)} dict
+        headwords: set of headwords that have their own page in this dump
     """
     if not jsonl_path.exists():
         print(f"  {lang}: not found at {jsonl_path}")
-        return [], {}
+        return [], {}, set()
 
     pairs = []
+    page_headwords = set()
     lookup = {}
     skip_tags = {"romanization", "table-tags", "inflection-template", "class"}
-    # POS types where Wiktionary dumps entire paradigm tables across
-    # persons/genders into each headword (articles, pronouns, determiners).
-    # These create massive cross-contamination (e.g. εσύ lists εγώ as a "form").
-    # Articles/determiners: skip all inflected forms (keep headword only).
-    # Pronouns: skip forms that are headwords of other pron/det/article entries.
+    # Articles/determiners dump all genders/persons into each headword.
+    # Pronouns have cross-contamination (εσύ lists εγώ as a "form").
     skip_all_forms_pos = {"article", "det"}
     filter_cross_forms_pos = {"pron"}
 
@@ -176,8 +228,12 @@ def extract_pairs(jsonl_path: Path, lang: str) -> tuple[list[dict], dict]:
                 if hw:
                     closed_class_headwords.add(hw)
                     closed_class_headwords.add(hw.lower())
+
     scanned = 0
-    entries_with_forms = 0
+    entries_with_data = 0
+    form_of_count = 0
+    alt_of_count = 0
+    dialect_tagged = 0
 
     with open(jsonl_path, encoding="utf-8") as f:
         for line in f:
@@ -189,49 +245,108 @@ def extract_pairs(jsonl_path: Path, lang: str) -> tuple[list[dict], dict]:
 
             word = entry.get("word", "")
             pos = entry.get("pos", "")
-            forms = entry.get("forms", [])
-            if not word or not forms:
+            if not word:
                 continue
 
             lemma = strip_length_marks(word)
-            entries_with_forms += 1
+            if not _is_greek(lemma.replace(" ", "")):
+                continue
 
-            # The headword itself maps to itself (original, monotonic, stripped)
-            _add_lookup(lookup, lemma, lemma)
+            page_headwords.add(lemma)
+            page_headwords.add(lemma.lower())
+
+            # The headword itself maps to itself
+            _add_lookup(lookup, lemma, lemma, confidence=1)
+
+            has_data = False
+
+            # --- Source 1: form_of (this page is a form of another word) ---
+            for ref in entry.get("form_of", []):
+                ref_word = strip_length_marks(ref.get("word", ""))
+                if not ref_word or not _is_greek(ref_word.replace(" ", "")):
+                    continue
+                if " " in ref_word:  # skip multi-word
+                    continue
+                # This entry (lemma) is a form of ref_word
+                _add_lookup(lookup, lemma, ref_word)
+                pairs.append({
+                    "form": lemma,
+                    "lemma": ref_word,
+                    "pos": pos,
+                    "tags": ["form-of"],
+                })
+                form_of_count += 1
+                has_data = True
+
+            # --- Source 2: alt_of (alternative form of another word) ---
+            for ref in entry.get("alt_of", []):
+                ref_word = strip_length_marks(ref.get("word", ""))
+                if not ref_word or not _is_greek(ref_word.replace(" ", "")):
+                    continue
+                if " " in ref_word:
+                    continue
+                _add_lookup(lookup, lemma, ref_word)
+                pairs.append({
+                    "form": lemma,
+                    "lemma": ref_word,
+                    "pos": pos,
+                    "tags": ["alt-of"],
+                })
+                alt_of_count += 1
+                has_data = True
+
+            # --- Source 3: forms[] (inflection table) ---
+            forms = entry.get("forms", [])
+            if not forms:
+                if has_data:
+                    entries_with_data += 1
+                continue
+
+            entries_with_data += 1
 
             # Skip all inflected forms from articles/determiners
             if pos in skip_all_forms_pos:
                 continue
 
+            # Track current dialect from table-tags headers
+            current_dialect = ""
+
             for f_entry in forms:
                 tags = f_entry.get("tags", [])
-                if any(t in skip_tags for t in tags):
-                    continue
-                form = strip_length_marks(f_entry.get("form", ""))
-                if not form or not any(c.isalpha() for c in form):
-                    continue
-                # Skip multi-word forms
-                if " " in form:
-                    continue
-                # Skip non-Greek: must be entirely Greek letters + accents
-                # Allow: Greek (U+0370-03FF), Extended Greek (U+1F00-1FFF),
-                # combining diacriticals (U+0300-036F)
-                if not all(
-                    "\u0370" <= c <= "\u03FF"       # Greek and Coptic
-                    or "\u1F00" <= c <= "\u1FFF"    # Greek Extended
-                    or "\u0300" <= c <= "\u036F"    # Combining diacriticals
-                    for c in form
-                ):
+                form_text = f_entry.get("form", "")
+
+                # Update dialect context from table-tags
+                if "table-tags" in tags:
+                    current_dialect = _parse_dialect(form_text)
                     continue
 
-                # For pronouns: skip forms that are headwords of other
-                # closed-class entries (cross-contamination from shared
-                # paradigm tables, e.g. εσύ entry listing εγώ as a "form")
+                if any(t in skip_tags for t in tags):
+                    continue
+
+                form = strip_length_marks(form_text)
+                if not form or not any(c.isalpha() for c in form):
+                    continue
+                if " " in form:
+                    continue
+                if not _is_greek(form):
+                    continue
+
+                # Pronoun cross-contamination filter
                 if pos in filter_cross_forms_pos:
                     if form in closed_class_headwords and form != lemma:
                         continue
 
+                # Proper noun plural filter
+                if pos == "name" and "plural" in tags and skip_name_plurals is not None:
+                    if form not in skip_name_plurals:
+                        continue
+
                 morph_tags = [t for t in tags if t not in ("canonical",)]
+
+                # Add dialect tag if we're inside a dialect-specific table section
+                if current_dialect and current_dialect not in morph_tags:
+                    morph_tags.append(current_dialect)
+                    dialect_tagged += 1
 
                 pairs.append({
                     "form": form,
@@ -253,10 +368,16 @@ def extract_pairs(jsonl_path: Path, lang: str) -> tuple[list[dict], dict]:
                 # Lookup: original, lowercase, monotonic, accent-stripped
                 _add_lookup(lookup, form, lemma)
 
-    print(f"  {lang}: scanned {scanned} entries, "
-          f"{entries_with_forms} with forms, "
-          f"{len(pairs)} pairs, {len(lookup)} lookup entries")
-    return pairs, lookup
+    print(f"  {lang}: scanned {scanned:,} entries, "
+          f"{entries_with_data:,} with data, "
+          f"{len(pairs):,} pairs, {len(lookup):,} lookup entries")
+    if form_of_count:
+        print(f"    form_of: {form_of_count:,} pairs")
+    if alt_of_count:
+        print(f"    alt_of: {alt_of_count:,} pairs")
+    if dialect_tagged:
+        print(f"    dialect-tagged forms: {dialect_tagged:,}")
+    return pairs, lookup, page_headwords
 
 
 def main():
@@ -291,17 +412,85 @@ def main():
         print(f"{'='*50}")
 
         all_pairs = []
-        all_lookup = {}
+        all_lookup = {}  # {form: (lemma, confidence)}
+        source_lookups = []  # (wikt_lang, lookup, headwords)
 
+        # Extract EN first to collect proper noun forms for corroboration
+        en_name_forms = set()
+        if "en" in DUMPS[lang]:
+            en_path = klisy_dir / DUMPS[lang]["en"]
+            print(f"\nScanning en Wiktionary: {DUMPS[lang]['en']}")
+            pairs, lookup, headwords = extract_pairs(en_path, f"{lang}-en")
+            all_pairs.extend(pairs)
+            source_lookups.append(("en", lookup, headwords))
+            # Collect all proper noun forms from EN for corroboration
+            if en_path.exists():
+                with open(en_path, encoding="utf-8") as f:
+                    for line in f:
+                        try:
+                            e = json.loads(line)
+                        except:
+                            continue
+                        if e.get("pos") == "name":
+                            for fe in e.get("forms", []):
+                                en_name_forms.add(fe.get("form", ""))
+
+        # Extract remaining sources (EL, etc.) with proper noun plural filter
         for wikt_lang, filename in DUMPS[lang].items():
+            if wikt_lang == "en":
+                continue  # already processed
             path = klisy_dir / filename
             print(f"\nScanning {wikt_lang} Wiktionary: {path.name}")
-            pairs, lookup = extract_pairs(path, f"{lang}-{wikt_lang}")
+            pairs, lookup, headwords = extract_pairs(
+                path, f"{lang}-{wikt_lang}",
+                skip_name_plurals=en_name_forms if en_name_forms else None)
             all_pairs.extend(pairs)
-            # Merge lookup (first wins)
-            for k, v in lookup.items():
+            source_lookups.append((wikt_lang, lookup, headwords))
+
+        # Collect headword sets by source for confidence scoring
+        en_headwords = set()
+        el_headwords = set()
+        for wikt_lang, _, headwords in source_lookups:
+            if wikt_lang == "en":
+                en_headwords = headwords
+            else:
+                el_headwords |= headwords  # merge all non-EN sources
+
+        # First pass: merge all lookups (first wins for same confidence)
+        for _, lookup, _ in source_lookups:
+            for k, (lemma, _) in lookup.items():
                 if k not in all_lookup:
-                    all_lookup[k] = v
+                    all_lookup[k] = (lemma, 1)
+
+        # Second pass: assign confidence tiers based on page presence
+        # 5 = both EN + EL have pages for this form
+        # 4 = EN page only
+        # 3 = EL page only
+        # 2 = EN + EL table entries agree on lemma (no page for form)
+        # 1 = single source, table-only
+        for k in list(all_lookup.keys()):
+            lemma = all_lookup[k][0]
+            in_en = k in en_headwords
+            in_el = k in el_headwords
+            if in_en and in_el:
+                all_lookup[k] = (lemma, 5)
+            elif in_en:
+                all_lookup[k] = (lemma, 4)
+            elif in_el:
+                all_lookup[k] = (lemma, 3)
+            else:
+                # Check if both sources have this form in tables with same lemma
+                en_lemma = None
+                el_lemma = None
+                for wikt_lang, lookup, _ in source_lookups:
+                    if k in lookup:
+                        if wikt_lang == "en":
+                            en_lemma = lookup[k][0]
+                        else:
+                            el_lemma = lookup[k][0]
+                if en_lemma and el_lemma and en_lemma == el_lemma:
+                    all_lookup[k] = (lemma, 2)
+                # else stays at 1
 
         # Deduplicate pairs
         seen = set()
@@ -312,36 +501,30 @@ def main():
                 seen.add(key)
                 unique_pairs.append(p)
 
-        # Break chained lookups: if form→lemma→X, the mapping is suspect.
-        # A valid lemma should map to itself (it's a headword).
-        headwords = set()
-        for k, v in all_lookup.items():
-            if k == v:
-                headwords.add(k)
+        # Break chained lookups: if form->lemma->X, the mapping is suspect.
+        headwords = {k for k, (v, _) in all_lookup.items() if k == v}
         chains_broken = 0
         for k in list(all_lookup.keys()):
-            lemma = all_lookup[k]
-            if lemma != k and lemma in all_lookup and all_lookup[lemma] != lemma:
-                # This lemma is not a headword — it maps to something else.
-                # Follow the chain to find the real headword.
+            lemma, conf = all_lookup[k]
+            if lemma != k and lemma in all_lookup and all_lookup[lemma][0] != lemma:
                 seen_chain = {k, lemma}
-                target = all_lookup[lemma]
+                target = all_lookup[lemma][0]
                 depth = 0
-                while target in all_lookup and all_lookup[target] != target and depth < 5:
+                while target in all_lookup and all_lookup[target][0] != target and depth < 5:
                     if target in seen_chain:
-                        break  # cycle
+                        break
                     seen_chain.add(target)
-                    target = all_lookup[target]
+                    target = all_lookup[target][0]
                     depth += 1
                 if target in headwords:
-                    all_lookup[k] = target
+                    all_lookup[k] = (target, conf)
                 else:
                     del all_lookup[k]
                 chains_broken += 1
         print(f"Chained lookups fixed: {chains_broken}")
 
         # Recompute headwords after chain-breaking
-        headwords = {k for k, v in all_lookup.items() if k == v}
+        headwords = {k for k, (v, _) in all_lookup.items() if k == v}
 
         # Fix training pairs: rewrite lemmas to match the cleaned lookup,
         # drop pairs whose lemma can't be resolved to a headword.
@@ -353,8 +536,7 @@ def main():
             if lemma in headwords:
                 clean_pairs.append(p)
             elif lemma in all_lookup:
-                # Lemma was rewritten during chain-breaking — follow it
-                resolved = all_lookup[lemma]
+                resolved = all_lookup[lemma][0]
                 if resolved in headwords:
                     clean_pairs.append({"form": p["form"], "lemma": resolved,
                                         "pos": p.get("pos", ""), "tags": p.get("tags", [])})
@@ -375,16 +557,36 @@ def main():
         print(f"Training pairs: {len(unique_pairs)} ({size_mb:.1f} MB)")
         print(f"  -> {pairs_path}")
 
-        # Save lookup table
+        # Confidence stats
+        conf_counts = Counter(c for _, c in all_lookup.values())
+        print(f"Confidence tiers:")
+        for tier, label in [(5, "both pages"), (4, "EN page"), (3, "EL page"),
+                             (2, "corroborated"), (1, "table-only")]:
+            if conf_counts[tier]:
+                print(f"  {tier}: {conf_counts[tier]:>10,}  {label}")
+
+        # Dialect tag stats (from training pairs)
+        dialect_counts = Counter()
+        for p in unique_pairs:
+            for t in p.get("tags", []):
+                if t in DIALECT_PREFIXES:
+                    dialect_counts[t] += 1
+        if dialect_counts:
+            print(f"Dialect-tagged pairs:")
+            for dialect, count in dialect_counts.most_common():
+                print(f"  {dialect:20s} {count:>8,}")
+
+        # Save lookup table (flatten to {form: lemma})
+        flat_lookup = {k: v[0] for k, v in all_lookup.items()}
         lookup_path = DATA_DIR / f"{prefix}_lookup.json"
         with open(lookup_path, "w", encoding="utf-8") as f:
-            json.dump(all_lookup, f, ensure_ascii=False, separators=(",", ":"))
+            json.dump(flat_lookup, f, ensure_ascii=False, separators=(",", ":"))
         size_mb = lookup_path.stat().st_size / (1024 * 1024)
-        print(f"Lookup table: {len(all_lookup)} entries ({size_mb:.1f} MB)")
+        print(f"Lookup table: {len(flat_lookup)} entries ({size_mb:.1f} MB)")
         print(f"  -> {lookup_path}")
 
         # Stats
-        unique_lemmas = len(set(all_lookup.values()))
+        unique_lemmas = len(set(v[0] for v in all_lookup.values()))
         print(f"Unique lemmas: {unique_lemmas}")
 
 
