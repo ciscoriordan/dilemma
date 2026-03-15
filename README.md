@@ -1,13 +1,24 @@
 # Dilemma <img src="https://raw.githubusercontent.com/ciscoriordan/svg-flags/main/circle/languages/el.svg" width="28" alt="Greek"> <img src="https://raw.githubusercontent.com/ciscoriordan/svg-flags/main/circle/countries/cy.svg" width="28" alt="Cyprus"> <img src="https://raw.githubusercontent.com/ciscoriordan/svg-flags/main/circle/historical/byzantine.svg" width="28" alt="Byzantine">
 
-**Greek lemmatizer** with a 6.5 million form lookup table and a small
-character-level transformer trained on Wiktionary inflection pairs
-spanning Modern Greek, Ancient Greek, and Medieval Greek.
+**Greek lemmatizer** with a 6.5 million form lookup table and a ~4M
+parameter character-level transformer trained on 3.4 million Wiktionary
+inflection pairs spanning Modern Greek, Ancient Greek, and Medieval Greek.
 
-Handles Standard Modern Greek, Katharevousa, and regional varieties.
-Existing lemmatizers (*stanza*, *spaCy*) are trained on small modern news
-corpora and fail on anything outside standard SMG. Dilemma trains a single
-model on inflection data from all three periods of the language.
+Most Greek words resolve instantly via the lookup table. For unseen forms,
+Dilemma uses a small encoder-decoder transformer that learns morphological
+patterns at the character level — the standard architecture from
+[SIGMORPHON](https://sigmorphon.github.io/) shared tasks. At 4M parameters
+it trains from scratch in minutes and runs inference in under a millisecond,
+compared to fine-tuning approaches like ByT5-small (300M params) which take
+hours to train and ~10ms per word. Greek lemmatization is highly
+pattern-based — a small specialized model matches a large general-purpose
+one, and the 6.5M lookup table handles the rest.
+
+Handles Standard Modern Greek, Katharevousa, Cypriot, Cretan, and other
+regional varieties alongside Ancient and Medieval Greek. Existing
+lemmatizers (*stanza*, *spaCy*) are trained on ~30K tokens of modern news
+and fail on anything outside standard SMG. Dilemma trains on **100x more
+data** from all three periods of the language.
 
 ### Modern Greek varieties
 
