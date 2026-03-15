@@ -324,6 +324,19 @@ is more accurate on classical AG (decades of hand-tuned rules), but only
 covers one period. Dilemma covers all periods in one model, the only tool
 that handles Katharevousa, which mixes AG morphology with MG vocabulary.
 
+### gr-nlp-toolkit
+
+[gr-nlp-toolkit](https://github.com/nlpaueb/gr-nlp-toolkit) provides
+POS tagging, NER, morphological tagging, and dependency parsing for
+Modern Greek, but does not do lemmatization. It uses *ByT5* for its
+Greeklish transliteration module. *ByT5* processes raw UTF-8 bytes
+rather than linguistic units, so a 10-character Greek word becomes
+~20 encoder steps. This makes it unnecessarily slow for tasks like
+lemmatization where the input/output vocabulary is small and fixed.
+Dilemma's character-level transformer uses a Greek-specific vocabulary
+(~160 tokens), giving it the same sequence length as the actual word
+while being 75x smaller and 10-20x faster to train.
+
 ### Related work
 
 [Vatri & McGillivray (2020)](https://brill.com/view/journals/jgl/20/2/article-p179_4.xml)
