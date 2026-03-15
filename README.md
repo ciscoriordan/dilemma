@@ -60,13 +60,13 @@ literary texts based on Homer.
 
 > `εσκότωσε` → `σκοτώνω` · `πολεμούσαν` → `πολεμώ` · `δώση` → `δίνω`
 
-<picture>
-  <img src="diagram.svg" width="700" alt="Dilemma architecture: Greek varieties flow through Wiktionary into lookup table and transformer">
-</picture>
+<p align="center">
+  <img src="https://raw.githubusercontent.com/ciscoriordan/dilemma/main/diagram.svg" width="700" alt="Dilemma architecture">
+</p>
 
-<picture>
-  <img src="examples.svg" width="700" alt="Lemmatization examples across Greek varieties, showing lookup and transformer paths">
-</picture>
+<p align="center">
+  <img src="https://raw.githubusercontent.com/ciscoriordan/dilemma/main/examples.svg" width="700" alt="Lemmatization examples">
+</p>
 
 ---
 
@@ -75,8 +75,8 @@ literary texts based on Homer.
 ```python
 from dilemma import Dilemma
 
-d = Dilemma(lang="both")                      # combined MG+AG+Med
-d.lemmatize("εσκότωσε")                       # "σκοτώνω" (AG augment + MG stem)
+d = Dilemma()                                  # all periods (default)
+d.lemmatize("εσκότωσε")                       # "σκοτώνω"
 d.lemmatize("πάθης")                          # "παθαίνω"
 d.lemmatize_batch(["δώση", "σκότωσε"])        # ["δίνω", "σκοτώνω"]
 
@@ -85,7 +85,7 @@ d_mg = Dilemma(lang="el")                     # MG only
 d_grc = Dilemma(lang="grc")                   # AG only
 
 # Specific model scale
-d = Dilemma(lang="both", scale=1)             # use scale 1 model
+d = Dilemma(scale=1)                          # use scale 1 model
 ```
 
 ## How It Works
@@ -165,9 +165,13 @@ Models are saved to `model/combined-s0/`, `model/combined-s1/`, etc.
 `Dilemma()` auto-detects the best available scale, or you can specify one:
 
 ```python
-d = Dilemma(lang="both", scale=0)     # use scale 0 model explicitly
-d = Dilemma(lang="both")              # auto-detect highest available
+d = Dilemma(scale=0)                  # use scale 0 model explicitly
+d = Dilemma()                         # auto-detect highest available
 ```
+
+Medieval Greek (Byzantine) is always folded into the default `"all"` mode
+rather than exposed as a separate language. The corpus is small (~3K
+entries) and primarily useful as a bridge between AG and MG morphology.
 
 ### GPU quick start
 
