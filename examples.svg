@@ -12,7 +12,7 @@
   <text x="290" y="82" fill="#999" font-size="9" font-family="'Helvetica Neue',Helvetica,sans-serif">VARIETY</text>
   <line x1="28" y1="87" x2="344" y2="87" stroke="#e0ddd6" stroke-width="0.5"/>
 
-  <text x="32" y="106" fill="#1a1a1a" font-size="12">θεοὶ</text>
+  <text x="32" y="106" fill="#1a1a1a" font-size="12">θεοί</text>
   <text x="120" y="106" fill="#999" font-size="11">&#x2192;</text>
   <text x="140" y="106" fill="#2d6a4f" font-size="12" font-weight="600">θεός</text>
   <text x="290" y="106" fill="#888" font-size="10">Epic</text>
