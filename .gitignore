@@ -1,0 +1,7 @@
+model/
+data/*.json
+__pycache__/
+*.pyc
+progress.log
+data/
+model/

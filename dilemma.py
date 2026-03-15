@@ -1,0 +1,205 @@
+"""Dilemma - Greek lemmatizer.
+
+Fast lookup table for known forms, custom transformer model for unknown forms.
+
+Usage:
+    from dilemma import Dilemma
+
+    m = Dilemma()                        # loads lookup table + model
+    m.lemmatize("πάθης")                # -> "παθαίνω"
+    m.lemmatize("πολεμούσαν")           # -> "πολεμώ"
+    m.lemmatize_batch(["δώση", "σκότωσε"])  # -> ["δίνω", "σκοτώνω"]
+"""
+
+import json
+import unicodedata
+from pathlib import Path
+
+MODEL_DIR = Path(__file__).parent / "model"
+LOOKUP_PATH = Path(__file__).parent / "data" / "mg_lookup.json"
+AG_LOOKUP_PATH = Path(__file__).parent / "data" / "ag_lookup.json"
+MED_LOOKUP_PATH = Path(__file__).parent / "data" / "med_lookup.json"
+
+
+_POLYTONIC_STRIP = {0x0313, 0x0314, 0x0345, 0x0306, 0x0304}
+_POLYTONIC_TO_ACUTE = {0x0300, 0x0342}
+
+
+def to_monotonic(s: str) -> str:
+    """Convert polytonic Greek to monotonic."""
+    nfd = unicodedata.normalize("NFD", s)
+    out = []
+    for ch in nfd:
+        cp = ord(ch)
+        if cp in _POLYTONIC_STRIP:
+            continue
+        if cp in _POLYTONIC_TO_ACUTE:
+            out.append("\u0301")
+            continue
+        out.append(ch)
+    return unicodedata.normalize("NFC", "".join(out))
+
+
+def strip_accents(s: str) -> str:
+    """Strip all accents for fuzzy matching."""
+    nfd = unicodedata.normalize("NFD", s)
+    return unicodedata.normalize("NFC",
+        "".join(c for c in nfd if unicodedata.category(c) != "Mn"))
+
+
+class Dilemma:
+    def __init__(self, lang="el", device=None, scale=None):
+        """Initialize Dilemma.
+
+        Args:
+            lang: "el" for MG, "grc" for AG, "mgr" for Medieval,
+                  "both" for combined (best for katharevousa)
+            device: "cpu", "cuda", etc. Auto-detected if None.
+            scale: Model scale (0-4). None auto-detects the best available.
+                   Larger scales = more training data = better generalization
+                   on unseen forms. Lookup table is the same for all scales.
+        """
+        self.lang = lang
+        self._scale = scale
+        self._model = None
+        self._vocab = None
+        self._device = device
+        self._lookup: dict[str, str] = {}
+
+        # Load lookup table(s)
+        if lang == "both":
+            # MG first (priority), then Medieval, then AG fills gaps
+            for path in [LOOKUP_PATH, MED_LOOKUP_PATH, AG_LOOKUP_PATH]:
+                if path.exists():
+                    with open(path, encoding="utf-8") as f:
+                        data = json.load(f)
+                    for k, v in data.items():
+                        if k not in self._lookup:
+                            self._lookup[k] = v
+        else:
+            lookup_path = {
+                "el": LOOKUP_PATH, "grc": AG_LOOKUP_PATH, "mgr": MED_LOOKUP_PATH,
+            }[lang]
+            if lookup_path.exists():
+                with open(lookup_path, encoding="utf-8") as f:
+                    self._lookup = json.load(f)
+
+    def _load_model(self):
+        """Lazy-load the transformer model on first use."""
+        if self._model is not None:
+            return
+
+        import torch
+        from model import CharVocab, LemmaTransformer
+
+        lang_dir = {"el": "el", "grc": "grc", "mgr": "med", "both": "combined"}[self.lang]
+
+        # Find model: try scale-specific dir first, then auto-detect best available
+        if self._scale is not None:
+            model_path = MODEL_DIR / f"{lang_dir}-s{self._scale}"
+        else:
+            # Auto-detect: pick highest available scale
+            model_path = None
+            for s in [4, 3, 2, 1, 0]:
+                candidate = MODEL_DIR / f"{lang_dir}-s{s}"
+                if (candidate / "model.pt").exists():
+                    model_path = candidate
+                    break
+            # Fallback to unscaled dir
+            if model_path is None:
+                model_path = MODEL_DIR / lang_dir
+
+        pt_path = model_path / "model.pt"
+        if not pt_path.exists():
+            raise FileNotFoundError(
+                f"No trained model at {pt_path}. "
+                f"Run: python train.py --lang {self.lang}"
+            )
+
+        device = self._device
+        if device is None:
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+        self._device = device
+
+        checkpoint = torch.load(pt_path, map_location=device, weights_only=False)
+        self._vocab = CharVocab()
+        self._vocab.load_state_dict(checkpoint["vocab"])
+        cfg = checkpoint["config"]
+        self._model = LemmaTransformer(**cfg)
+        self._model.load_state_dict(checkpoint["model_state_dict"])
+        self._model.to(device)
+        self._model.eval()
+
+    def lemmatize(self, word: str) -> str:
+        """Lemmatize a single Greek word.
+
+        Checks lookup table first (instant), falls back to model.
+        Tries: exact -> lowercase -> monotonic -> accent-stripped -> model.
+        """
+        # Exact match
+        if word in self._lookup:
+            return self._lookup[word]
+        # Case-insensitive
+        lower = word.lower()
+        if lower in self._lookup:
+            return self._lookup[lower]
+        # Monotonic (grave -> acute, strip breathings)
+        mono = to_monotonic(lower)
+        if mono in self._lookup:
+            return self._lookup[mono]
+        # Accent-stripped
+        stripped = strip_accents(lower)
+        if stripped in self._lookup:
+            return self._lookup[stripped]
+
+        # Fall back to model
+        self._load_model()
+        return self._predict([word])[0]
+
+    def lemmatize_batch(self, words: list[str]) -> list[str]:
+        """Lemmatize a batch of words. Uses model only for unknowns."""
+        results = []
+        model_indices = []
+        model_words = []
+
+        for i, word in enumerate(words):
+            lower = word.lower()
+            mono = to_monotonic(lower)
+            stripped = strip_accents(lower)
+            lemma = (self._lookup.get(word)
+                     or self._lookup.get(lower)
+                     or self._lookup.get(mono)
+                     or self._lookup.get(stripped))
+            if lemma:
+                results.append(lemma)
+            else:
+                results.append(None)
+                model_indices.append(i)
+                model_words.append(word)
+
+        if model_words:
+            self._load_model()
+            predictions = self._predict(model_words)
+            for idx, pred in zip(model_indices, predictions):
+                results[idx] = pred
+
+        return results
+
+    def _predict(self, words: list[str]) -> list[str]:
+        """Run model inference on a batch of words."""
+        import torch
+
+        max_len = max(len(w) for w in words) + 1
+        src_ids = []
+        for w in words:
+            ids = self._vocab.encode(w)
+            ids = ids + [0] * (max_len - len(ids))
+            src_ids.append(ids)
+
+        src = torch.tensor(src_ids, dtype=torch.long, device=self._device)
+        src_pad_mask = (src == 0)
+
+        with torch.no_grad():
+            out_ids = self._model.generate(src, src_key_padding_mask=src_pad_mask)
+
+        return [self._vocab.decode(ids.tolist()) for ids in out_ids]
