@@ -2,4 +2,4 @@ data/
 __pycache__/
 *.pyc
 progress.log
-model/combined-s[2-9]/
+model/combined-s[3-9]/
