@@ -9,7 +9,7 @@ Dilemma uses a small encoder-decoder transformer that learns morphological
 patterns at the character level — the standard architecture from
 [SIGMORPHON](https://sigmorphon.github.io/) shared tasks. At 4M parameters
 it trains from scratch in minutes and runs inference in under a millisecond,
-compared to fine-tuning approaches like ByT5-small (300M params) which take
+compared to fine-tuning approaches like *ByT5-small* (300M params) which take
 hours to train and ~10ms per word. Greek lemmatization is highly
 pattern-based — a small specialized model matches a large general-purpose
 one, and the 6.5M lookup table handles the rest.
@@ -198,16 +198,16 @@ No pretrained weights — the model is small enough to train from scratch
 on 500K+ pairs in minutes. The character vocabulary covers all Greek
 Unicode ranges (monotonic, polytonic, extended).
 
-### Why not ByT5?
+### Why not *ByT5*?
 
 An earlier version of Dilemma fine-tuned Google's
-[ByT5-small](https://huggingface.co/google/byt5-small) (300M params).
-ByT5 processes raw UTF-8 bytes, so a 10-character Greek word becomes
+[*ByT5-small*](https://huggingface.co/google/byt5-small) (300M params).
+*ByT5* processes raw UTF-8 bytes, so a 10-character Greek word becomes
 ~20 encoder steps. The custom transformer uses a Greek character
 vocabulary (~160 tokens), so the same word is ~10 steps. Combined with
 75x fewer parameters:
 
-|  | ByT5-small | Dilemma |
+|  | *ByT5-small* | Dilemma |
 |--|:----------:|:-------:|
 | Parameters | 300M | 4M |
 | Training (500K pairs, 3 epochs) | ~4 hours | ~10 min |
