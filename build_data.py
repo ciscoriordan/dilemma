@@ -155,6 +155,27 @@ def extract_pairs(jsonl_path: Path, lang: str) -> tuple[list[dict], dict]:
     pairs = []
     lookup = {}
     skip_tags = {"romanization", "table-tags", "inflection-template", "class"}
+    # POS types where Wiktionary dumps entire paradigm tables across
+    # persons/genders into each headword (articles, pronouns, determiners).
+    # These create massive cross-contamination (e.g. εσύ lists εγώ as a "form").
+    # Articles/determiners: skip all inflected forms (keep headword only).
+    # Pronouns: skip forms that are headwords of other pron/det/article entries.
+    skip_all_forms_pos = {"article", "det"}
+    filter_cross_forms_pos = {"pron"}
+
+    # First pass: collect headwords of closed-class POS for cross-contamination check
+    closed_class_headwords = set()
+    with open(jsonl_path, encoding="utf-8") as f:
+        for line in f:
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if entry.get("pos") in skip_all_forms_pos | filter_cross_forms_pos:
+                hw = strip_length_marks(entry.get("word", ""))
+                if hw:
+                    closed_class_headwords.add(hw)
+                    closed_class_headwords.add(hw.lower())
     scanned = 0
     entries_with_forms = 0
 
@@ -178,6 +199,10 @@ def extract_pairs(jsonl_path: Path, lang: str) -> tuple[list[dict], dict]:
             # The headword itself maps to itself (original, monotonic, stripped)
             _add_lookup(lookup, lemma, lemma)
 
+            # Skip all inflected forms from articles/determiners
+            if pos in skip_all_forms_pos:
+                continue
+
             for f_entry in forms:
                 tags = f_entry.get("tags", [])
                 if any(t in skip_tags for t in tags):
@@ -198,6 +223,13 @@ def extract_pairs(jsonl_path: Path, lang: str) -> tuple[list[dict], dict]:
                     for c in form
                 ):
                     continue
+
+                # For pronouns: skip forms that are headwords of other
+                # closed-class entries (cross-contamination from shared
+                # paradigm tables, e.g. εσύ entry listing εγώ as a "form")
+                if pos in filter_cross_forms_pos:
+                    if form in closed_class_headwords and form != lemma:
+                        continue
 
                 morph_tags = [t for t in tags if t not in ("canonical",)]
 

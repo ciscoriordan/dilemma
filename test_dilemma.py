@@ -66,9 +66,10 @@ def test_known_pairs() -> list[dict]:
         {"form": "ἐβασίλευσεν", "lemma": "βασιλεύω", "variety": "Koine"},
         # Katharevousa
         {"form": "ἐξετέλεσεν", "lemma": "ἐκτελέω", "variety": "Katharevousa"},
-        # Articles — Wiktionary uses η as headword for the definite article
-        {"form": "τους", "lemma": "η", "variety": "SMG article"},
-        {"form": "της", "lemma": "η", "variety": "SMG article"},
+        # Articles/pronouns — ambiguous forms map to themselves
+        # (τους can be article, pronoun, or clitic; no single correct lemma)
+        {"form": "τους", "lemma": "τους", "variety": "SMG article/pronoun"},
+        {"form": "της", "lemma": "της", "variety": "SMG article/pronoun"},
     ]
 
 
