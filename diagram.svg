@@ -1,0 +1,119 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 420" font-family="-apple-system,system-ui,sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="5" orient="auto">
+      <path d="M0,0 L10,3 L0,6" fill="#64748b"/>
+    </marker>
+    <linearGradient id="gLookup" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="gModel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="720" height="420" rx="12" fill="#0f172a"/>
+
+  <!-- Column headers -->
+  <text x="115" y="32" text-anchor="middle" fill="#94a3b8" font-size="11" font-weight="600" letter-spacing="1">VARIETIES</text>
+  <text x="555" y="32" text-anchor="middle" fill="#94a3b8" font-size="11" font-weight="600" letter-spacing="1">DILEMMA</text>
+
+  <!-- ═══ Left column: Greek varieties ═══ -->
+
+  <!-- Modern Greek cluster -->
+  <rect x="20" y="50" width="190" height="24" rx="4" fill="#10b981" opacity="0.15"/>
+  <text x="115" y="66" text-anchor="middle" fill="#10b981" font-size="12" font-weight="700">Modern Greek</text>
+
+  <rect x="30" y="82" width="170" height="20" rx="3" fill="#1e293b"/>
+  <text x="115" y="96" text-anchor="middle" fill="#e2e8f0" font-size="11">SMG / Demotic</text>
+
+  <rect x="30" y="106" width="170" height="20" rx="3" fill="#1e293b"/>
+  <text x="115" y="120" text-anchor="middle" fill="#e2e8f0" font-size="11">Katharevousa</text>
+
+  <rect x="30" y="130" width="170" height="20" rx="3" fill="#1e293b"/>
+  <text x="115" y="144" text-anchor="middle" fill="#e2e8f0" font-size="11">Cypriot</text>
+
+  <rect x="30" y="154" width="170" height="20" rx="3" fill="#1e293b"/>
+  <text x="115" y="168" text-anchor="middle" fill="#e2e8f0" font-size="11">Cretan</text>
+
+  <rect x="30" y="178" width="82" height="20" rx="3" fill="#1e293b"/>
+  <text x="71" y="192" text-anchor="middle" fill="#cbd5e1" font-size="10">Heptanesian</text>
+
+  <rect x="118" y="178" width="82" height="20" rx="3" fill="#1e293b"/>
+  <text x="159" y="192" text-anchor="middle" fill="#cbd5e1" font-size="10">Maniot</text>
+
+  <!-- Medieval cluster -->
+  <rect x="20" y="214" width="190" height="24" rx="4" fill="#a855f7" opacity="0.15"/>
+  <text x="115" y="230" text-anchor="middle" fill="#a855f7" font-size="12" font-weight="700">Medieval Greek</text>
+
+  <rect x="30" y="246" width="170" height="20" rx="3" fill="#1e293b"/>
+  <text x="115" y="260" text-anchor="middle" fill="#e2e8f0" font-size="11">Byzantine</text>
+
+  <!-- Ancient Greek cluster -->
+  <rect x="20" y="282" width="190" height="24" rx="4" fill="#3b82f6" opacity="0.15"/>
+  <text x="115" y="298" text-anchor="middle" fill="#3b82f6" font-size="12" font-weight="700">Ancient Greek</text>
+
+  <rect x="30" y="314" width="82" height="20" rx="3" fill="#1e293b"/>
+  <text x="71" y="328" text-anchor="middle" fill="#e2e8f0" font-size="10">Epic</text>
+
+  <rect x="118" y="314" width="82" height="20" rx="3" fill="#1e293b"/>
+  <text x="159" y="328" text-anchor="middle" fill="#e2e8f0" font-size="10">Attic</text>
+
+  <rect x="30" y="338" width="82" height="20" rx="3" fill="#1e293b"/>
+  <text x="71" y="352" text-anchor="middle" fill="#e2e8f0" font-size="10">Ionic</text>
+
+  <rect x="118" y="338" width="82" height="20" rx="3" fill="#1e293b"/>
+  <text x="159" y="352" text-anchor="middle" fill="#e2e8f0" font-size="10">Koine</text>
+
+  <rect x="30" y="362" width="82" height="20" rx="3" fill="#1e293b"/>
+  <text x="71" y="376" text-anchor="middle" fill="#e2e8f0" font-size="10">Doric</text>
+
+  <rect x="118" y="362" width="82" height="20" rx="3" fill="#1e293b"/>
+  <text x="159" y="376" text-anchor="middle" fill="#e2e8f0" font-size="10">Aeolic</text>
+
+  <rect x="30" y="386" width="170" height="20" rx="3" fill="#1e293b"/>
+  <text x="115" y="400" text-anchor="middle" fill="#94a3b8" font-size="10">+ Laconian, Boeotian, Arcadocypriot</text>
+
+  <!-- ═══ Arrows from varieties to center ═══ -->
+  <line x1="210" y1="140" x2="310" y2="200" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)" opacity="0.5"/>
+  <line x1="210" y1="256" x2="310" y2="210" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)" opacity="0.5"/>
+  <line x1="210" y1="350" x2="310" y2="220" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)" opacity="0.5"/>
+
+  <!-- ═══ Center: Wiktionary source ═══ -->
+  <rect x="314" y="178" width="140" height="52" rx="8" fill="#334155" stroke="#475569" stroke-width="1"/>
+  <text x="384" y="200" text-anchor="middle" fill="#f8fafc" font-size="12" font-weight="600">Wiktionary</text>
+  <text x="384" y="218" text-anchor="middle" fill="#94a3b8" font-size="10">3.4M form→lemma pairs</text>
+
+  <!-- Arrow from Wiktionary to lookup -->
+  <line x1="454" y1="190" x2="498" y2="150" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)" opacity="0.5"/>
+  <!-- Arrow from Wiktionary to model -->
+  <line x1="454" y1="218" x2="498" y2="270" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)" opacity="0.5"/>
+
+  <!-- ═══ Right column: Dilemma components ═══ -->
+
+  <!-- Lookup table -->
+  <rect x="500" y="80" width="200" height="120" rx="8" fill="url(#gLookup)" stroke="#10b981" stroke-width="1.5"/>
+  <text x="600" y="108" text-anchor="middle" fill="#10b981" font-size="13" font-weight="700">Lookup Table</text>
+  <text x="600" y="128" text-anchor="middle" fill="#94a3b8" font-size="10">6.5M forms → lemmas</text>
+  <text x="600" y="148" text-anchor="middle" fill="#cbd5e1" font-size="10">polytonic · monotonic · stripped</text>
+  <rect x="530" y="160" width="140" height="22" rx="4" fill="#10b981" opacity="0.15"/>
+  <text x="600" y="176" text-anchor="middle" fill="#10b981" font-size="11" font-weight="600">instant</text>
+
+  <!-- Transformer model -->
+  <rect x="500" y="230" width="200" height="120" rx="8" fill="url(#gModel)" stroke="#f59e0b" stroke-width="1.5"/>
+  <text x="600" y="258" text-anchor="middle" fill="#f59e0b" font-size="13" font-weight="700">Transformer</text>
+  <text x="600" y="278" text-anchor="middle" fill="#94a3b8" font-size="10">4M params · 3+3 layers</text>
+  <text x="600" y="298" text-anchor="middle" fill="#cbd5e1" font-size="10">char-level encoder-decoder</text>
+  <rect x="530" y="310" width="140" height="22" rx="4" fill="#f59e0b" opacity="0.15"/>
+  <text x="600" y="326" text-anchor="middle" fill="#f59e0b" font-size="11" font-weight="600">&lt;1ms / word</text>
+
+  <!-- Flow label -->
+  <text x="600" y="218" text-anchor="middle" fill="#475569" font-size="10" font-style="italic">unknown forms ↓</text>
+
+  <!-- Output arrow -->
+  <text x="600" y="378" text-anchor="middle" fill="#94a3b8" font-size="10">↓</text>
+  <rect x="530" y="386" width="140" height="24" rx="6" fill="#1e293b" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="600" y="402" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="600">λήμμα</text>
+</svg>
