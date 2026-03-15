@@ -1,7 +1,5 @@
-model/
-data/*.json
+data/
 __pycache__/
 *.pyc
 progress.log
-data/
-model/
+model/combined-s[2-9]/
