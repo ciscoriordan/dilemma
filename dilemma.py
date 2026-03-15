@@ -48,17 +48,19 @@ def strip_accents(s: str) -> str:
 
 
 class Dilemma:
-    def __init__(self, lang="el", device=None, scale=None):
+    def __init__(self, lang="all", device=None, scale=None):
         """Initialize Dilemma.
 
         Args:
-            lang: "el" for MG, "grc" for AG, "mgr" for Medieval,
-                  "both" for combined (best for katharevousa)
+            lang: "all" (default) for MG+AG+Medieval combined,
+                  "el" for MG only, "grc" for AG only
             device: "cpu", "cuda", etc. Auto-detected if None.
             scale: Model scale (0-4). None auto-detects the best available.
                    Larger scales = more training data = better generalization
                    on unseen forms. Lookup table is the same for all scales.
         """
+        if lang == "both":
+            lang = "all"
         self.lang = lang
         self._scale = scale
         self._model = None
@@ -67,7 +69,7 @@ class Dilemma:
         self._lookup: dict[str, str] = {}
 
         # Load lookup table(s)
-        if lang == "both":
+        if lang == "all":
             # MG first (priority), then Medieval, then AG fills gaps
             for path in [LOOKUP_PATH, MED_LOOKUP_PATH, AG_LOOKUP_PATH]:
                 if path.exists():
@@ -92,7 +94,7 @@ class Dilemma:
         import torch
         from model import CharVocab, LemmaTransformer
 
-        lang_dir = {"el": "el", "grc": "grc", "mgr": "med", "both": "combined"}[self.lang]
+        lang_dir = {"el": "el", "grc": "grc", "all": "combined"}[self.lang]
 
         # Find model: try scale-specific dir first, then auto-detect best available
         if self._scale is not None:

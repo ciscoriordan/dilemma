@@ -73,10 +73,10 @@ def load_pairs(lang: str, max_pairs: int = 0) -> list[dict]:
       1. Non-standard MG varieties (Medieval, Katharevousa, Cypriot, etc.)
       2. Remaining budget split 50/50 between AG and standard MG
 
-    lang="both" combines MG and AG pairs for a single model that handles
+    lang="all" combines MG and AG pairs for a single model that handles
     katharevousa (which mixes AG morphology with MG vocabulary).
     """
-    if lang == "both":
+    if lang == "all":
         prefixes = ["mg", "ag", "med"]
     else:
         prefixes = [{"el": "mg", "grc": "ag", "mgr": "med"}[lang]]
@@ -285,7 +285,7 @@ def train(lang: str, epochs: int, batch_size: int, lr: float, eval_split: float,
             pf.write(msg + "\n")
 
     # Save model
-    lang_dir = {"el": "el", "grc": "grc", "mgr": "med", "both": "combined"}[lang]
+    lang_dir = {"el": "el", "grc": "grc", "all": "combined"}[lang]
     if scale is not None:
         lang_dir = f"{lang_dir}-s{scale}"
     out_dir = MODEL_DIR / lang_dir
@@ -333,8 +333,8 @@ def train(lang: str, epochs: int, batch_size: int, lr: float, eval_split: float,
 
 def main():
     parser = argparse.ArgumentParser(description="Train Dilemma lemmatizer")
-    parser.add_argument("--lang", type=str, default="both",
-                        choices=["el", "grc", "mgr", "both"],
+    parser.add_argument("--lang", type=str, default="all",
+                        choices=["el", "grc", "all"],
                         help="Language: el (MG), grc (AG), mgr (Medieval), or both (MG+AG+Med, default)")
     parser.add_argument("--epochs", type=int, default=3,
                         help="Training epochs (default: 3)")
@@ -358,7 +358,7 @@ def main():
 
     if args.eval_only:
         device = "cuda" if torch.cuda.is_available() else "cpu"
-        lang_dir = {"el": "el", "grc": "grc", "mgr": "med", "both": "combined"}[args.lang]
+        lang_dir = {"el": "el", "grc": "grc", "all": "combined"}[args.lang]
         out_dir = MODEL_DIR / lang_dir
 
         checkpoint = torch.load(out_dir / "model.pt", map_location=device,
