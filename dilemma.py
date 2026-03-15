@@ -196,9 +196,19 @@ class Dilemma:
 
         return results
 
-    def _predict(self, words: list[str]) -> list[str]:
-        """Run model inference on a batch of words."""
+    def _predict(self, words: list[str], num_beams=4) -> list[str]:
+        """Run model inference with beam search + headword filtering.
+
+        Generates multiple candidates via beam search. Picks the
+        highest-scoring candidate that is a known headword in the
+        lookup table. If no candidate is a headword, returns the
+        input word unchanged (better than a confidently wrong answer).
+        """
         import torch
+
+        # Build headword set on first use (forms that map to themselves)
+        if not hasattr(self, "_headwords"):
+            self._headwords = {k for k, v in self._lookup.items() if k == v}
 
         max_len = max(len(w) for w in words) + 1
         src_ids = []
@@ -211,6 +221,21 @@ class Dilemma:
         src_pad_mask = (src == 0)
 
         with torch.no_grad():
-            out_ids = self._model.generate(src, src_key_padding_mask=src_pad_mask)
+            beam_results = self._model.generate(
+                src, src_key_padding_mask=src_pad_mask, num_beams=num_beams)
 
-        return [self._vocab.decode(ids.tolist()) for ids in out_ids]
+        results = []
+        for i, candidates in enumerate(beam_results):
+            decoded = [self._vocab.decode(ids) for ids, score in candidates]
+            # Pick first candidate that's a known headword
+            chosen = None
+            for d in decoded:
+                if d in self._headwords or d.lower() in self._headwords:
+                    chosen = d
+                    break
+            if chosen is None:
+                # No candidate is a headword; return input unchanged
+                chosen = words[i]
+            results.append(chosen)
+
+        return results
