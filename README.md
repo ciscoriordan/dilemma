@@ -1,7 +1,7 @@
 # Dilemma <img src="https://raw.githubusercontent.com/ciscoriordan/svg-flags/main/circle/languages/el.svg" width="28" alt="Greek"> <img src="https://raw.githubusercontent.com/ciscoriordan/svg-flags/main/circle/countries/cy.svg" width="28" alt="Cyprus"> <img src="https://raw.githubusercontent.com/ciscoriordan/svg-flags/main/circle/historical/byzantine.svg" width="28" alt="Byzantine">
 
-**Greek lemmatizer** with a 6.5 million form lookup table and a ~4M
-parameter character-level transformer trained on 3.4 million Wiktionary
+**Greek lemmatizer** with a 5.2 million form lookup table and a ~4M
+parameter character-level transformer trained on 3.2 million Wiktionary
 inflection pairs spanning Modern Greek, Ancient Greek, and Medieval Greek.
 
 Most Greek words resolve instantly via the lookup table. For unseen forms,
@@ -12,7 +12,7 @@ it trains from scratch in minutes and runs inference in under a millisecond,
 compared to fine-tuning approaches like *ByT5-small* (300M params) which take
 hours to train and ~10ms per word. Greek lemmatization is highly
 pattern-based,a small specialized model matches a large general-purpose
-one, and the 6.5M lookup table handles the rest.
+one, and the 5.2M lookup table handles the rest.
 
 Handles Standard Modern Greek, Katharevousa, Cypriot, Cretan, and other
 regional varieties alongside Ancient and Medieval Greek. Existing
@@ -50,7 +50,7 @@ data** from all three periods of the language.
 The tagged entry counts above are Wiktionary headwords explicitly labeled
 with a variety. Each headword generates a full inflection paradigm (10-40
 forms for verbs, 4-8 for nouns), so the actual form coverage is much
-larger: **4.1M MG forms, 2.4M AG forms, 6.5M combined**.
+larger: **2.8M MG forms, 2.4M AG forms, 5.2M combined**.
 
 Beyond the lookup, the transformer model generalizes to forms not in
 Wiktionary. Katharevousa forms are the primary non-SMG target - they mix
@@ -92,7 +92,7 @@ d = Dilemma(scale=1)                          # use scale 1 model
 
 | Layer | Speed | Coverage | Source |
 |-------|-------|----------|--------|
-| **Lookup table** | instant | 6.5M known forms | Wiktionary inflection paradigms |
+| **Lookup table** | instant | 5.2M known forms | Wiktionary inflection paradigms |
 | **Transformer** | <1ms/word | generalizes to unseen forms | trained on lookup pairs |
 
 The lookup table is built from all 5 Wiktionary [kaikki dumps](https://kaikki.org/)
@@ -157,7 +157,7 @@ The remaining budget is split 50/50 between Ancient Greek and standard MG.
 | 3 | 2M | 7.7K (100%) | 996K | 996K | ~26 min |
 | 4 | 3.4M (all) | 7.7K (100%) | 1.48M (100%) | 1.93M (100%) | ~45 min |
 
-The lookup table is the **same for all scales** (6.5M forms). The model
+The lookup table is the **same for all scales** (5.2M forms). The model
 only handles words not in the lookup, so even scale 0 works well for
 most text. Higher scales improve generalization to truly novel forms.
 
@@ -230,17 +230,85 @@ general-purpose one.
 
 | Source | Dump size | Training Pairs | Lookup Forms |
 |--------|-----------|----------------|--------------|
-| EN + EL Wiktionary (MG) | 1.2 GB | 1.9M | 3.5M |
+| EN + EL Wiktionary (MG) | 1.2 GB | 1.7M | 2.8M |
 | EN + EL Wiktionary (AG) | 339 MB | 1.5M | 2.4M |
-| EL Wiktionary (Medieval) | 3.7 MB | 3.9K | 7.2K |
-| **Combined** | **1.5 GB** | **3.4M** | **5.9M** |
+| EL Wiktionary (Medieval) | 3.7 MB | 4.3K | 6.9K |
+| **Combined** | **1.5 GB** | **3.2M** | **5.2M** |
 
-Training pairs are filtered to Greek-only characters. Lookup table
-includes original, monotonic, and accent-stripped variants of each form
-(6.5M total keys mapping to 5.9M unique forms).
+All data is extracted automatically from
+[kaikki.org](https://kaikki.org/) Wiktionary JSONL dumps (EN and EL
+editions). Each form is indexed under its original, monotonic, and
+accent-stripped variants for fuzzy matching.
 
-All data is extracted automatically from [kaikki.org](https://kaikki.org/)
-Wiktionary JSONL dumps.
+### Extraction sources
+
+Form-lemma pairs come from three sources per Wiktionary entry:
+
+1. **Inflection tables** (primary). Every cell in a verb conjugation or
+   noun declension table becomes a form-lemma pair. Covers all tenses,
+   moods, cases, numbers. Multi-form cells (e.g. `Πηλείδᾱο / Πηλείδεω`)
+   are split into separate pairs.
+2. **`form_of` references**. When a page says "form of X", that gives
+   us an additional pair. Adds ~44K MG and ~6K AG pairs not found in
+   inflection tables.
+3. **`alt_of` references**. Alternative/variant spellings. Adds ~1K
+   pairs.
+
+### Confidence tiers
+
+Not all lookup entries are equally trustworthy. Forms from inflection
+tables are template-generated and may be wrong for irregular words.
+Each entry is scored on a 5-point scale:
+
+| Tier | Condition | MG count | AG count |
+|:----:|-----------|:--------:|:--------:|
+| 5 | Both EN + EL Wiktionary have a page for this form | 63K | 14K |
+| 4 | EN Wiktionary has a page (no EL page) | 22K | 50K |
+| 3 | EL Wiktionary has a page (no EN page) | 1.05M | 131K |
+| 2 | Both EN + EL tables agree on the lemma | 199K | 49K |
+| 1 | Single source, table-only | 1.49M | 2.12M |
+
+Higher confidence wins when two sources map the same form to different
+lemmas.
+
+### Dialect tagging
+
+Ancient Greek forms from EN Wiktionary carry dialect tags extracted from
+inflection table headers (e.g. "Epic declension-1", "Attic contracted
+present"). These are propagated to every form in that table section:
+
+| Dialect | Tagged forms |
+|---------|:------------:|
+| Attic | 245K |
+| Epic | 92K |
+| Ionic | 14K |
+| Doric | 9K |
+| Koine | 9K |
+| Aeolic | 3K |
+| Laconian | 672 |
+| Boeotian | 555 |
+| Arcadocypriot | 407 |
+
+### Quality controls
+
+- **Greek-only filter**. All forms must contain only Greek Unicode
+  characters (U+0370-03FF, U+1F00-1FFF, U+0300-036F). Removes Latin
+  letters, digits, template artifacts.
+- **Chain-breaking**. If form A maps to lemma B, and B maps to C, the
+  chain is followed to the real headword. Fixes ~300K entries caused by
+  accent-stripped key collisions.
+- **Pronoun cross-contamination**. Greek Wiktionary dumps the entire
+  pronoun paradigm table into each pronoun entry (e.g. `εσύ` lists
+  `εγώ` as a "form"). Articles and determiners are restricted to
+  headword-only. Pronoun forms that are headwords of other closed-class
+  entries are skipped.
+- **Proper noun plural filter**. EL Wiktionary generates plural forms
+  for proper nouns via templates (413K junk entries like `Αχιλλείς`).
+  These are skipped unless EN Wiktionary also lists them (which
+  indicates a human editor intentionally added them, e.g. `Έλληνες`).
+- **Training pair validation**. Every training pair's lemma must be a
+  headword (maps to itself in the lookup). Pairs with non-headword
+  lemmas are resolved to the real headword or dropped.
 
 ## Comparison
 
@@ -249,7 +317,7 @@ Wiktionary JSONL dumps.
 | *spaCy* `el_core_news_sm` | MG only | ~30K tokens (news) | no | static |
 | *stanza* `el` | MG only | ~30K tokens (GDT treebank) | fails on augmented forms | static |
 | Perseus *Morpheus* | AG only | hand-crafted rules | no | not actively developed |
-| **Dilemma** | **MG + AG + Medieval + dialects** | **3.4M pairs (Wiktionary)** | **yes (AG+MG combined)** | **monthly from Wiktionary** |
+| **Dilemma** | **MG + AG + Medieval + dialects** | **3.2M pairs (Wiktionary)** | **yes (AG+MG combined)** | **monthly from Wiktionary** |
 
 Dilemma trains on **100x more data** than *stanza* or *spaCy*. *Morpheus*
 is more accurate on classical AG (decades of hand-tuned rules), but only
