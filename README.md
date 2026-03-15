@@ -207,7 +207,7 @@ An earlier version of Dilemma fine-tuned Google's
 vocabulary (~160 tokens), so the same word is ~10 steps. Combined with
 75x fewer parameters:
 
-|  | *ByT5-small* | Dilemma |
+|  | ByT5-small | Dilemma |
 |--|:----------:|:-------:|
 | Parameters | 300M | 4M |
 | Training (500K pairs, 3 epochs) | ~4 hours | ~10 min |
