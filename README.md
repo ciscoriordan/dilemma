@@ -455,30 +455,40 @@ and AG inflection tables that include Koine and Byzantine-era paradigms.
 
 Evaluated on the [DiGreC treebank](https://github.com/mdm33/digrec)
 (119K manually reviewed tokens spanning Homer through 15th century
-Byzantine Greek) at scale 3 with `resolve_articles=True`:
+Byzantine Greek) with `resolve_articles=True`:
 
-| Category | Tokens | Accuracy (stripped) |
-|----------|:------:|:-------------------:|
-| **Overall** | 118,894 | **78.2%** |
-| Verbs | 25,285 | 76.6% |
-| Nouns | 16,573 | 79.5% |
-| Adverbs | 16,050 | 86.2% |
-| Articles | 14,235 | 97.1% |
-| Conjunctions | 8,540 | 92.2% |
-| Adjectives | 8,508 | 76.6% |
-| Prepositions | 6,787 | 88.0% |
-| Proper nouns | 5,118 | 77.4% |
-| **Late Byzantine** | 371 | **77.9%** |
-| **Early Byzantine** | 144 | **80.6%** |
+| Mode | Accuracy (stripped) |
+|------|:-------------------:|
+| Form-only | 70.6% |
+| + resolve_articles | 81.4% |
+| **+ context heuristics** | **83.8%** |
+
+Context heuristics (`lemmatize_verbose` + disambiguation): prefer
+non-proper lemmas for lowercase mid-sentence words, prefer `lang=grc`
+candidates for AG text.
 
 For comparison, Swaelens et al.'s best approach achieved 66% on
 Byzantine epigrams (and 53-56% for pure transformer methods). Dilemma
-reaches 78-81% on Byzantine text without any task-specific training
-on Byzantine data, using only Wiktionary inflection tables.
+reaches 83.8% on DiGreC without any task-specific training, using only
+Wiktionary inflection tables.
 
 Note: Dilemma operates on isolated words without POS context.
 Context-aware models like Celano's GreTa (95.6% F1) achieve higher
 accuracy on classical text by using full-sentence information.
+
+### Known Issues
+
+These are inherent limitations or Wiktionary coverage gaps, not code
+bugs. Most can be fixed by editing the relevant Wiktionary entry, which
+will flow into Dilemma on the next `build_data.py` run.
+
+| Issue | Tokens | Notes |
+|-------|--------|-------|
+| **Grave accent variants** | ~700 | ὣς does not resolve to ὡς. Grave is a positional variant of acute in Greek but Wiktionary only lists acute forms. Needs a normalization step. |
+| **αὐτοῦ ambiguity** | ~200 | Genuine lexical ambiguity: both an adverb ("here/there") and genitive of αὐτός. Needs sentence context. |
+| **ταῦτα self-map** | ~100 | Also an adverb headword in Wiktionary, so self-maps instead of mapping to οὗτος. |
+| **μιν → οὗ** | ~340 | Wiktionary-correct (μιν is accusative of the 3rd person pronoun). Perseus treebank uses μιν as its own lemma — a convention difference. |
+| **Lemma convention differences** | ~400 | αὐτάρ vs ἀτάρ, κε vs ἄν — Wiktionary and the Perseus treebank use different citation forms for some Homeric particles. |
 
 ## Credits
 
