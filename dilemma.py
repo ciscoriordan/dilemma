@@ -9,10 +9,25 @@ Usage:
     m.lemmatize("πάθης")                # -> "παθαίνω"
     m.lemmatize("πολεμούσαν")           # -> "πολεμώ"
     m.lemmatize_batch(["δώση", "σκότωσε"])  # -> ["δίνω", "σκοτώνω"]
+
+    # Elision expansion (uses Wiktionary lookup)
+    m.lemmatize("ἀλλ̓")                  # -> "ἀλλά"
+    m.lemmatize("ἔφατ̓")                 # -> "φημί"
+
+    # Verbose mode: returns all candidates with metadata
+    m.lemmatize_verbose("ἔριδι")
+    # -> [LemmaCandidate(lemma="ἔρις", lang="grc", proper=False),
+    #     LemmaCandidate(lemma="Ἔρις", lang="grc", proper=True)]
+
+    m.lemmatize_verbose("πόλεμο")
+    # -> [LemmaCandidate(lemma="πόλεμος", lang="el"),
+    #     LemmaCandidate(lemma="πόλεμος", lang="grc")]
 """
 
 import json
+import re
 import unicodedata
+from dataclasses import dataclass, field
 from pathlib import Path
 
 MODEL_DIR = Path(__file__).parent / "model"
@@ -23,6 +38,14 @@ MED_LOOKUP_PATH = Path(__file__).parent / "data" / "med_lookup.json"
 
 _POLYTONIC_STRIP = {0x0313, 0x0314, 0x0345, 0x0306, 0x0304}
 _POLYTONIC_TO_ACUTE = {0x0300, 0x0342}
+
+# Elision mark: U+0313 COMBINING COMMA ABOVE (repurposed as apostrophe
+# in polytonic Greek text). Also handle right single quote U+2019 and
+# modifier letter apostrophe U+02BC.
+_ELISION_MARKS = {"\u0313", "\u2019", "\u02BC", "'"}
+
+# Vowels to try when expanding elision (ordered by frequency in AG text)
+_GREEK_VOWELS = "αεοιηυω"
 
 # Article and pronoun resolution: maps forms to canonical lemma.
 # Used when resolve_articles=True (for treebank evaluation).
@@ -53,6 +76,18 @@ _PRONOUN_LEMMAS = {
 }
 
 
+@dataclass
+class LemmaCandidate:
+    """A lemma candidate with metadata for disambiguation."""
+    lemma: str
+    lang: str = ""       # "el" (SMG), "grc" (AG), "med" (Medieval), "" (unknown)
+    proper: bool = False  # True if lemma is a proper noun (capitalized headword)
+    source: str = ""      # "lookup", "elision", "crasis", "model", "article"
+    score: float = 1.0    # confidence (1.0 for lookup, lower for model)
+    via: str = ""         # how the lookup matched: "exact", "lower", "mono",
+                          # "stripped", "elision:ε" (which vowel expanded), etc.
+
+
 def to_monotonic(s: str) -> str:
     """Convert polytonic Greek to monotonic."""
     nfd = unicodedata.normalize("NFD", s)
@@ -73,6 +108,50 @@ def strip_accents(s: str) -> str:
     nfd = unicodedata.normalize("NFD", s)
     return unicodedata.normalize("NFC",
         "".join(c for c in nfd if unicodedata.category(c) != "Mn"))
+
+
+def _strip_elision(word: str) -> str | None:
+    """Strip trailing elision mark from an elided word form.
+
+    Returns the consonant stem, or None if no elision detected.
+    The elision mark in polytonic text is U+0313 (COMBINING COMMA ABOVE)
+    attached to the final consonant, e.g. ἀλλ + U+0313 for ἀλλ̓.
+
+    IMPORTANT: U+0313 also serves as smooth breathing at the START of
+    polytonic words (ἐ = ε + U+0313). We only treat it as elision when
+    it appears after the first base character cluster (i.e. not on the
+    initial letter).
+    """
+    nfd = unicodedata.normalize("NFD", word)
+    if len(nfd) < 2:
+        return None
+
+    # Count base (non-combining) characters
+    base_count = sum(1 for ch in nfd if unicodedata.category(ch) != "Mn")
+
+    if base_count <= 1:
+        # Single base char (like δ̓, τ̓, γ̓): the U+0313 IS the elision
+        # mark, not a breathing. Return the bare consonant as stem.
+        if nfd[-1] in _ELISION_MARKS:
+            stem = unicodedata.normalize("NFC", nfd[:-1])
+            if stem:
+                return stem
+        return None
+
+    # Multi-char word: find end of first base character cluster (initial
+    # letter + its combining marks including breathing). We skip past
+    # those so we don't mistake initial breathing U+0313 for elision.
+    first_cluster_end = 1
+    while first_cluster_end < len(nfd) and unicodedata.category(nfd[first_cluster_end]) == "Mn":
+        first_cluster_end += 1
+
+    # Look for elision mark AFTER the first cluster
+    for i in range(len(nfd) - 1, first_cluster_end - 1, -1):
+        if nfd[i] in _ELISION_MARKS:
+            stem = unicodedata.normalize("NFC", nfd[:i])
+            if stem:
+                return stem
+    return None
 
 
 class Dilemma:
@@ -103,34 +182,43 @@ class Dilemma:
         self._model = None
         self._vocab = None
         self._device = device
+
+        # Per-language lookup tables (always loaded separately for verbose mode)
+        self._mg_lookup: dict[str, str] = {}
+        self._med_lookup: dict[str, str] = {}
+        self._ag_lookup: dict[str, str] = {}
+
+        # Combined lookup (respects lang priority)
         self._lookup: dict[str, str] = {}
 
-        # Load lookup table(s)
-        # Medieval Greek is folded into MG — it's an earlier stage of
-        # the same language, not a separate period.
-        if lang == "all":
+        self._load_lookups()
+
+    def _load_lookups(self):
+        """Load lookup tables, keeping per-language copies for verbose mode."""
+        if LOOKUP_PATH.exists():
+            with open(LOOKUP_PATH, encoding="utf-8") as f:
+                self._mg_lookup = json.load(f)
+        if MED_LOOKUP_PATH.exists():
+            with open(MED_LOOKUP_PATH, encoding="utf-8") as f:
+                self._med_lookup = json.load(f)
+        if AG_LOOKUP_PATH.exists():
+            with open(AG_LOOKUP_PATH, encoding="utf-8") as f:
+                self._ag_lookup = json.load(f)
+
+        # Build combined lookup respecting lang priority
+        if self.lang == "all":
             # MG + Medieval first, then AG fills gaps
-            for path in [LOOKUP_PATH, MED_LOOKUP_PATH, AG_LOOKUP_PATH]:
-                if path.exists():
-                    with open(path, encoding="utf-8") as f:
-                        data = json.load(f)
-                    for k, v in data.items():
-                        if k not in self._lookup:
-                            self._lookup[k] = v
-        elif lang == "el":
-            # MG + Medieval
-            for path in [LOOKUP_PATH, MED_LOOKUP_PATH]:
-                if path.exists():
-                    with open(path, encoding="utf-8") as f:
-                        data = json.load(f)
-                    for k, v in data.items():
-                        if k not in self._lookup:
-                            self._lookup[k] = v
-        else:
-            lookup_path = {"grc": AG_LOOKUP_PATH}[lang]
-            if lookup_path.exists():
-                with open(lookup_path, encoding="utf-8") as f:
-                    self._lookup = json.load(f)
+            for data in [self._mg_lookup, self._med_lookup, self._ag_lookup]:
+                for k, v in data.items():
+                    if k not in self._lookup:
+                        self._lookup[k] = v
+        elif self.lang == "el":
+            for data in [self._mg_lookup, self._med_lookup]:
+                for k, v in data.items():
+                    if k not in self._lookup:
+                        self._lookup[k] = v
+        elif self.lang == "grc":
+            self._lookup = dict(self._ag_lookup)
 
     def _load_model(self):
         """Lazy-load the transformer model on first use."""
@@ -193,6 +281,115 @@ class Dilemma:
             return _PRONOUN_LEMMAS[mono]
         return None
 
+    def _lookup_word(self, word: str) -> str | None:
+        """Try lookup cascade: exact -> lowercase -> monotonic -> stripped.
+
+        Skips mono/stripped matches that are trivially short (1-2 chars)
+        and map to themselves — these are usually false positives from
+        accent stripping on elided or particle forms.
+        """
+        lemma = self._lookup.get(word) or self._lookup.get(word.lower())
+        if lemma:
+            return lemma
+        mono = to_monotonic(word.lower())
+        stripped = strip_accents(word.lower())
+        for variant in [mono, stripped]:
+            hit = self._lookup.get(variant)
+            if hit and not (len(variant) <= 2 and hit == variant):
+                return hit
+        return None
+
+    def _expand_elision(self, word: str) -> str | None:
+        """Try to resolve an elided form by expanding with vowels.
+
+        Strips the elision mark, appends each Greek vowel, and checks
+        if the expanded form is in the lookup table. Prefers expansions
+        where the lemma is a real word (differs from the expanded form)
+        over self-mapping headwords.
+        """
+        candidates = self._expand_elision_all(word)
+        if not candidates:
+            return None
+
+        # Score candidates: prefer common, simple lemmas.
+        # Elision typically affects particles (δέ, τε, γε), prepositions
+        # (ἐπί, ὑπό, κατά), adverbs (ἔνθα, μάλα), and verb endings (-ατο).
+        # Scoring: vowel frequency rank (ε,α,ο are most common in elision),
+        # then shorter lemma, then fewer accents (simpler word).
+        _VOWEL_RANK = {v: i for i, v in enumerate("εαοιηυω")}
+        _ACC_VOWEL_RANK = {"ά": 1, "έ": 0, "ί": 4, "ό": 2, "ή": 3, "ύ": 5, "ώ": 6}
+
+        def score(item):
+            expanded, lemma, vowel = item
+            vrank = _ACC_VOWEL_RANK.get(vowel, _VOWEL_RANK.get(vowel, 10))
+            return (vrank, len(lemma))
+
+        candidates.sort(key=score)
+        return candidates[0][1]
+
+    def _expand_elision_all(self, word: str) -> list[tuple[str, str, str]]:
+        """Return ALL valid elision expansions as (expanded, lemma, vowel) triples.
+
+        For polytonic input (has breathings/circumflex), prioritizes AG lookup.
+        Elision is overwhelmingly an AG phenomenon; MG monotonic forms would
+        pollute results with false matches.
+        """
+        stem = _strip_elision(word)
+        if not stem:
+            return []
+
+        # Detect if input is polytonic (has AG-style diacritics)
+        nfd = unicodedata.normalize("NFD", word)
+        has_polytonic = any(ord(ch) in _POLYTONIC_STRIP | _POLYTONIC_TO_ACUTE
+                           for ch in nfd)
+
+        # Choose which lookups to search
+        if has_polytonic:
+            tables = [(self._ag_lookup, "grc")]
+        else:
+            tables = [(self._mg_lookup, "el"),
+                      (self._med_lookup, "med"),
+                      (self._ag_lookup, "grc")]
+
+        results = []
+        seen_lemmas = set()
+
+        all_vowels = list(_GREEK_VOWELS)
+        # Also try accented vowels
+        accented = {"α": "ά", "ε": "έ", "ι": "ί", "ο": "ό",
+                    "η": "ή", "υ": "ύ", "ω": "ώ"}
+        all_candidates = [(v, v) for v in all_vowels]
+        all_candidates += [(acc, v) for v, acc in accented.items()]
+
+        for table, lang in tables:
+            for suffix, vowel_name in all_candidates:
+                expanded = stem + suffix
+                # Try exact and lowercase
+                lemma = table.get(expanded) or table.get(expanded.lower())
+                if lemma and lemma not in seen_lemmas:
+                    seen_lemmas.add(lemma)
+                    results.append((expanded, lemma, suffix))
+
+        return results
+
+    def _lang_of(self, form: str) -> str:
+        """Determine which language table a form comes from."""
+        lower = form.lower()
+        mono = to_monotonic(lower)
+        stripped = strip_accents(lower)
+        for variant in [form, lower, mono, stripped]:
+            if variant in self._mg_lookup:
+                return "el"
+            if variant in self._med_lookup:
+                return "med"
+            if variant in self._ag_lookup:
+                return "grc"
+        return ""
+
+    def _is_proper(self, lemma: str) -> bool:
+        """Check if a lemma is a proper noun (capitalized headword)."""
+        return bool(lemma) and lemma[0].isupper()
+
     def lemmatize(self, word: str) -> str:
         """Lemmatize a single Greek word.
 
@@ -200,7 +397,8 @@ class Dilemma:
           1. Article/pronoun resolution (if resolve_articles=True)
           2. Crasis table (small, hand-curated)
           3. Lookup table (instant, 5M+ forms)
-          4. Model with beam search + headword filter
+          4. Elision expansion (strip mark, try vowels against lookup)
+          5. Model with beam search + headword filter
         """
         # Resolve articles/pronouns to canonical lemma
         closed = self._resolve_closed_class(word)
@@ -214,20 +412,129 @@ class Dilemma:
         if crasis_result is not None:
             return crasis_result
 
+        # Elision expansion (before lookup, since elided forms like δ̓
+        # can false-match to letter headwords δ in the lookup)
+        elision_lemma = self._expand_elision(word)
+        if elision_lemma:
+            return elision_lemma
+
         # Lookup: exact -> lowercase -> monotonic -> accent-stripped
-        lower = word.lower()
-        mono = to_monotonic(lower)
-        stripped = strip_accents(lower)
-        lemma = (self._lookup.get(word)
-                 or self._lookup.get(lower)
-                 or self._lookup.get(mono)
-                 or self._lookup.get(stripped))
+        lemma = self._lookup_word(word)
         if lemma:
             return lemma
 
         # Fall back to model
         self._load_model()
         return self._predict([word])[0]
+
+    def lemmatize_verbose(self, word: str) -> list[LemmaCandidate]:
+        """Return all candidate lemmas with metadata.
+
+        Unlike lemmatize(), this returns multiple candidates for
+        ambiguous forms, tagged with language, proper noun status,
+        and source. Useful for downstream tools that can use context
+        to disambiguate.
+
+        Examples:
+            lemmatize_verbose("ἔριδι")
+            -> [LemmaCandidate(lemma="Ἔρις", lang="grc", proper=True, ...),
+                LemmaCandidate(lemma="ἔρις", lang="grc", proper=False, ...)]
+
+            lemmatize_verbose("πόλεμο")
+            -> [LemmaCandidate(lemma="πόλεμος", lang="el", ...),
+                LemmaCandidate(lemma="πόλεμος", lang="grc", ...)]
+
+            lemmatize_verbose("ἀλλ̓")
+            -> [LemmaCandidate(lemma="ἀλλά", lang="grc", source="elision", via="elision:ά")]
+        """
+        candidates = []
+        seen = set()  # track (lemma_lower, lang) to avoid exact dupes
+
+        def _add(lemma, lang="", source="", via="", score=1.0):
+            key = (lemma, lang)
+            if key not in seen:
+                seen.add(key)
+                candidates.append(LemmaCandidate(
+                    lemma=lemma,
+                    lang=lang or self._lang_of(lemma),
+                    proper=self._is_proper(lemma),
+                    source=source,
+                    score=score,
+                    via=via,
+                ))
+
+        # 1. Article/pronoun
+        if self._resolve_articles:
+            closed = self._resolve_closed_class(word)
+            if closed is not None:
+                _add(closed, source="article")
+                return candidates
+
+        # 2. Crasis
+        from crasis import resolve_crasis
+        cr = resolve_crasis(word) or resolve_crasis(to_monotonic(word))
+        if cr:
+            _add(cr, source="crasis")
+            return candidates
+
+        # 3. Elision expansion — collect ALL valid expansions (before
+        #    lookup, since elided forms false-match letter headwords)
+        elision_results = self._expand_elision_all(word)
+        for expanded, lemma, vowel in elision_results:
+            lang = self._lang_of(expanded) or self._lang_of(lemma)
+            _add(lemma, lang=lang, source="elision", via=f"elision:{vowel}")
+
+        # 4. Lookup — collect from ALL language tables
+        lower = word.lower()
+        mono = to_monotonic(lower)
+        stripped = strip_accents(lower)
+        variants = [
+            (word, "exact"), (lower, "lower"),
+            (mono, "mono"), (stripped, "stripped"),
+        ]
+
+        for table, lang in [(self._mg_lookup, "el"),
+                            (self._med_lookup, "med"),
+                            (self._ag_lookup, "grc")]:
+            for variant, via in variants:
+                lemma = table.get(variant)
+                if lemma:
+                    # Skip trivial short self-mappings (accent artifacts)
+                    if len(variant) <= 2 and lemma == variant and via in ("mono", "stripped"):
+                        continue
+                    _add(lemma, lang=lang, source="lookup", via=via)
+                    # Also check if the OTHER case variant is a headword
+                    # (Ἔρις the goddess vs ἔρις strife)
+                    if lemma[0].isupper():
+                        alt = lemma[0].lower() + lemma[1:]
+                    else:
+                        alt = lemma[0].upper() + lemma[1:]
+                    # The alt must be a self-mapping headword (not just
+                    # a form that maps elsewhere)
+                    alt_lemma = table.get(alt)
+                    if alt_lemma == alt:
+                        _add(alt, lang=lang, source="lookup",
+                             via=via + "+case_alt")
+                    break  # first matching variant wins per language
+
+        # 5. Model fallback (if no candidates yet)
+        if not candidates:
+            try:
+                self._load_model()
+                pred = self._predict([word])[0]
+                if pred != word:
+                    _add(pred, source="model", score=0.5)
+            except (FileNotFoundError, RuntimeError):
+                pass
+
+        # If still nothing, return the word itself
+        if not candidates:
+            _add(word, source="identity", score=0.0)
+
+        # Sort: non-proper before proper, then by score descending
+        candidates.sort(key=lambda c: (c.proper, -c.score))
+
+        return candidates
 
     def lemmatize_batch(self, words: list[str]) -> list[str]:
         """Lemmatize a batch of words. Uses model only for unknowns."""
@@ -249,20 +556,22 @@ class Dilemma:
                 results.append(cr)
                 continue
 
+            # Elision expansion (before lookup — elided forms can
+            # false-match letter headwords)
+            elision_lemma = self._expand_elision(word)
+            if elision_lemma:
+                results.append(elision_lemma)
+                continue
+
             # Lookup
-            lower = word.lower()
-            mono = to_monotonic(lower)
-            stripped = strip_accents(lower)
-            lemma = (self._lookup.get(word)
-                     or self._lookup.get(lower)
-                     or self._lookup.get(mono)
-                     or self._lookup.get(stripped))
+            lemma = self._lookup_word(word)
             if lemma:
                 results.append(lemma)
-            else:
-                    results.append(None)
-                    model_indices.append(i)
-                    model_words.append(word)
+                continue
+
+            results.append(None)
+            model_indices.append(i)
+            model_words.append(word)
 
         if model_words:
             self._load_model()
