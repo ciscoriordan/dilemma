@@ -36,7 +36,7 @@ _ARTICLE_FORMS = {
     "τὸ", "τοὺς", "τὰ", "τὸν", "τὴν", "τὰς", "αἵ", "οἵ",
     # Monotonic
     "ο", "η", "το", "του", "της", "των", "τον", "την",
-    "τα", "τους", "τις", "τοις", "οι", "αι",
+    "τα", "τους", "τοις", "οι", "αι",
     # Stripped (no accents/breathings)
     "τω", "ται",
 }
@@ -236,6 +236,20 @@ class Dilemma:
         model_words = []
 
         for i, word in enumerate(words):
+            # Article/pronoun resolution
+            closed = self._resolve_closed_class(word)
+            if closed is not None:
+                results.append(closed)
+                continue
+
+            # Crasis
+            from crasis import resolve_crasis
+            cr = resolve_crasis(word) or resolve_crasis(to_monotonic(word))
+            if cr:
+                results.append(cr)
+                continue
+
+            # Lookup
             lower = word.lower()
             mono = to_monotonic(lower)
             stripped = strip_accents(lower)
@@ -246,12 +260,6 @@ class Dilemma:
             if lemma:
                 results.append(lemma)
             else:
-                # Check crasis
-                from crasis import resolve_crasis
-                cr = resolve_crasis(word) or resolve_crasis(to_monotonic(word))
-                if cr:
-                    results.append(cr)
-                else:
                     results.append(None)
                     model_indices.append(i)
                     model_words.append(word)
