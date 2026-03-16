@@ -149,9 +149,9 @@ Trains the character-level transformer on the extracted pairs. Use
 `--scale` to match your GPU and time budget.
 
 ```bash
-python train.py --scale 0                   # quick test (15 sec)
-python train.py --scale 1                   # default (6.5 min on 2080 Ti)
+python train.py --scale 0                   # default (7 min on 2080 Ti)
 python train.py --scale 2                   # recommended (13 min on 2080 Ti)
+python train.py --scale 4                   # full data (~45 min)
 ```
 
 ### Training scales
@@ -160,13 +160,12 @@ Every scale includes **100% of non-standard varieties** (Medieval,
 Katharevousa, Cypriot, Cretan, Maniot, Heptanesian, archaic, dialectal).
 The remaining budget is split 50/50 between Ancient Greek and standard MG.
 
-| Scale | Training pairs | Varieties | AG | SMG | Time (2080 Ti) | Eval | Tests |
-|:-----:|---------------:|----------:|-------:|-------:|:--------------:|:----:|:-----:|
-| 0 | 20K | 9K (100%) | 5.5K | 5.5K | 15 sec | 1.6% | 53/55 |
-| 1 | 500K | 9K (100%) | 246K | 246K | 6.5 min | 49% | 55/55 |
-| 2 | 1M | 9K (100%) | 496K | 496K | 13 min | 64% | 55/55 |
-| 3 | 2M | 9K (100%) | 996K | 996K | 25 min | 75% | 55/55 |
-| 4 | 3.2M (all) | 9K (100%) | 1.4M (100%) | 1.3M (100%) | ~45 min | - | - |
+| Scale | Training pairs | Varieties | AG | SMG | Time (2080 Ti) |
+|:-----:|---------------:|----------:|-------:|-------:|:--------------:|
+| 0 | 500K | 9K (100%) | 246K | 246K | 7 min |
+| 2 | 1M | 9K (100%) | 496K | 496K | 13 min |
+| 3 | 2M | 9K (100%) | 996K | 996K | 25 min |
+| 4 | 3.2M (all) | 9K (100%) | 1.4M (100%) | 1.3M (100%) | ~45 min |
 
 Eval accuracy is the model's score on held-out pairs *without* the
 lookup table. In practice, the lookup resolves 99%+ of forms instantly
