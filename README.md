@@ -80,6 +80,12 @@ d.lemmatize("εσκότωσε")                       # "σκοτώνω"
 d.lemmatize("πάθης")                          # "παθαίνω"
 d.lemmatize_batch(["δώση", "σκότωσε"])        # ["δίνω", "σκοτώνω"]
 
+# Elision expansion (AG elided forms resolved via Wiktionary lookup)
+d.lemmatize("ἀλλ̓")                            # "ἀλλά"
+d.lemmatize("ἔφατ̓")                           # "φημί"
+d.lemmatize("δ̓")                              # "δέ"
+d.lemmatize("ἐπ̓")                             # "ἐπί"
+
 # Single period
 d_mg = Dilemma(lang="el")                     # MG only
 d_grc = Dilemma(lang="grc")                   # AG only
@@ -99,11 +105,69 @@ surface-form matching. Set `resolve_articles=True` to resolve them
 to canonical lemmas (`ὁ`, `ἐγώ`, `σύ`), matching treebank conventions
 (AGDT, DiGreC, PROIEL).
 
+### Verbose mode
+
+For ambiguous forms, `lemmatize_verbose` returns all candidates with
+metadata so downstream tools can disambiguate using context:
+
+```python
+from dilemma import Dilemma
+
+d = Dilemma()
+
+# Proper noun vs common noun: Ἔρις (goddess) vs ἔρις (strife)
+candidates = d.lemmatize_verbose("ἔριδι")
+for c in candidates:
+    print(f"{c.lemma:10s} lang={c.lang} proper={c.proper} via={c.via}")
+# Ἔρις       lang=grc proper=True  via=exact
+
+# Multiple language matches
+candidates = d.lemmatize_verbose("πόλεμο")
+# -> [LemmaCandidate(lemma="πόλεμος", lang="el", ...),
+#     LemmaCandidate(lemma="πόλεμος", lang="grc", ...)]
+
+# Elision with multiple valid expansions
+candidates = d.lemmatize_verbose("δ̓")
+# -> [LemmaCandidate(lemma="δέ", source="elision", via="elision:ε"),
+#     LemmaCandidate(lemma="δή", source="elision", via="elision:η"), ...]
+```
+
+Each `LemmaCandidate` has:
+- `lemma` — the lemma string
+- `lang` — `"el"` (SMG), `"grc"` (AG), `"med"` (Medieval)
+- `proper` — `True` if lemma is a proper noun (capitalized headword)
+- `source` — `"lookup"`, `"elision"`, `"crasis"`, `"model"`, `"identity"`
+- `via` — how it matched: `"exact"`, `"lower"`, `"elision:ε"`, `"+case_alt"`, etc.
+- `score` — `1.0` for lookup, `0.5` for model, `0.0` for identity fallback
+
+### Elision expansion
+
+Ancient Greek texts frequently elide final vowels before a following
+vowel, marking the elision with an apostrophe (U+0313 in polytonic
+encoding). Dilemma resolves these by stripping the elision mark and
+trying each Greek vowel against the lookup table:
+
+| Elided | Expanded | Lemma |
+|--------|----------|-------|
+| `ἀλλ̓` | `ἀλλά` | `ἀλλά` |
+| `δ̓` | `δέ` | `δέ` |
+| `τ̓` | `τε` | `τε` |
+| `ἐπ̓` | `ἐπί` | `ἐπί` |
+| `ἔφατ̓` | `ἔφατο` | `φημί` |
+| `κατ̓` | `κατά` | `κατά` |
+| `βάλλ̓` | `βάλλε` | `βάλλω` |
+
+Polytonic input automatically restricts expansion to the AG lookup
+table, avoiding false matches from MG monotonic forms. Candidates are
+ranked by vowel frequency in elision contexts (ε, α, ο most common).
+
 ## How It Works
 
 | Layer | Speed | Coverage | Source |
 |-------|-------|----------|--------|
 | **Lookup table** | instant | 5.2M known forms | Wiktionary inflection paradigms |
+| **Elision expansion** | instant | AG elided forms | vowel expansion against lookup |
+| **Crasis table** | instant | ~50 common crasis forms | hand-curated |
 | **Transformer** | <1ms/word | generalizes to unseen forms | trained on lookup pairs |
 
 The lookup table is built from all 5 Wiktionary [kaikki dumps](https://kaikki.org/)
@@ -112,6 +176,14 @@ indexed under its original, monotonic, and accent-stripped variants, so
 `θεοὶ` (polytonic with grave), `θεοί` (monotonic with acute), and `θεοι`
 (stripped) all resolve to `θεός`. Input can be polytonic, monotonic, or
 unaccented. MG forms take priority, then Medieval, then AG.
+
+**Wiktionary as upstream:** Because Dilemma's lookup tables are built
+directly from Wiktionary, any missing or incorrect lemmatization can
+often be fixed by editing the Wiktionary entry itself. When the kaikki
+dumps are next regenerated and `build_data.py` re-run, the fix flows
+into Dilemma automatically. This means the coverage and accuracy of
+Dilemma improve over time as Wiktionary's Greek coverage improves,
+without any changes to Dilemma's code.
 
 The transformer is a small (~4M param) character-level encoder-decoder,
 the standard architecture from
