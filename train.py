@@ -349,11 +349,10 @@ def main():
                         help="Fraction held out for eval (default: 0.05)")
     parser.add_argument("--max-pairs", type=int, default=0,
                         help="Cap training pairs (0 = unlimited, overrides --scale)")
-    parser.add_argument("--scale", type=int, default=0, choices=[0, 2, 3, 4],
-                        help="GPU scale: 0=500K pairs (~7 min), "
+    parser.add_argument("--scale", type=int, default=1, choices=[1, 2, 3],
+                        help="GPU scale: 1=20K pairs (~15 sec), "
                              "2=1M (~13 min), "
-                             "3=2M (~25 min), "
-                             "4=all (~45 min)")
+                             "3=all (~45 min)")
     parser.add_argument("--eval-only", action="store_true",
                         help="Evaluate existing model without training")
     args = parser.parse_args()
@@ -382,7 +381,7 @@ def main():
         # Resolve max_pairs from --scale if not explicitly set
         max_pairs = args.max_pairs
         if max_pairs == 0:
-            scale_pairs = {0: 500_000, 2: 1_000_000, 3: 2_000_000, 4: 0}
+            scale_pairs = {1: 20_000, 2: 1_000_000, 3: 0}
             max_pairs = scale_pairs[args.scale]
             if max_pairs:
                 print(f"Scale {args.scale}: capping at {max_pairs:,} pairs")
