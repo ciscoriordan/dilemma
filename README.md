@@ -86,7 +86,18 @@ d_grc = Dilemma(lang="grc")                   # AG only
 
 # Specific model scale
 d = Dilemma(scale=1)                          # use scale 1 model
+
+# Treebank evaluation mode: resolve articles to ὁ, pronouns to ἐγώ/σύ
+d_eval = Dilemma(resolve_articles=True)
+d_eval.lemmatize("τῆς")                       # "ὁ" (not "τῆς")
+d_eval.lemmatize("μοι")                       # "ἐγώ" (not "μοι")
 ```
+
+By default, articles and pronoun clitics self-map (e.g. `τῆς` returns
+`τῆς`). This is better for alignment pipelines where you want
+surface-form matching. Set `resolve_articles=True` to resolve them
+to canonical lemmas (`ὁ`, `ἐγώ`, `σύ`), matching treebank conventions
+(AGDT, DiGreC, PROIEL).
 
 ## How It Works
 

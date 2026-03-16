@@ -295,8 +295,29 @@ def extract_pairs(jsonl_path: Path, lang: str,
             page_headwords.add(lemma)
             page_headwords.add(lemma.lower())
 
-            # The headword itself maps to itself
-            _add_lookup(lookup, lemma, lemma, confidence=1)
+            # Headword self-mapping. True lemma entries (their own
+            # dictionary definition) get confidence 3 so they can't be
+            # overridden by another entry's inflection table. Form-of
+            # pages (e.g. θεοί saying "plural of θεός") get confidence 1
+            # so the parent entry's table can set the correct mapping.
+            is_form_of_page = bool(entry.get("form_of") or entry.get("alt_of"))
+            if not is_form_of_page:
+                # Check gloss for "X of Y" pattern (kaikki often doesn't
+                # populate form_of for AG form-of pages)
+                senses = entry.get("senses", [])
+                if senses:
+                    gloss = (senses[0].get("glosses") or [""])[0].lower()
+                    _form_of_patterns = (
+                        " of ", " singular of ", " plural of ",
+                        " form of ", " active of ", " passive of ",
+                        " participle of ", " indicative of ",
+                        " πρόσωπο ", " ενικού ", " πληθυντικού ",
+                        " γενική ", " αιτιατική ", " ονομαστική ",
+                    )
+                    if any(p in gloss for p in _form_of_patterns):
+                        is_form_of_page = True
+            hw_confidence = 1 if is_form_of_page else 3
+            _add_lookup(lookup, lemma, lemma, confidence=hw_confidence)
 
             has_data = False
 
@@ -377,10 +398,15 @@ def extract_pairs(jsonl_path: Path, lang: str,
                 if not _is_greek(form):
                     continue
 
-                # Pronoun cross-contamination filter
-                if pos in filter_cross_forms_pos:
-                    if form in closed_class_headwords and form != lemma:
-                        continue
+                # Pronoun cross-contamination: confidence handles this.
+                # Forms that are headwords of other entries self-map at
+                # confidence 3, so table forms at confidence 1 can't
+                # override them. E.g., εσύ self-maps at conf 3, so
+                # ἐγώ's table trying to add εσύ→ἐγώ at conf 1 loses.
+                # But μοι→ἐγώ works because μοι's self-mapping is also
+                # conf 3 (a tie), so first-wins applies and the self-map
+                # from μοι's own page wins. This is correct for alignment
+                # (self-mapping), and resolve_articles handles eval.
 
                 # Article form leaking into noun/adj Katharevousa templates.
                 # Check all variants (original, monotonic, stripped) since

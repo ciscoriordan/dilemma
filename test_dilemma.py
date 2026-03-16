@@ -53,7 +53,7 @@ def test_known_pairs() -> list[dict]:
         {"form": "γυναίκες", "lemma": "γυναίκα", "variety": "SMG"},
         {"form": "κάθισε", "lemma": "κάθομαι", "variety": "SMG"},  # Wiktionary headword
         {"form": "ποτήρια", "lemma": "ποτήρι", "variety": "SMG"},
-        {"form": "φέρνοντας", "lemma": "φέρω", "variety": "SMG"},  # Wiktionary uses AG form
+        {"form": "φέρνοντας", "lemma": "φέρνω", "variety": "SMG"},  # MG headword (not AG φέρω)
 
         # ── AG Epic/Homeric ──
         {"form": "θεοί", "lemma": "θεός", "variety": "Epic"},

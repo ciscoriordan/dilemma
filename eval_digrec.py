@@ -238,8 +238,8 @@ def main():
     # Load Dilemma
     sys.path.insert(0, str(SCRIPT_DIR))
     from dilemma import Dilemma
-    d = Dilemma(scale=args.scale)
-    print(f"\nDilemma loaded (scale={args.scale})")
+    d = Dilemma(scale=args.scale, resolve_articles=True)
+    print(f"\nDilemma loaded (scale={args.scale}, resolve_articles=True)")
 
     # Evaluate
     print(f"\nEvaluating...")
