@@ -103,6 +103,24 @@ def to_monotonic(s: str) -> str:
     return unicodedata.normalize("NFC", "".join(out))
 
 
+def grave_to_acute(s: str) -> str:
+    """Convert grave accents to acute, preserving all other diacritics.
+
+    In Greek orthography, grave (βαρεῖα) is a positional variant of acute —
+    it appears on the last syllable when followed by another word. So ὣς = ὡς,
+    τὸν = τόν, etc. This is a lighter normalization than to_monotonic(), which
+    also strips breathings and circumflex.
+    """
+    nfd = unicodedata.normalize("NFD", s)
+    out = []
+    for ch in nfd:
+        if ord(ch) == 0x0300:  # COMBINING GRAVE ACCENT
+            out.append("\u0301")  # COMBINING ACUTE ACCENT
+        else:
+            out.append(ch)
+    return unicodedata.normalize("NFC", "".join(out))
+
+
 def strip_accents(s: str) -> str:
     """Strip all accents for fuzzy matching."""
     nfd = unicodedata.normalize("NFD", s)
@@ -306,7 +324,11 @@ class Dilemma:
         return None
 
     def _lookup_word(self, word: str) -> str | None:
-        """Try lookup cascade: exact -> lowercase -> monotonic -> stripped.
+        """Try lookup cascade: exact -> lowercase -> grave_to_acute -> monotonic -> stripped.
+
+        Grave-to-acute is tried before monotonic because it preserves
+        breathings and circumflex (lighter normalization). ὣς → ὡς works
+        here without losing the breathing that monotonic would strip.
 
         Skips mono/stripped matches that are trivially short (1-2 chars)
         and map to themselves — these are usually false positives from
@@ -315,6 +337,12 @@ class Dilemma:
         lemma = self._lookup.get(word) or self._lookup.get(word.lower())
         if lemma:
             return lemma
+        # Grave → acute (lightest normalization, preserves breathings)
+        acute = grave_to_acute(word)
+        if acute != word:
+            lemma = self._lookup.get(acute) or self._lookup.get(acute.lower())
+            if lemma:
+                return lemma
         mono = to_monotonic(word.lower())
         stripped = strip_accents(word.lower())
         for variant in [mono, stripped]:
