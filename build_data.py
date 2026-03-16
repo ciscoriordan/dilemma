@@ -212,7 +212,7 @@ def extract_pairs(jsonl_path: Path, lang: str,
     skip_tags = {"romanization", "table-tags", "inflection-template", "class"}
     # Articles/determiners dump all genders/persons into each headword.
     # Pronouns have cross-contamination (εσύ lists εγώ as a "form").
-    skip_all_forms_pos = {"article", "det"}
+    skip_all_forms_pos = {"article", "det", "phrase"}
     filter_cross_forms_pos = {"pron"}
 
     # First pass: collect closed-class headwords and article forms.
@@ -286,6 +286,10 @@ def extract_pairs(jsonl_path: Path, lang: str,
 
             lemma = strip_length_marks(word)
             if not _is_greek(lemma.replace(" ", "")):
+                continue
+
+            # Skip multi-word entries (phrases) from lookup
+            if " " in lemma:
                 continue
 
             page_headwords.add(lemma)
