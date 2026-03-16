@@ -24,6 +24,31 @@ MED_LOOKUP_PATH = Path(__file__).parent / "data" / "med_lookup.json"
 _POLYTONIC_STRIP = {0x0313, 0x0314, 0x0345, 0x0306, 0x0304}
 _POLYTONIC_TO_ACUTE = {0x0300, 0x0342}
 
+# Article and pronoun resolution: maps forms to canonical lemma.
+# Used when resolve_articles=True (for treebank evaluation).
+_ARTICLE_LEMMA = "ὁ"
+_ARTICLE_FORMS = {
+    "ὁ", "ἡ", "τό", "τό", "τοῦ", "τῆς", "τῶν", "τόν", "τήν",
+    "τά", "τοῖς", "ταῖς", "τῷ", "τῇ", "τούς", "τάς", "τοῖν", "ταῖν",
+    "οἱ", "αἱ", "τώ",
+    # Monotonic
+    "ο", "η", "το", "του", "της", "των", "τον", "την",
+    "τα", "τους", "τις", "τοις", "οι",
+    # Grave variants
+    "τὸ", "τοὺς", "τὰ", "τὸν", "τὴν", "τὰς",
+}
+
+_PRONOUN_LEMMAS = {
+    # 1st person -> ἐγώ
+    "μοι": "ἐγώ", "μοί": "ἐγώ", "μου": "ἐγώ", "με": "ἐγώ",
+    "ἐμοί": "ἐγώ", "ἐμοῦ": "ἐγώ", "ἐμέ": "ἐγώ",
+    "ἡμεῖς": "ἐγώ", "ἡμῶν": "ἐγώ", "ἡμῖν": "ἐγώ", "ἡμᾶς": "ἐγώ",
+    # 2nd person -> σύ
+    "σοι": "σύ", "σοί": "σύ", "σου": "σύ", "σε": "σύ",
+    "σοῦ": "σύ",
+    "ὑμεῖς": "σύ", "ὑμῶν": "σύ", "ὑμῖν": "σύ", "ὑμᾶς": "σύ",
+}
+
 
 def to_monotonic(s: str) -> str:
     """Convert polytonic Greek to monotonic."""
@@ -48,7 +73,8 @@ def strip_accents(s: str) -> str:
 
 
 class Dilemma:
-    def __init__(self, lang="all", device=None, scale=None):
+    def __init__(self, lang="all", device=None, scale=None,
+                 resolve_articles=False):
         """Initialize Dilemma.
 
         Args:
@@ -58,11 +84,19 @@ class Dilemma:
             scale: Model scale (0-4). None auto-detects the best available.
                    Larger scales = more training data = better generalization
                    on unseen forms. Lookup table is the same for all scales.
+            resolve_articles: if True, resolve article forms (τῆς, τόν,
+                  etc.) to the canonical lemma ὁ, and pronoun clitics
+                  (μοι, σοι) to their pronoun lemma (ἐγώ, σύ). Default
+                  False, which keeps articles/pronouns as self-mappings
+                  (better for alignment where you want surface-form
+                  matching). Set True for evaluation against treebanks
+                  like DiGreC/AGDT which use ὁ as the article lemma.
         """
         if lang == "both":
             lang = "all"
         self.lang = lang
         self._scale = scale
+        self._resolve_articles = resolve_articles
         self._model = None
         self._vocab = None
         self._device = device
@@ -141,14 +175,33 @@ class Dilemma:
         self._model.to(device)
         self._model.eval()
 
+    def _resolve_closed_class(self, word: str) -> str | None:
+        """Resolve articles/pronouns to canonical lemma if enabled."""
+        if not self._resolve_articles:
+            return None
+        if word in _ARTICLE_FORMS or to_monotonic(word) in _ARTICLE_FORMS:
+            return _ARTICLE_LEMMA
+        if word in _PRONOUN_LEMMAS:
+            return _PRONOUN_LEMMAS[word]
+        mono = to_monotonic(word)
+        if mono in _PRONOUN_LEMMAS:
+            return _PRONOUN_LEMMAS[mono]
+        return None
+
     def lemmatize(self, word: str) -> str:
         """Lemmatize a single Greek word.
 
         Resolution order:
-          1. Crasis table (small, hand-curated)
-          2. Lookup table (instant, 5M+ forms)
-          3. Model with beam search + headword filter
+          1. Article/pronoun resolution (if resolve_articles=True)
+          2. Crasis table (small, hand-curated)
+          3. Lookup table (instant, 5M+ forms)
+          4. Model with beam search + headword filter
         """
+        # Resolve articles/pronouns to canonical lemma
+        closed = self._resolve_closed_class(word)
+        if closed is not None:
+            return closed
+
         # Check crasis first (before lookup, since crasis forms are
         # Wiktionary headwords that self-map in the lookup)
         from crasis import resolve_crasis
