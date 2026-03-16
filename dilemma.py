@@ -145,7 +145,7 @@ class Dilemma:
         else:
             # Auto-detect: pick highest available scale
             model_path = None
-            for s in [4, 3, 2, 1, 0]:
+            for s in [4, 3, 2, 0]:
                 candidate = MODEL_DIR / f"{lang_dir}-s{s}"
                 if (candidate / "model.pt").exists():
                     model_path = candidate
