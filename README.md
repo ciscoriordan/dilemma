@@ -162,7 +162,7 @@ The remaining budget is split 50/50 between Ancient Greek and standard MG.
 
 | Scale | Training pairs | Varieties | AG | SMG | Time (2080 Ti) | Eval | Tests |
 |:-----:|---------------:|----------:|-------:|-------:|:--------------:|:----:|:-----:|
-| 1 | 20K | 9K (100%) | 5.5K | 5.5K | 16 sec | 2.6% | 54/55 |
+| 1 | 20K | 9K (100%) | 5.5K | 5.5K | 16 sec | 2.6% | 53/55 |
 | 2 | 1M | 9K (100%) | 496K | 496K | 13 min | 62% | 54/55 |
 | 3 | 3.2M (all) | 9K (100%) | 1.5M (100%) | 1.7M (100%) | ~45 min | - | - |
 
