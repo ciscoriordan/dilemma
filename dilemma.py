@@ -221,17 +221,25 @@ class Dilemma:
             with open(AG_LOOKUP_PATH, encoding="utf-8") as f:
                 self._ag_lookup = json.load(f)
 
-        # Build combined lookup respecting lang priority
+        # Build combined lookup respecting lang priority.
+        # Real mappings (form != lemma) override self-mappings (form == lemma)
+        # regardless of language priority. Self-maps just mean "this is a
+        # headword" — a weaker signal than "this is an inflected form of X".
+        # E.g. MG τούτου→τούτου (self-map) should NOT block AG τούτου→οὗτος.
         if self.lang == "all":
-            # MG + Medieval first, then AG fills gaps
             for data in [self._mg_lookup, self._med_lookup, self._ag_lookup]:
                 for k, v in data.items():
                     if k not in self._lookup:
+                        self._lookup[k] = v
+                    elif self._lookup[k] == k and v != k:
+                        # Existing is a self-map, new is a real mapping — override
                         self._lookup[k] = v
         elif self.lang == "el":
             for data in [self._mg_lookup, self._med_lookup]:
                 for k, v in data.items():
                     if k not in self._lookup:
+                        self._lookup[k] = v
+                    elif self._lookup[k] == k and v != k:
                         self._lookup[k] = v
         elif self.lang == "grc":
             self._lookup = dict(self._ag_lookup)
