@@ -214,6 +214,9 @@ class Dilemma:
         lookup table. If no candidate is a headword, returns the
         input word unchanged (better than a confidently wrong answer).
         """
+        if not words:
+            return []
+
         import torch
 
         # Build headword set on first use (forms that map to themselves)
