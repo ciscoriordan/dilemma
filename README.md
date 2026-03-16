@@ -379,6 +379,35 @@ Dilemma's architecture follows a similar hybrid strategy, with
 Byzantine/Medieval coverage from the EL Wiktionary Medieval Greek dump
 and AG inflection tables that include Koine and Byzantine-era paradigms.
 
+### Evaluation on DiGreC
+
+Evaluated on the [DiGreC treebank](https://github.com/mdm33/digrec)
+(119K manually reviewed tokens spanning Homer through 15th century
+Byzantine Greek) at scale 3 with `resolve_articles=True`:
+
+| Category | Tokens | Accuracy (stripped) |
+|----------|:------:|:-------------------:|
+| **Overall** | 118,894 | **78.2%** |
+| Verbs | 25,285 | 76.6% |
+| Nouns | 16,573 | 79.5% |
+| Adverbs | 16,050 | 86.2% |
+| Articles | 14,235 | 97.1% |
+| Conjunctions | 8,540 | 92.2% |
+| Adjectives | 8,508 | 76.6% |
+| Prepositions | 6,787 | 88.0% |
+| Proper nouns | 5,118 | 77.4% |
+| **Late Byzantine** | 371 | **77.9%** |
+| **Early Byzantine** | 144 | **80.6%** |
+
+For comparison, Swaelens et al.'s best approach achieved 66% on
+Byzantine epigrams (and 53-56% for pure transformer methods). Dilemma
+reaches 78-81% on Byzantine text without any task-specific training
+on Byzantine data, using only Wiktionary inflection tables.
+
+Note: Dilemma operates on isolated words without POS context.
+Context-aware models like Celano's GreTa (95.6% F1) achieve higher
+accuracy on classical text by using full-sentence information.
+
 ## Credits
 
 - Training data from [English Wiktionary](https://en.wiktionary.org/) and [Greek Wiktionary](https://el.wiktionary.org/) via [kaikki.org](https://kaikki.org/) JSONL dumps
