@@ -310,21 +310,7 @@ class Dilemma:
         candidates = self._expand_elision_all(word)
         if not candidates:
             return None
-
-        # Score candidates: prefer common, simple lemmas.
-        # Elision typically affects particles (δέ, τε, γε), prepositions
-        # (ἐπί, ὑπό, κατά), adverbs (ἔνθα, μάλα), and verb endings (-ατο).
-        # Scoring: vowel frequency rank (ε,α,ο are most common in elision),
-        # then shorter lemma, then fewer accents (simpler word).
-        _VOWEL_RANK = {v: i for i, v in enumerate("εαοιηυω")}
-        _ACC_VOWEL_RANK = {"ά": 1, "έ": 0, "ί": 4, "ό": 2, "ή": 3, "ύ": 5, "ώ": 6}
-
-        def score(item):
-            expanded, lemma, vowel = item
-            vrank = _ACC_VOWEL_RANK.get(vowel, _VOWEL_RANK.get(vowel, 10))
-            return (vrank, len(lemma))
-
-        candidates.sort(key=score)
+        # _expand_elision_all returns results pre-sorted by vowel frequency
         return candidates[0][1]
 
     def _expand_elision_all(self, word: str) -> list[tuple[str, str, str]]:
@@ -333,6 +319,10 @@ class Dilemma:
         For polytonic input (has breathings/circumflex), prioritizes AG lookup.
         Elision is overwhelmingly an AG phenomenon; MG monotonic forms would
         pollute results with false matches.
+
+        Results are sorted by vowel frequency in elision contexts (ε, α, ο
+        most common), then by lemma length. This ensures both lemmatize()
+        and lemmatize_verbose() get the same ranking.
         """
         stem = _strip_elision(word)
         if not stem:
@@ -370,6 +360,17 @@ class Dilemma:
                     seen_lemmas.add(lemma)
                     results.append((expanded, lemma, suffix))
 
+        # Sort by vowel frequency (same ranking as _expand_elision)
+        _VOWEL_RANK = {v: i for i, v in enumerate("εαοιηυω")}
+        _ACC_VOWEL_RANK = {"ά": 1, "έ": 0, "ί": 4, "ό": 2,
+                           "ή": 3, "ύ": 5, "ώ": 6}
+
+        def _rank(item):
+            expanded, lemma, vowel = item
+            vrank = _ACC_VOWEL_RANK.get(vowel, _VOWEL_RANK.get(vowel, 10))
+            return (vrank, len(lemma))
+
+        results.sort(key=_rank)
         return results
 
     def _lang_of(self, form: str) -> str:
