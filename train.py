@@ -23,6 +23,9 @@ import sys
 import time
 from pathlib import Path
 
+if sys.stdout.encoding != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8")
+
 import torch
 from torch.utils.data import Dataset, DataLoader
 
