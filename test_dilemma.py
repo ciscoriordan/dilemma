@@ -107,7 +107,7 @@ def test_dilemma_e2e() -> list[dict]:
         {"form": "τρομερό", "lemma": "τρομερός", "variety": "SMG", "source": "lookup"},
         {"form": "ανθρώπων", "lemma": "άνθρωπος", "variety": "SMG", "source": "lookup"},
         {"form": "εσκόρπισαν", "lemma": "σκορπίζω", "variety": "SMG", "source": "lookup"},
-        {"form": "χολωμένο", "lemma": "χολώνω", "variety": "SMG", "source": "lookup"},
+        {"form": "χολωμένο", "lemma": "χολωμένος", "variety": "SMG", "source": "lookup"},
 
         # ── AG (lookup) ──
         {"form": "μῆνιν", "lemma": "μῆνις", "variety": "Epic", "source": "lookup"},
