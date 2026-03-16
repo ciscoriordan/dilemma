@@ -149,17 +149,23 @@ Every scale includes **100% of non-standard varieties** (Medieval,
 Katharevousa, Cypriot, Cretan, Maniot, Heptanesian, archaic, dialectal).
 The remaining budget is split 50/50 between Ancient Greek and standard MG.
 
-| Scale | Training pairs | Varieties | AG | SMG | Time (2080 Ti) | Eval accuracy |
-|:-----:|---------------:|----------:|-------:|-------:|:--------------:|:-------------:|
-| 0 | 20K | 9K (100%) | 5.5K | 5.5K | 15 sec | 1.6% |
-| 1 | 500K | 9K (100%) | 246K | 246K | 6.5 min | 46% |
-| 2 | 1M | 9K (100%) | 496K | 496K | 13 min | 63% |
-| 3 | 2M | 9K (100%) | 996K | 996K | ~26 min | - |
-| 4 | 3.2M (all) | 9K (100%) | 1.4M (100%) | 1.3M (100%) | ~45 min | - |
+| Scale | Training pairs | Varieties | AG | SMG | Time (2080 Ti) | Eval | Tests |
+|:-----:|---------------:|----------:|-------:|-------:|:--------------:|:----:|:-----:|
+| 0 | 20K | 9K (100%) | 5.5K | 5.5K | 15 sec | 1.6% | 53/55 |
+| 1 | 500K | 9K (100%) | 246K | 246K | 6.5 min | 49% | 55/55 |
+| 2 | 1M | 9K (100%) | 496K | 496K | 13 min | 64% | 55/55 |
+| 3 | 2M | 9K (100%) | 996K | 996K | 25 min | 75% | 55/55 |
+| 4 | 3.2M (all) | 9K (100%) | 1.4M (100%) | 1.3M (100%) | ~45 min | - | - |
 
-Eval accuracy is measured on held-out pairs where the model must predict
-the lemma without the lookup table. In practice, the lookup resolves
-99%+ of forms instantly. The model only handles truly novel words.
+Eval accuracy is the model's score on held-out pairs *without* the
+lookup table. In practice, the lookup resolves 99%+ of forms instantly
+and the model only handles truly novel words. When the model is used,
+beam search generates 4 candidates and the first one that matches a
+known headword in the lookup wins. If none match, the input is returned
+unchanged (safe fallback).
+
+Tests are a 55-case suite covering SMG, Epic, Attic, Koine, Byzantine,
+Katharevousa, crasis, and model fallback across all resolution paths.
 
 Models are saved to `model/combined-s0/`, `model/combined-s1/`, etc.
 `Dilemma()` auto-detects the best available scale, or you can specify one:
