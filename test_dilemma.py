@@ -44,32 +44,86 @@ def test_lookup_lemmas_are_headwords(lookup: dict) -> tuple[int, int, list[str]]
 def test_known_pairs() -> list[dict]:
     """Curated test cases across varieties. Returns list of {form, lemma, variety}."""
     return [
-        # SMG verbs
+        # ── SMG ──
         {"form": "τρέχουν", "lemma": "τρέχω", "variety": "SMG"},
         {"form": "έτρεξε", "lemma": "τρέχω", "variety": "SMG"},
         {"form": "τρομερό", "lemma": "τρομερός", "variety": "SMG"},
-        {"form": "πολεμούσαν", "lemma": "πολεμάω", "variety": "SMG"},  # Wiktionary uses -άω headword
-        # SMG nouns
+        {"form": "πολεμούσαν", "lemma": "πολεμάω", "variety": "SMG"},
         {"form": "ανθρώπων", "lemma": "άνθρωπος", "variety": "SMG"},
         {"form": "γυναίκες", "lemma": "γυναίκα", "variety": "SMG"},
-        # AG Epic
+        {"form": "κάθισε", "lemma": "κάθομαι", "variety": "SMG"},  # Wiktionary headword
+        {"form": "ποτήρια", "lemma": "ποτήρι", "variety": "SMG"},
+        {"form": "φέρνοντας", "lemma": "φέρω", "variety": "SMG"},  # Wiktionary uses AG form
+
+        # ── AG Epic/Homeric ──
         {"form": "θεοί", "lemma": "θεός", "variety": "Epic"},
         {"form": "μῆνιν", "lemma": "μῆνις", "variety": "Epic"},
         {"form": "ἄειδε", "lemma": "ἀείδω", "variety": "Epic"},
         {"form": "Ἀχιλῆος", "lemma": "Ἀχιλλεύς", "variety": "Epic"},
         {"form": "πολύτροπον", "lemma": "πολύτροπος", "variety": "Epic"},
-        # AG Attic
+        {"form": "Πηλείδεω", "lemma": "Πηλείδης", "variety": "Epic"},
+
+        # ── AG Attic ──
         {"form": "ἐποίησεν", "lemma": "ποιέω", "variety": "Attic"},
         {"form": "ἔλεγον", "lemma": "λέγω", "variety": "Attic"},
         {"form": "ἔλυσε", "lemma": "λύω", "variety": "Attic"},
-        # AG Koine
+
+        # ── AG Koine ──
         {"form": "ἐβασίλευσεν", "lemma": "βασιλεύω", "variety": "Koine"},
-        # Katharevousa
+
+        # ── AG misc ──
+        {"form": "σβέννυσι", "lemma": "σβέννυμι", "variety": "AG"},
+        {"form": "τριῶν", "lemma": "τρεῖς", "variety": "AG"},
+        {"form": "παίδων", "lemma": "παῖς", "variety": "AG"},
+
+        # ── Medieval/Byzantine ──
+        # From Swaelens et al. (2024) epigram examples
+        {"form": "φλόγα", "lemma": "φλόγα", "variety": "Byzantine"},  # acc self-maps (φλόξ not in lookup)
+        {"form": "Αἶνος", "lemma": "Αἶνος", "variety": "Byzantine"},
+
+        # ── Katharevousa ──
         {"form": "ἐξετέλεσεν", "lemma": "ἐκτελέω", "variety": "Katharevousa"},
-        # Articles/pronouns — ambiguous forms map to themselves
-        # (τους can be article, pronoun, or clitic; no single correct lemma)
+
+        # ── Crasis (lookup test only checks raw lookup, not crasis table) ──
+        {"form": "τοὔνομα", "lemma": "τοὔνομα", "variety": "Crasis"},  # self-maps in lookup
+        {"form": "κἀγώ", "lemma": "κἀγώ", "variety": "Crasis"},       # self-maps in lookup
+        {"form": "τἀνδρός", "lemma": "ἀνήρ", "variety": "Crasis"},    # in lookup via form_of
+        {"form": "κἄν", "lemma": "κἄν", "variety": "Crasis"},         # self-maps in lookup
+
+        # ── Articles/pronouns ──
         {"form": "τους", "lemma": "τους", "variety": "SMG article/pronoun"},
         {"form": "της", "lemma": "της", "variety": "SMG article/pronoun"},
+    ]
+
+
+def test_dilemma_e2e() -> list[dict]:
+    """End-to-end test cases using the Dilemma class (lookup + crasis + model).
+
+    Returns list of {form, lemma, variety, source} where source indicates
+    which resolution path should handle it (lookup, crasis, model).
+    """
+    return [
+        # ── SMG (lookup) ──
+        {"form": "τρομερό", "lemma": "τρομερός", "variety": "SMG", "source": "lookup"},
+        {"form": "ανθρώπων", "lemma": "άνθρωπος", "variety": "SMG", "source": "lookup"},
+        {"form": "εσκόρπισαν", "lemma": "σκορπίζω", "variety": "SMG", "source": "lookup"},
+        {"form": "χολωμένο", "lemma": "χολώνω", "variety": "SMG", "source": "lookup"},
+
+        # ── AG (lookup) ──
+        {"form": "μῆνιν", "lemma": "μῆνις", "variety": "Epic", "source": "lookup"},
+        {"form": "θεοί", "lemma": "θεός", "variety": "Epic", "source": "lookup"},
+        {"form": "ἔλυσε", "lemma": "λύω", "variety": "Attic", "source": "lookup"},
+        {"form": "σβέννυσι", "lemma": "σβέννυμι", "variety": "AG", "source": "lookup"},
+
+        # ── Crasis (crasis table) ──
+        {"form": "τοὔνομα", "lemma": "ὄνομα", "variety": "Crasis", "source": "crasis"},
+        {"form": "κἀγώ", "lemma": "ἐγώ", "variety": "Crasis", "source": "crasis"},
+        {"form": "ταὐτός", "lemma": "αὐτός", "variety": "Crasis", "source": "crasis"},
+        {"form": "ἅνδρες", "lemma": "ἀνήρ", "variety": "Crasis", "source": "crasis"},
+
+        # ── Model fallback (forms not in lookup) ──
+        {"form": "εκαθαρίζονταν", "lemma": "καθαρίζω", "variety": "SMG", "source": "model"},
+        {"form": "εφώναξε", "lemma": "φωνάζω", "variety": "SMG", "source": "model"},
     ]
 
 
@@ -208,15 +262,63 @@ def run_known_pair_tests():
     return results
 
 
+def run_e2e_tests(scale=None):
+    """End-to-end tests using the full Dilemma class."""
+    print("\n" + "=" * 60)
+    print(f"END-TO-END TESTS (scale={scale})")
+    print("=" * 60)
+
+    from dilemma import Dilemma
+    d = Dilemma(scale=scale)
+
+    results = []
+    cases = test_dilemma_e2e()
+
+    # Group by variety for display
+    from collections import defaultdict
+    by_variety = defaultdict(list)
+    for case in cases:
+        by_variety[case["variety"]].append(case)
+
+    for variety in ["SMG", "Epic", "Attic", "AG", "Crasis", "Byzantine"]:
+        group = by_variety.get(variety, [])
+        if not group:
+            continue
+        print(f"\n  {variety}:")
+        for case in group:
+            form = case["form"]
+            expected = case["lemma"]
+            source = case["source"]
+            actual = d.lemmatize(form)
+
+            if actual == expected:
+                status = "PASS"
+            else:
+                status = "FAIL"
+
+            results.append((status, f"{form} -> {expected} ({variety}/{source})"))
+            mark = "" if status == "PASS" else f" (got '{actual}')"
+            print(f"    [{status}] {form:20s} -> {expected:20s} [{source}]{mark}")
+
+    passed = sum(1 for s, _ in results if s == "PASS")
+    print(f"\n  {passed}/{len(results)} passed")
+    return results
+
+
 def main():
     parser = argparse.ArgumentParser(description="Test Dilemma")
     parser.add_argument("--lookup-only", action="store_true",
-                        help="Skip model tests, only test data/lookup")
+                        help="Skip model/e2e tests, only test data/lookup")
+    parser.add_argument("--scale", type=int, default=None,
+                        help="Scale for e2e tests (default: auto-detect)")
     args = parser.parse_args()
 
     all_results = []
     all_results.extend(run_lookup_tests())
     all_results.extend(run_known_pair_tests())
+
+    if not args.lookup_only:
+        all_results.extend(run_e2e_tests(scale=args.scale))
 
     # Summary
     print("\n" + "=" * 60)
