@@ -42,7 +42,7 @@ _POLYTONIC_TO_ACUTE = {0x0300, 0x0342}
 # Elision mark: U+0313 COMBINING COMMA ABOVE (repurposed as apostrophe
 # in polytonic Greek text). Also handle right single quote U+2019 and
 # modifier letter apostrophe U+02BC.
-_ELISION_MARKS = {"\u0313", "\u2019", "\u02BC", "'"}
+_ELISION_MARKS = {"\u0313", "\u2019", "\u02BC", "'", "\u1FBD"}
 
 # Vowels to try when expanding elision (ordered by frequency in AG text)
 _GREEK_VOWELS = "αεοιηυω"
@@ -138,19 +138,35 @@ def _strip_elision(word: str) -> str | None:
                 return stem
         return None
 
-    # Multi-char word: find end of first base character cluster (initial
-    # letter + its combining marks including breathing). We skip past
-    # those so we don't mistake initial breathing U+0313 for elision.
-    first_cluster_end = 1
-    while first_cluster_end < len(nfd) and unicodedata.category(nfd[first_cluster_end]) == "Mn":
-        first_cluster_end += 1
+    # Multi-char word: U+0313 is only elision when it's on the LAST
+    # base character. Anywhere else (initial letter, diphthong like ου)
+    # it's a smooth breathing mark.
+    #
+    # Find the last base character, then check if U+0313 follows it
+    # with no more base characters after.
+    last_base_idx = -1
+    for i in range(len(nfd) - 1, -1, -1):
+        if unicodedata.category(nfd[i]) != "Mn":
+            last_base_idx = i
+            break
 
-    # Look for elision mark AFTER the first cluster
-    for i in range(len(nfd) - 1, first_cluster_end - 1, -1):
+    if last_base_idx < 0:
+        return None
+
+    # Check combining marks after the last base char for elision mark
+    for i in range(last_base_idx + 1, len(nfd)):
         if nfd[i] in _ELISION_MARKS:
             stem = unicodedata.normalize("NFC", nfd[:i])
             if stem:
                 return stem
+
+    # Also check non-combining elision marks (right quote, modifier apostrophe)
+    # at the very end of the string
+    if nfd[-1] in _ELISION_MARKS and unicodedata.category(nfd[-1]) != "Mn":
+        stem = unicodedata.normalize("NFC", nfd[:-1])
+        if stem:
+            return stem
+
     return None
 
 
@@ -328,10 +344,16 @@ class Dilemma:
         if not stem:
             return []
 
-        # Detect if input is polytonic (has AG-style diacritics)
+        # Detect if input is polytonic (has AG-style diacritics).
+        # Also treat any non-combining elision mark (U+1FBD KORONIS,
+        # U+02BC, U+2019) as indicating AG context, since elision is
+        # overwhelmingly an AG phenomenon.
         nfd = unicodedata.normalize("NFD", word)
-        has_polytonic = any(ord(ch) in _POLYTONIC_STRIP | _POLYTONIC_TO_ACUTE
-                           for ch in nfd)
+        has_polytonic = (any(ord(ch) in _POLYTONIC_STRIP | _POLYTONIC_TO_ACUTE
+                            for ch in nfd)
+                         or any(ch in _ELISION_MARKS
+                                and unicodedata.category(ch) != "Mn"
+                                for ch in word))
 
         # Choose which lookups to search
         if has_polytonic:
