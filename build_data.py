@@ -210,9 +210,16 @@ def extract_pairs(jsonl_path: Path, lang: str,
     page_headwords = set()
     lookup = {}
     skip_tags = {"romanization", "table-tags", "inflection-template", "class"}
-    # Articles/determiners dump all genders/persons into each headword.
+    # Articles dump all genders/persons into each headword.
     # Pronouns have cross-contamination (εσύ lists εγώ as a "form").
-    skip_all_forms_pos = {"article", "det", "phrase"}
+    # NOTE: "det" used to be in skip_all_forms_pos, but that also
+    # catches demonstratives (οὗτος, ὅδε, ἐκεῖνος) which have
+    # legitimate paradigms. Instead, we target article headwords
+    # specifically in the skip logic below.
+    skip_all_forms_pos = {"article", "phrase"}
+    _article_headwords = {
+        "ὁ", "ἡ", "τό", "ο", "η", "το", "the",
+    }
     filter_cross_forms_pos = {"pron"}
 
     # First pass: collect closed-class headwords and article forms.
@@ -322,7 +329,14 @@ def extract_pairs(jsonl_path: Path, lang: str,
             has_data = False
 
             # --- Source 1: form_of (this page is a form of another word) ---
-            for ref in entry.get("form_of", []):
+            # Check both top-level form_of AND senses[].form_of.
+            # AG entries in EN kaikki store form-of refs in senses,
+            # not at the top level.
+            form_of_refs = list(entry.get("form_of", []))
+            for sense in entry.get("senses", []):
+                form_of_refs.extend(sense.get("form_of", []))
+
+            for ref in form_of_refs:
                 ref_word = strip_length_marks(ref.get("word", ""))
                 if not ref_word or not _is_greek(ref_word.replace(" ", "")):
                     continue
@@ -365,10 +379,14 @@ def extract_pairs(jsonl_path: Path, lang: str,
 
             entries_with_data += 1
 
-            # For articles/determiners: add forms as self-mappings (so they
-            # block contamination from Katharevousa templates) but don't
-            # create form->lemma training pairs.
-            if pos in skip_all_forms_pos:
+            # For articles: add forms as self-mappings (so they block
+            # contamination from Katharevousa templates) but don't
+            # create form->lemma training pairs. Skip article headwords
+            # specifically, not all det (which includes demonstratives).
+            if pos in skip_all_forms_pos or (
+                pos == "det"
+                and strip_accents(lemma.lower()) in _article_headwords
+            ):
                 for fe in entry.get("forms", []):
                     form = strip_length_marks(fe.get("form", ""))
                     if form and _is_greek(form) and " " not in form:
@@ -395,6 +413,15 @@ def extract_pairs(jsonl_path: Path, lang: str,
                     continue
                 if " " in form:
                     continue
+
+                # Handle parenthetical optional suffixes: ἐστί(ν) -> ἐστί + ἐστίν
+                extra_form = None
+                paren = re.match(r'^(.+?)\((.+?)\)$', form)
+                if paren:
+                    base, suffix = paren.groups()
+                    extra_form = base + suffix  # full form with suffix
+                    form = base                 # base form without suffix
+
                 if not _is_greek(form):
                     continue
 
@@ -448,6 +475,16 @@ def extract_pairs(jsonl_path: Path, lang: str,
 
                 # Lookup: original, lowercase, monotonic, accent-stripped
                 _add_lookup(lookup, form, lemma)
+
+                # Also add the parenthetical-expanded form (e.g. ἐστίν from ἐστί(ν))
+                if extra_form and _is_greek(extra_form):
+                    _add_lookup(lookup, extra_form, lemma)
+                    pairs.append({
+                        "form": extra_form,
+                        "lemma": lemma,
+                        "pos": pos,
+                        "tags": morph_tags,
+                    })
 
     print(f"  {lang}: scanned {scanned:,} entries, "
           f"{entries_with_data:,} with data, "
