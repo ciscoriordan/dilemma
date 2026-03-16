@@ -28,14 +28,17 @@ _POLYTONIC_TO_ACUTE = {0x0300, 0x0342}
 # Used when resolve_articles=True (for treebank evaluation).
 _ARTICLE_LEMMA = "ὁ"
 _ARTICLE_FORMS = {
-    "ὁ", "ἡ", "τό", "τό", "τοῦ", "τῆς", "τῶν", "τόν", "τήν",
+    # Polytonic
+    "ὁ", "ἡ", "τό", "τοῦ", "τῆς", "τῶν", "τόν", "τήν",
     "τά", "τοῖς", "ταῖς", "τῷ", "τῇ", "τούς", "τάς", "τοῖν", "ταῖν",
     "οἱ", "αἱ", "τώ",
+    # Grave variants
+    "τὸ", "τοὺς", "τὰ", "τὸν", "τὴν", "τὰς", "αἵ", "οἵ",
     # Monotonic
     "ο", "η", "το", "του", "της", "των", "τον", "την",
-    "τα", "τους", "τις", "τοις", "οι",
-    # Grave variants
-    "τὸ", "τοὺς", "τὰ", "τὸν", "τὴν", "τὰς",
+    "τα", "τους", "τις", "τοις", "οι", "αι",
+    # Stripped (no accents/breathings)
+    "τω", "ται",
 }
 
 _PRONOUN_LEMMAS = {
@@ -179,7 +182,9 @@ class Dilemma:
         """Resolve articles/pronouns to canonical lemma if enabled."""
         if not self._resolve_articles:
             return None
-        if word in _ARTICLE_FORMS or to_monotonic(word) in _ARTICLE_FORMS:
+        if (word in _ARTICLE_FORMS
+                or to_monotonic(word) in _ARTICLE_FORMS
+                or strip_accents(word.lower()) in _ARTICLE_FORMS):
             return _ARTICLE_LEMMA
         if word in _PRONOUN_LEMMAS:
             return _PRONOUN_LEMMAS[word]
