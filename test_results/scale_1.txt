@@ -4,25 +4,25 @@ C:\Users\cisco\AppData\Local\Programs\Python\Python312\Lib\site-packages\torch\n
 LOOKUP TABLE TESTS
 ============================================================
 
-  MG lookup: 2,826,117 entries
-  [PASS] No chained lookups: 0/2450110 failures
-  [PASS] Lemmas are headwords: 0/376007 missing
+  MG lookup: 2,810,729 entries
+  [PASS] No chained lookups: 0/2313476 failures
+  [PASS] Lemmas are headwords: 0/497253 missing
 
-  AG lookup: 2,367,443 entries
-  [PASS] No chained lookups: 0/2278970 failures
-  [PASS] Lemmas are headwords: 0/88473 missing
+  AG lookup: 2,365,981 entries
+  [PASS] No chained lookups: 0/2277095 failures
+  [PASS] Lemmas are headwords: 0/88886 missing
 
-  Medieval lookup: 6,891 entries
-  [PASS] No chained lookups: 0/4166 failures
-  [PASS] Lemmas are headwords: 0/2725 missing
+  Medieval lookup: 6,735 entries
+  [PASS] No chained lookups: 0/4050 failures
+  [PASS] Lemmas are headwords: 0/2685 missing
 
-  [PASS] MG training pair lemmas clean: 0/1740118 dirty
+  [PASS] MG training pair lemmas clean: 0/1739953 dirty
 
-  [PASS] AG training pair lemmas clean: 0/1492969 dirty
+  [PASS] AG training pair lemmas clean: 0/1498556 dirty
 
-  [PASS] MG pairs Greek-only: 0/1740118 failures
+  [PASS] MG pairs Greek-only: 0/1739953 failures
 
-  [PASS] AG pairs Greek-only: 0/1492969 failures
+  [PASS] AG pairs Greek-only: 0/1498556 failures
 
 ============================================================
 KNOWN PAIR TESTS (lookup)
@@ -38,9 +38,9 @@ END-TO-END TESTS (scale=1)
     [PASS] τρομερό              -> τρομερός             [lookup]
     [PASS] ανθρώπων             -> άνθρωπος             [lookup]
     [PASS] εσκόρπισαν           -> σκορπίζω             [lookup]
-    [PASS] χολωμένο             -> χολώνω               [lookup]
-    [PASS] εκαθαρίζονταν        -> καθαρίζω             [model]
-    [PASS] εφώναξε              -> φωνάζω               [model]
+    [FAIL] χολωμένο             -> χολώνω               [lookup] (got 'χολωμένος')
+    [FAIL] εκαθαρίζονταν        -> καθαρίζω             [model] (got 'εκαθαρίζονταν')
+    [FAIL] εφώναξε              -> φωνάζω               [model] (got 'εφώναξε')
 
   Epic:
     [PASS] μῆνιν                -> μῆνις                [lookup]
@@ -58,9 +58,14 @@ END-TO-END TESTS (scale=1)
     [PASS] ταὐτός               -> αὐτός                [crasis]
     [PASS] ἅνδρες               -> ἀνήρ                 [crasis]
 
-  14/14 passed
+  11/14 passed
 
 ============================================================
 SUMMARY
 ============================================================
-  PASS: 55  FAIL: 0  WARN: 0  MISS: 0
+  PASS: 52  FAIL: 3  WARN: 0  MISS: 0
+
+Failed tests:
+  χολωμένο -> χολώνω (SMG/lookup)
+  εκαθαρίζονταν -> καθαρίζω (SMG/model)
+  εφώναξε -> φωνάζω (SMG/model)
