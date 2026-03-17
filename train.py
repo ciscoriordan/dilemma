@@ -29,6 +29,8 @@ if sys.stdout.encoding != "utf-8":
 import torch
 from torch.utils.data import Dataset, DataLoader
 
+SEED = 42
+
 from model import CharVocab, LemmaTransformer
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -202,6 +204,11 @@ def evaluate(model, vocab, eval_pairs, device, batch_size=256):
 def train(lang: str, epochs: int, batch_size: int, lr: float, eval_split: float,
           max_pairs: int = 0, scale: int = None):
     """Train the lemmatizer model."""
+    random.seed(SEED)
+    torch.manual_seed(SEED)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(SEED)
+
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Device: {device}")
 
