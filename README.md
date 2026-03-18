@@ -495,6 +495,13 @@ will flow into Dilemma on the next `build_data.py` run.
 - Training data from [English Wiktionary](https://en.wiktionary.org/) and [Greek Wiktionary](https://el.wiktionary.org/) via [kaikki.org](https://kaikki.org/) JSONL dumps
 - Flag icons by [svg-flags](https://github.com/ciscoriordan/svg-flags)
 
+## How to Cite
+
+```
+Francisco Riordan, "Dilemma: Greek Lemmatizer" (2026).
+https://github.com/ciscoriordan/dilemma
+```
+
 ## License
 
 MIT
