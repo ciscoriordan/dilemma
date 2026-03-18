@@ -6,7 +6,7 @@ inflection pairs spanning Modern Greek, Ancient Greek, and Medieval Greek.
 
 Most Greek words resolve instantly via the lookup table. For unseen forms,
 Dilemma uses a small encoder-decoder transformer that learns morphological
-patterns at the character level,the standard architecture from
+patterns at the character level, the standard architecture from
 [SIGMORPHON](https://sigmorphon.github.io/) shared tasks. At 4M parameters
 it trains from scratch in minutes and runs inference in under a millisecond,
 compared to fine-tuning approaches like *ByT5-small* (300M params) which take
