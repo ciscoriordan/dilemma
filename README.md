@@ -480,7 +480,7 @@ accuracy on classical text by using full-sentence information.
 
 These are inherent limitations or Wiktionary coverage gaps, not code
 bugs. Most can be fixed by editing the relevant Wiktionary entry, which
-will flow into Dilemma on the next `build_data.py` run.
+will propogate into Dilemma via Kaikki dumps.
 
 | Issue | Tokens | Notes |
 |-------|--------|-------|
