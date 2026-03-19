@@ -34,6 +34,8 @@ MODEL_DIR = Path(__file__).parent / "model"
 LOOKUP_PATH = Path(__file__).parent / "data" / "mg_lookup.json"
 AG_LOOKUP_PATH = Path(__file__).parent / "data" / "ag_lookup.json"
 MED_LOOKUP_PATH = Path(__file__).parent / "data" / "med_lookup.json"
+LSJ_HEADWORDS_PATH = Path(__file__).parent / "data" / "lsj_headwords.json"
+CUNLIFFE_HEADWORDS_PATH = Path(__file__).parent / "data" / "cunliffe_headwords.json"
 
 
 _POLYTONIC_STRIP = {0x0313, 0x0314, 0x0345, 0x0306, 0x0304}
@@ -226,6 +228,33 @@ class Dilemma:
         self._lookup: dict[str, str] = {}
 
         self._load_lookups()
+        self._check_backend()
+
+    def _check_backend(self):
+        """Warn once at init if no model backend is available."""
+        model_dir = self._find_model_dir()
+        has_onnx_files = (model_dir / "encoder.onnx").exists()
+        has_pt_file = (model_dir / "model.pt").exists()
+        if has_onnx_files:
+            try:
+                import onnxruntime  # noqa: F401
+                return
+            except ImportError:
+                pass
+        if has_pt_file:
+            try:
+                import torch  # noqa: F401
+                return
+            except ImportError:
+                pass
+        import warnings
+        warnings.warn(
+            "No model backend available. Install onnxruntime (~50 MB) or "
+            "torch (~2 GB) for unseen-word inference. Lookup table still "
+            "works, but unknown forms will return unchanged. "
+            "pip install onnxruntime",
+            stacklevel=3,
+        )
 
     def _load_lookups(self):
         """Load lookup tables, keeping per-language copies for verbose mode."""
@@ -262,30 +291,51 @@ class Dilemma:
         elif self.lang == "grc":
             self._lookup = dict(self._ag_lookup)
 
+    def _find_model_dir(self):
+        """Find the best available model directory."""
+        lang_dir = {"el": "el", "grc": "grc", "all": "combined"}[self.lang]
+        if self._scale is not None:
+            return MODEL_DIR / f"{lang_dir}-s{self._scale}"
+        for s in [3, 2, 1]:
+            candidate = MODEL_DIR / f"{lang_dir}-s{s}"
+            if ((candidate / "encoder.onnx").exists()
+                    or (candidate / "model.pt").exists()):
+                return candidate
+        return MODEL_DIR / lang_dir
+
     def _load_model(self):
-        """Lazy-load the transformer model on first use."""
+        """Lazy-load the model on first use. Prefers ONNX, falls back to PyTorch."""
         if self._model is not None:
             return
 
+        model_path = self._find_model_dir()
+
+        # Try ONNX first (no PyTorch dependency, ~50MB vs ~2GB)
+        if (model_path / "encoder.onnx").exists():
+            self._load_onnx(model_path)
+            return
+
+        # Fall back to PyTorch
+        self._load_pytorch(model_path)
+
+    def _load_onnx(self, model_path):
+        """Load ONNX model and lightweight vocab."""
+        from onnx_inference import OnnxLemmaModel, CharVocabLight
+        vocab_path = model_path / "vocab.json"
+        if not vocab_path.exists():
+            raise FileNotFoundError(
+                f"No vocab.json at {vocab_path}. "
+                f"Run: python export_onnx.py"
+            )
+        self._vocab = CharVocabLight(vocab_path)
+        self._model = OnnxLemmaModel(model_path)
+        self._device = "cpu"
+        self._use_onnx = True
+
+    def _load_pytorch(self, model_path):
+        """Load PyTorch model (original path)."""
         import torch
         from model import CharVocab, LemmaTransformer
-
-        lang_dir = {"el": "el", "grc": "grc", "all": "combined"}[self.lang]
-
-        # Find model: try scale-specific dir first, then auto-detect best available
-        if self._scale is not None:
-            model_path = MODEL_DIR / f"{lang_dir}-s{self._scale}"
-        else:
-            # Auto-detect: pick highest available scale
-            model_path = None
-            for s in [3, 2, 1]:
-                candidate = MODEL_DIR / f"{lang_dir}-s{s}"
-                if (candidate / "model.pt").exists():
-                    model_path = candidate
-                    break
-            # Fallback to unscaled dir
-            if model_path is None:
-                model_path = MODEL_DIR / lang_dir
 
         pt_path = model_path / "model.pt"
         if not pt_path.exists():
@@ -307,6 +357,7 @@ class Dilemma:
         self._model.load_state_dict(checkpoint["model_state_dict"])
         self._model.to(device)
         self._model.eval()
+        self._use_onnx = False
 
     def _resolve_closed_class(self, word: str) -> str | None:
         """Resolve articles/pronouns to canonical lemma if enabled."""
@@ -647,15 +698,21 @@ class Dilemma:
         highest-scoring candidate that is a known headword in the
         lookup table. If no candidate is a headword, returns the
         input word unchanged (better than a confidently wrong answer).
+
+        Works with both PyTorch and ONNX backends transparently.
         """
         if not words:
             return []
 
-        import torch
-
-        # Build headword set on first use (forms that map to themselves)
-        if not hasattr(self, "_headwords"):
+        # Build headword set on first use (Wiktionary self-maps + LSJ + Cunliffe)
+        if not hasattr(self, "_headwords") or self._headwords is None:
             self._headwords = {k for k, v in self._lookup.items() if k == v}
+            if LSJ_HEADWORDS_PATH.exists():
+                with open(LSJ_HEADWORDS_PATH, encoding="utf-8") as f:
+                    self._headwords |= set(json.load(f))
+            if CUNLIFFE_HEADWORDS_PATH.exists():
+                with open(CUNLIFFE_HEADWORDS_PATH, encoding="utf-8") as f:
+                    self._headwords |= set(json.load(f))
 
         max_len = max(len(w) for w in words) + 1
         src_ids = []
@@ -664,24 +721,37 @@ class Dilemma:
             ids = ids + [0] * (max_len - len(ids))
             src_ids.append(ids)
 
-        src = torch.tensor(src_ids, dtype=torch.long, device=self._device)
-        src_pad_mask = (src == 0)
-
-        with torch.no_grad():
+        if getattr(self, '_use_onnx', False):
+            import numpy as np
+            # ONNX MHA reshapes require consistent sequence lengths.
+            # Pad all inputs to a fixed max to avoid shape mismatches.
+            ONNX_MAX_LEN = 48
+            padded = []
+            for ids in src_ids:
+                if len(ids) < ONNX_MAX_LEN:
+                    ids = ids + [0] * (ONNX_MAX_LEN - len(ids))
+                padded.append(ids[:ONNX_MAX_LEN])
+            src = np.array(padded, dtype=np.int64)
+            src_pad_mask = (src == 0)
             beam_results = self._model.generate(
                 src, src_key_padding_mask=src_pad_mask, num_beams=num_beams)
+        else:
+            import torch
+            src = torch.tensor(src_ids, dtype=torch.long, device=self._device)
+            src_pad_mask = (src == 0)
+            with torch.no_grad():
+                beam_results = self._model.generate(
+                    src, src_key_padding_mask=src_pad_mask, num_beams=num_beams)
 
         results = []
         for i, candidates in enumerate(beam_results):
             decoded = [self._vocab.decode(ids) for ids, score in candidates]
-            # Pick first candidate that's a known headword
             chosen = None
             for d in decoded:
                 if d in self._headwords or d.lower() in self._headwords:
                     chosen = d
                     break
             if chosen is None:
-                # No candidate is a headword; return input unchanged
                 chosen = words[i]
             results.append(chosen)
 

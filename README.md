@@ -15,8 +15,12 @@ patterns at the character level, the standard architecture from
 it trains from scratch in minutes and runs inference in under a millisecond,
 compared to fine-tuning approaches like *ByT5-small* (300M params) which take
 hours to train and ~10ms per word. Greek lemmatization is highly
-pattern-based,a small specialized model matches a large general-purpose
+pattern-based - a small specialized model matches a large general-purpose
 one, and the 5.2M lookup table handles the rest.
+
+**ONNX support:** Dilemma can run without PyTorch. When ONNX model files
+are present, inference uses ONNX Runtime (~50 MB) instead of PyTorch (~2 GB).
+The lookup table (which handles 95%+ of words) needs neither.
 
 Handles Standard Modern Greek, Katharevousa, Cypriot, Cretan, and other
 regional varieties alongside Ancient and Medieval Greek. Existing
@@ -169,17 +173,24 @@ ranked by vowel frequency in elision contexts (ε, α, ο most common).
 
 | Layer | Speed | Coverage | Source |
 |-------|-------|----------|--------|
-| **Lookup table** | instant | 5.2M known forms | Wiktionary inflection paradigms |
+| **Lookup table** | instant | 5.2M+ known forms | Wiktionary inflection paradigms + treebanks |
 | **Elision expansion** | instant | AG elided forms | vowel expansion against lookup |
 | **Crasis table** | instant | ~50 common crasis forms | hand-curated |
-| **Transformer** | <1ms/word | generalizes to unseen forms | trained on lookup pairs |
-
+| **Transformer** | <1ms/word | generalizes to unseen forms | trained on Wiktionary pairs |
 The lookup table is built from all 5 Wiktionary [kaikki dumps](https://kaikki.org/)
-(EN and EL editions for MG and AG, plus EL Medieval Greek). Each form is
-indexed under its original, monotonic, and accent-stripped variants, so
-`θεοὶ` (polytonic with grave), `θεοί` (monotonic with acute), and `θεοι`
-(stripped) all resolve to `θεός`. Input can be polytonic, monotonic, or
-unaccented. MG forms take priority, then Medieval, then AG.
+(EN and EL editions for MG and AG, plus EL Medieval Greek), augmented
+with form-lemma pairs from gold-standard treebanks (Gorman, AGDT).
+Each form is indexed under its original, monotonic, and accent-stripped
+variants, so `θεοὶ` (polytonic with grave), `θεοί` (monotonic with
+acute), and `θεοι` (stripped) all resolve to `θεός`. Input can be
+polytonic, monotonic, or unaccented. MG forms take priority, then
+Medieval, then AG.
+
+When the transformer handles an unseen form, beam search generates
+multiple candidates and picks the first that matches a known headword
+from Wiktionary, [LSJ](https://github.com/helmadik/LSJLogeion) (116K
+headwords), or Cunliffe's Homeric Lexicon (11K headwords). If nothing
+matches, the input is returned unchanged.
 
 **Wiktionary as upstream:** Because Dilemma's lookup tables are built
 directly from Wiktionary, any missing or incorrect lemmatization can
@@ -197,6 +208,35 @@ not in Wiktionary. Training on MG + AG + Medieval data means the model
 sees AG augment patterns (`ἔλυσε` → `λύω`) alongside MG stem
 transformations (`σκότωσε` → `σκοτώνω`). For katharevousa forms like
 `εσκότωσε`, it has both signals to draw from.
+
+## Installation
+
+### Inference only (no GPU needed)
+
+```bash
+git clone https://github.com/ciscoriordan/dilemma.git && cd dilemma
+pip install onnxruntime                # ~50 MB, no PyTorch needed
+python build_data.py --download        # downloads Wiktionary dumps, builds lookup tables
+```
+
+The lookup table handles 95%+ of words with no model at all. For the
+remaining ~5% (unseen forms), the ONNX model files (`encoder.onnx`,
+`decoder_step.onnx`) in `model/combined-s3/` provide transformer
+inference without PyTorch. If these files aren't present, install
+PyTorch and run `python export_onnx.py` to generate them from the
+`.pt` checkpoint.
+
+### With PyTorch (for training or if ONNX files aren't available)
+
+```bash
+pip install torch                      # ~2 GB
+python build_data.py --download
+```
+
+Dilemma auto-detects: if ONNX files exist, uses ONNX Runtime. Otherwise
+falls back to PyTorch. Both produce identical output.
+
+---
 
 ## Training
 
@@ -289,6 +329,14 @@ patterns, form lookup) is closer to Modern Greek, but Medieval *syntax*
 (polytonic script, full case system, optative mood) is closer to Ancient
 Greek. Each tool groups `med` with whichever period best serves its task.
 
+### 3. Export to ONNX (optional)
+
+Generates ONNX model files so inference works without PyTorch.
+
+```bash
+python export_onnx.py                  # exports encoder.onnx + decoder_step.onnx
+```
+
 ### GPU quick start
 
 ```bash
@@ -296,6 +344,7 @@ git clone https://github.com/ciscoriordan/dilemma.git && cd dilemma
 pip install -r requirements.txt
 python build_data.py --download
 python train.py --scale 1
+python export_onnx.py                  # optional: enable PyTorch-free inference
 ```
 
 ## Architecture

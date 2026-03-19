@@ -1,1 +1,7 @@
-torch
+# Lookup table (95%+ of words): no dependencies, just Python stdlib.
+#
+# Model fallback (unseen forms): install one of these.
+# onnxruntime       # ~50 MB, inference only
+# torch             # ~2 GB, needed for training + ONNX export
+#
+# Without either, unknown words return themselves unchanged.
