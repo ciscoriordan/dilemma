@@ -1,4 +1,5 @@
 data/
+kaikki/
 __pycache__/
 *.pyc
 progress.log
