@@ -262,6 +262,19 @@ SMG, Katharevousa, and regional varieties. The Medieval corpus (~3K
 entries) covers Byzantine-era morphology that feeds directly into
 Katharevousa and formal MG.
 
+### Language codes
+
+| Code | Period | ISO standard |
+|------|--------|-------------|
+| `el` | Modern Greek (including Medieval, Katharevousa, regional) | ISO 639-1 |
+| `grc` | Ancient Greek (Homer through late antiquity) | ISO 639-2 |
+| `med` | Medieval/Byzantine Greek (~300-1453 CE) | No ISO code exists (proposed `gkm` was [rejected](https://iso639-3.sil.org/request/2006-084)); `med` is an internal shorthand |
+
+`med` appears in `LemmaCandidate.lang` when a form is found only in
+the Medieval lookup table. In practice, Medieval forms are grouped
+with `el` for lookup priority since Byzantine morphology is the direct
+ancestor of Modern Greek.
+
 ### GPU quick start
 
 ```bash
