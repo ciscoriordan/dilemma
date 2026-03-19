@@ -13,9 +13,9 @@ The kaikki dumps are from https://kaikki.org/dictionary/ and contain
 complete Wiktionary entries in JSONL format with inflection paradigms.
 
 Usage:
-    python build_data.py                    # auto-detect dump locations
-    python build_data.py --klisy ~/Klisy    # specify Klisy directory
-    python build_data.py --download         # download dumps if missing
+    python build_data.py --download              # download dumps if missing
+    python build_data.py --kaikki /path/to/dumps  # specify dump directory
+    python build_data.py                          # auto-detect dump locations
 """
 
 import argparse
@@ -500,8 +500,8 @@ def extract_pairs(jsonl_path: Path, lang: str,
 
 def main():
     parser = argparse.ArgumentParser(description="Build Dilemma training data")
-    parser.add_argument("--klisy", type=str, default=None,
-                        help="Path to Klisy word_collector directory")
+    parser.add_argument("--kaikki", type=str, default=None,
+                        help="Path to kaikki dump directory")
     parser.add_argument("--download", action="store_true",
                         help="Download kaikki dumps if missing")
     parser.add_argument("--lang", type=str, default="all",
@@ -509,7 +509,7 @@ def main():
                         help="Which language to build (default: all)")
     args = parser.parse_args()
 
-    klisy_dir = Path(args.klisy) if args.klisy else DEFAULT_KLISY
+    klisy_dir = Path(args.kaikki) if args.kaikki else DEFAULT_KLISY
 
     if args.download:
         print("Checking/downloading kaikki dumps...")
