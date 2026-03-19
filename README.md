@@ -1,5 +1,7 @@
 # Dilemma <img src="https://raw.githubusercontent.com/ciscoriordan/svg-flags/main/circle/historical/ancient-greece.svg" width="28" alt="Ancient Greece"> <img src="https://raw.githubusercontent.com/ciscoriordan/svg-flags/main/circle/languages/el.svg" width="28" alt="Greek"> <img src="https://raw.githubusercontent.com/ciscoriordan/svg-flags/main/circle/countries/cy.svg" width="28" alt="Cyprus"> <img src="https://raw.githubusercontent.com/ciscoriordan/svg-flags/main/circle/historical/byzantine.svg" width="28" alt="Byzantine">
 
+<img width="500" height="333" alt="dilemma" src="https://github.com/user-attachments/assets/b1d7532c-6e70-480a-9052-b1d307c5b648" />
+
 Greek lemmatizer with a 5.2 million form lookup table and a ~4M
 parameter character-level transformer trained on 3.2 million Wiktionary
 inflection pairs spanning Modern Greek, Ancient Greek, and Medieval Greek.
