@@ -1,97 +1,97 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 330" font-family="Georgia,serif">
-  <rect width="720" height="330" fill="#faf9f6"/>
-  <rect x="1" y="1" width="718" height="328" rx="3" fill="none" stroke="#d4d0c8" stroke-width="0.5"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 330" font-family="'Didot','Bodoni MT','GFS Didot',Georgia,serif">
+  <rect width="720" height="330" fill="#e8e4da"/>
+  <rect x="1" y="1" width="718" height="328" rx="3" fill="none" stroke="#c4b99a" stroke-width="0.5"/>
 
-  <text x="360" y="28" text-anchor="middle" fill="#1a1a1a" font-size="13" font-weight="700" font-family="'Helvetica Neue',Helvetica,sans-serif">Lemmatization examples across varieties</text>
+  <text x="360" y="28" text-anchor="middle" fill="#1a2744" font-size="13" font-weight="700" letter-spacing="0.5">Lemmatization examples across varieties</text>
 
   <!-- ── Left: Lookup ── -->
-  <rect x="20" y="46" width="330" height="18" rx="1" fill="#2d6a4f"/>
-  <text x="185" y="59" text-anchor="middle" fill="#fff" font-size="10" font-weight="600" font-family="'Helvetica Neue',Helvetica,sans-serif">LOOKUP TABLE</text>
+  <rect x="20" y="46" width="330" height="18" rx="1" fill="#1a2744"/>
+  <text x="185" y="59" text-anchor="middle" fill="#f5f2ec" font-size="10" font-weight="600">LOOKUP TABLE</text>
 
-  <text x="32" y="82" fill="#999" font-size="9" font-family="'Helvetica Neue',Helvetica,sans-serif">FORM</text>
-  <text x="290" y="82" fill="#999" font-size="9" font-family="'Helvetica Neue',Helvetica,sans-serif">VARIETY</text>
-  <line x1="28" y1="87" x2="344" y2="87" stroke="#e0ddd6" stroke-width="0.5"/>
+  <text x="32" y="82" fill="#8a8279" font-size="9">FORM</text>
+  <text x="290" y="82" fill="#8a8279" font-size="9">VARIETY</text>
+  <line x1="28" y1="87" x2="344" y2="87" stroke="#c4b99a" stroke-width="0.5"/>
 
-  <text x="32" y="106" fill="#1a1a1a" font-size="12">θεοί</text>
-  <text x="120" y="106" fill="#999" font-size="11">&#x2192;</text>
-  <text x="140" y="106" fill="#2d6a4f" font-size="12" font-weight="600">θεός</text>
-  <text x="290" y="106" fill="#888" font-size="10">Epic</text>
+  <text x="32" y="106" fill="#1a2744" font-size="12">θεοί</text>
+  <text x="120" y="106" fill="#b8af9a" font-size="11">&#x2192;</text>
+  <text x="140" y="106" fill="#1a2744" font-size="12" font-weight="600">θεός</text>
+  <text x="290" y="106" fill="#6b6560" font-size="10">Epic</text>
 
-  <text x="32" y="128" fill="#1a1a1a" font-size="12">ἐποίησεν</text>
-  <text x="120" y="128" fill="#999" font-size="11">&#x2192;</text>
-  <text x="140" y="128" fill="#2d6a4f" font-size="12" font-weight="600">ποιέω</text>
-  <text x="290" y="128" fill="#888" font-size="10">Attic</text>
+  <text x="32" y="128" fill="#1a2744" font-size="12">ἐποίησεν</text>
+  <text x="120" y="128" fill="#b8af9a" font-size="11">&#x2192;</text>
+  <text x="140" y="128" fill="#1a2744" font-size="12" font-weight="600">ποιέω</text>
+  <text x="290" y="128" fill="#6b6560" font-size="10">Attic</text>
 
-  <text x="32" y="150" fill="#1a1a1a" font-size="12">πολεμούσαν</text>
-  <text x="120" y="150" fill="#999" font-size="11">&#x2192;</text>
-  <text x="140" y="150" fill="#2d6a4f" font-size="12" font-weight="600">πολεμώ</text>
-  <text x="290" y="150" fill="#888" font-size="10">SMG</text>
+  <text x="32" y="150" fill="#1a2744" font-size="12">πολεμούσαν</text>
+  <text x="120" y="150" fill="#b8af9a" font-size="11">&#x2192;</text>
+  <text x="140" y="150" fill="#1a2744" font-size="12" font-weight="600">πολεμώ</text>
+  <text x="290" y="150" fill="#6b6560" font-size="10">SMG</text>
 
-  <text x="32" y="172" fill="#1a1a1a" font-size="12">μήνιδος</text>
-  <text x="120" y="172" fill="#999" font-size="11">&#x2192;</text>
-  <text x="140" y="172" fill="#2d6a4f" font-size="12" font-weight="600">μῆνις</text>
-  <text x="290" y="172" fill="#888" font-size="10">Epic</text>
+  <text x="32" y="172" fill="#1a2744" font-size="12">μήνιδος</text>
+  <text x="120" y="172" fill="#b8af9a" font-size="11">&#x2192;</text>
+  <text x="140" y="172" fill="#1a2744" font-size="12" font-weight="600">μῆνις</text>
+  <text x="290" y="172" fill="#6b6560" font-size="10">Epic</text>
 
-  <text x="32" y="194" fill="#1a1a1a" font-size="12">ἐβασίλευσεν</text>
-  <text x="120" y="194" fill="#999" font-size="11">&#x2192;</text>
-  <text x="140" y="194" fill="#2d6a4f" font-size="12" font-weight="600">βασιλεύω</text>
-  <text x="290" y="194" fill="#888" font-size="10">Koine</text>
+  <text x="32" y="194" fill="#1a2744" font-size="12">ἐβασίλευσεν</text>
+  <text x="120" y="194" fill="#b8af9a" font-size="11">&#x2192;</text>
+  <text x="140" y="194" fill="#1a2744" font-size="12" font-weight="600">βασιλεύω</text>
+  <text x="290" y="194" fill="#6b6560" font-size="10">Koine</text>
 
-  <text x="32" y="216" fill="#1a1a1a" font-size="12">κοπέλλα</text>
-  <text x="120" y="216" fill="#999" font-size="11">&#x2192;</text>
-  <text x="140" y="216" fill="#2d6a4f" font-size="12" font-weight="600">κοπέλα</text>
-  <text x="290" y="216" fill="#888" font-size="10">Cypriot</text>
+  <text x="32" y="216" fill="#1a2744" font-size="12">κοπέλλα</text>
+  <text x="120" y="216" fill="#b8af9a" font-size="11">&#x2192;</text>
+  <text x="140" y="216" fill="#1a2744" font-size="12" font-weight="600">κοπέλα</text>
+  <text x="290" y="216" fill="#6b6560" font-size="10">Cypriot</text>
 
-  <text x="32" y="238" fill="#1a1a1a" font-size="12">τρομερό</text>
-  <text x="120" y="238" fill="#999" font-size="11">&#x2192;</text>
-  <text x="140" y="238" fill="#2d6a4f" font-size="12" font-weight="600">τρομερός</text>
-  <text x="290" y="238" fill="#888" font-size="10">SMG</text>
+  <text x="32" y="238" fill="#1a2744" font-size="12">τρομερό</text>
+  <text x="120" y="238" fill="#b8af9a" font-size="11">&#x2192;</text>
+  <text x="140" y="238" fill="#1a2744" font-size="12" font-weight="600">τρομερός</text>
+  <text x="290" y="238" fill="#6b6560" font-size="10">SMG</text>
 
-  <text x="185" y="264" text-anchor="middle" fill="#2d6a4f" font-size="9.5" font-style="italic">6.5M forms indexed, instant</text>
+  <text x="185" y="264" text-anchor="middle" fill="#1a2744" font-size="9.5" font-style="italic">5.2M forms indexed, instant</text>
 
   <!-- divider -->
-  <line x1="362" y1="46" x2="362" y2="278" stroke="#d4d0c8" stroke-width="0.5"/>
+  <line x1="362" y1="46" x2="362" y2="278" stroke="#c4b99a" stroke-width="0.5"/>
 
   <!-- ── Right: Transformer ── -->
-  <rect x="374" y="46" width="326" height="18" rx="1" fill="#b45309"/>
-  <text x="537" y="59" text-anchor="middle" fill="#fff" font-size="10" font-weight="600" font-family="'Helvetica Neue',Helvetica,sans-serif">TRANSFORMER (unseen forms)</text>
+  <rect x="374" y="46" width="326" height="18" rx="1" fill="#4a6fa5"/>
+  <text x="537" y="59" text-anchor="middle" fill="#f5f2ec" font-size="10" font-weight="600">TRANSFORMER (unseen forms)</text>
 
-  <text x="386" y="82" fill="#999" font-size="9" font-family="'Helvetica Neue',Helvetica,sans-serif">FORM</text>
-  <text x="630" y="82" fill="#999" font-size="9" font-family="'Helvetica Neue',Helvetica,sans-serif">PATTERN</text>
-  <line x1="380" y1="87" x2="694" y2="87" stroke="#e0ddd6" stroke-width="0.5"/>
+  <text x="386" y="82" fill="#8a8279" font-size="9">FORM</text>
+  <text x="630" y="82" fill="#8a8279" font-size="9">PATTERN</text>
+  <line x1="380" y1="87" x2="694" y2="87" stroke="#c4b99a" stroke-width="0.5"/>
 
-  <text x="386" y="106" fill="#1a1a1a" font-size="12">εσκότωσε</text>
-  <text x="478" y="106" fill="#999" font-size="11">&#x2192;</text>
-  <text x="498" y="106" fill="#b45309" font-size="12" font-weight="600">σκοτώνω</text>
-  <text x="630" y="106" fill="#888" font-size="9">augment strip</text>
+  <text x="386" y="106" fill="#1a2744" font-size="12">εσκότωσε</text>
+  <text x="478" y="106" fill="#b8af9a" font-size="11">&#x2192;</text>
+  <text x="498" y="106" fill="#4a6fa5" font-size="12" font-weight="600">σκοτώνω</text>
+  <text x="630" y="106" fill="#6b6560" font-size="9">augment strip</text>
 
-  <text x="386" y="128" fill="#1a1a1a" font-size="12">εφώναξε</text>
-  <text x="478" y="128" fill="#999" font-size="11">&#x2192;</text>
-  <text x="498" y="128" fill="#b45309" font-size="12" font-weight="600">φωνάζω</text>
-  <text x="630" y="128" fill="#888" font-size="9">-αξε &#x2192; -άζω</text>
+  <text x="386" y="128" fill="#1a2744" font-size="12">εφώναξε</text>
+  <text x="478" y="128" fill="#b8af9a" font-size="11">&#x2192;</text>
+  <text x="498" y="128" fill="#4a6fa5" font-size="12" font-weight="600">φωνάζω</text>
+  <text x="630" y="128" fill="#6b6560" font-size="9">-αξε &#x2192; -άζω</text>
 
-  <text x="386" y="150" fill="#1a1a1a" font-size="12">εσήκωσε</text>
-  <text x="478" y="150" fill="#999" font-size="11">&#x2192;</text>
-  <text x="498" y="150" fill="#b45309" font-size="12" font-weight="600">σηκώνω</text>
-  <text x="630" y="150" fill="#888" font-size="9">-ωσε &#x2192; -ώνω</text>
+  <text x="386" y="150" fill="#1a2744" font-size="12">εσήκωσε</text>
+  <text x="478" y="150" fill="#b8af9a" font-size="11">&#x2192;</text>
+  <text x="498" y="150" fill="#4a6fa5" font-size="12" font-weight="600">σηκώνω</text>
+  <text x="630" y="150" fill="#6b6560" font-size="9">-ωσε &#x2192; -ώνω</text>
 
-  <text x="386" y="172" fill="#1a1a1a" font-size="12">ανδρειωμένων</text>
-  <text x="478" y="172" fill="#999" font-size="11">&#x2192;</text>
-  <text x="498" y="172" fill="#b45309" font-size="12" font-weight="600">ανδρειωμένος</text>
-  <text x="630" y="172" fill="#888" font-size="9">gen.pl &#x2192; nom</text>
+  <text x="386" y="172" fill="#1a2744" font-size="12">ανδρειωμένων</text>
+  <text x="478" y="172" fill="#b8af9a" font-size="11">&#x2192;</text>
+  <text x="498" y="172" fill="#4a6fa5" font-size="12" font-weight="600">ανδρειωμένος</text>
+  <text x="630" y="172" fill="#6b6560" font-size="9">gen.pl &#x2192; nom</text>
 
-  <text x="386" y="194" fill="#1a1a1a" font-size="12">εξηγήσεων</text>
-  <text x="478" y="194" fill="#999" font-size="11">&#x2192;</text>
-  <text x="498" y="194" fill="#b45309" font-size="12" font-weight="600">εξήγηση</text>
-  <text x="630" y="194" fill="#888" font-size="9">Kath. gen.pl</text>
+  <text x="386" y="194" fill="#1a2744" font-size="12">εξηγήσεων</text>
+  <text x="478" y="194" fill="#b8af9a" font-size="11">&#x2192;</text>
+  <text x="498" y="194" fill="#4a6fa5" font-size="12" font-weight="600">εξήγηση</text>
+  <text x="630" y="194" fill="#6b6560" font-size="9">Kath. gen.pl</text>
 
-  <text x="386" y="216" fill="#1a1a1a" font-size="12">διεπραγματεύθη</text>
-  <text x="386" y="232" fill="#b45309" font-size="12" font-weight="600">&#x2192; διαπραγματεύομαι</text>
-  <text x="630" y="224" fill="#888" font-size="9">Kath. aor. pass.</text>
+  <text x="386" y="216" fill="#1a2744" font-size="12">διεπραγματεύθη</text>
+  <text x="386" y="232" fill="#4a6fa5" font-size="12" font-weight="600">&#x2192; διαπραγματεύομαι</text>
+  <text x="630" y="224" fill="#6b6560" font-size="9">Kath. aor. pass.</text>
 
-  <text x="537" y="264" text-anchor="middle" fill="#b45309" font-size="9.5" font-style="italic">4M params, &lt;1ms per word</text>
+  <text x="537" y="264" text-anchor="middle" fill="#4a6fa5" font-size="9.5" font-style="italic">4M params, &lt;1ms &#xB7; PyTorch or ONNX</text>
 
   <!-- Footer -->
-  <line x1="28" y1="288" x2="694" y2="288" stroke="#e0ddd6" stroke-width="0.5"/>
-  <text x="360" y="310" text-anchor="middle" fill="#aaa" font-size="9.5" font-family="'Helvetica Neue',Helvetica,sans-serif">Lookup resolves 99%+ of known forms. Transformer generalizes to novel inflections and cross-period morphology.</text>
+  <line x1="28" y1="288" x2="694" y2="288" stroke="#c4b99a" stroke-width="0.5"/>
+  <text x="360" y="310" text-anchor="middle" fill="#8a8279" font-size="9.5">Lookup resolves 95%+ of known forms. Transformer generalizes to novel inflections and cross-period morphology.</text>
 </svg>
