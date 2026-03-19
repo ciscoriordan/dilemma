@@ -275,6 +275,14 @@ the Medieval lookup table. In practice, Medieval forms are grouped
 with `el` for lookup priority since Byzantine morphology is the direct
 ancestor of Modern Greek.
 
+Note: [Opla](https://github.com/ciscoriordan/opla) (POS tagging +
+dependency parsing) handles `med` differently, grouping it with `grc`
+instead of `el`. This is intentional - lemmatization and syntactic
+analysis have different grouping needs. Medieval *morphology* (inflection
+patterns, form lookup) is closer to Modern Greek, but Medieval *syntax*
+(polytonic script, full case system, optative mood) is closer to Ancient
+Greek. Each tool groups `med` with whichever period best serves its task.
+
 ### GPU quick start
 
 ```bash
