@@ -210,9 +210,11 @@ python build_data.py --download             # downloads + extracts (~1.5GB total
 <summary>Already have the dumps locally?</summary>
 
 ```bash
-python build_data.py                        # auto-detects ~/Documents/Klisy/
-python build_data.py --klisy /path/to/dumps
+python build_data.py --kaikki /path/to/kaikki/dumps
 ```
+
+By default, `build_data.py` looks in `~/Documents/Klisy/word_collector/`
+(configurable via `KLISY_DIR` env var or `--kaikki` flag).
 </details>
 
 ### 2. Train
