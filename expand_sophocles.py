@@ -84,6 +84,43 @@ def is_greek(s):
     return any('\u0370' <= c <= '\u03FF' or '\u1F00' <= c <= '\u1FFF' for c in s)
 
 
+def has_accent(s):
+    """Check if a Greek string has any accent mark."""
+    nfd = unicodedata.normalize("NFD", s)
+    return any(ord(c) in (0x0301, 0x0300, 0x0342) for c in nfd)
+
+
+def add_penult_accent(s):
+    """Add acute accent on the penultimate vowel (default for proper nouns).
+
+    Greek proper nouns without accents are typically accented on the
+    penultimate syllable (paroxytone).
+    """
+    vowels = "αεηιουωάέήίόύώὰὲὴὶὸὺὼᾶῆῖῦῶ"
+    nfd = unicodedata.normalize("NFD", s)
+    # Find positions of vowels (base characters)
+    vowel_positions = []
+    base_idx = 0
+    for i, c in enumerate(nfd):
+        if not unicodedata.combining(c):
+            if c.lower() in vowels:
+                vowel_positions.append(i)
+            base_idx += 1
+
+    if len(vowel_positions) < 2:
+        # Monosyllable or no vowels - accent the last vowel
+        if vowel_positions:
+            pos = vowel_positions[-1]
+            return unicodedata.normalize("NFC",
+                nfd[:pos+1] + "\u0301" + nfd[pos+1:])
+        return s
+
+    # Add acute after the penultimate vowel
+    pos = vowel_positions[-2]
+    return unicodedata.normalize("NFC",
+        nfd[:pos+1] + "\u0301" + nfd[pos+1:])
+
+
 def clean_headword(raw):
     """Clean OCR artifacts from a headword."""
     if not raw:
@@ -99,6 +136,9 @@ def clean_headword(raw):
     hw = strip_length_marks(hw)
     if not hw or len(hw) < 2 or not is_greek(hw):
         return ""
+    # Add accent if missing (common in OCR'd Byzantine proper nouns)
+    if not has_accent(hw) and hw[0].isupper():
+        hw = add_penult_accent(hw)
     return hw
 
 
