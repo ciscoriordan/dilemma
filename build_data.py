@@ -30,9 +30,9 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 DATA_DIR = SCRIPT_DIR / "data"
 
-# Default kaikki dump locations
-DEFAULT_KLISY = Path(os.environ.get(
-    "KLISY_DIR", Path.home() / "Documents" / "Klisy" / "word_collector"))
+# Default kaikki dump directory
+DEFAULT_DUMP_DIR = Path(os.environ.get(
+    "KAIKKI_DIR", DATA_DIR))
 
 DUMPS = {
     "el": {
@@ -509,13 +509,13 @@ def main():
                         help="Which language to build (default: all)")
     args = parser.parse_args()
 
-    klisy_dir = Path(args.kaikki) if args.kaikki else DEFAULT_KLISY
+    dump_dir = Path(args.kaikki) if args.kaikki else DEFAULT_DUMP_DIR
 
     if args.download:
         print("Checking/downloading kaikki dumps...")
         for lang_dumps in DUMPS.values():
             for filename in lang_dumps.values():
-                download_dump(filename, klisy_dir)
+                download_dump(filename, dump_dir)
         print()
 
     DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -536,7 +536,7 @@ def main():
         # Extract EN first to collect proper noun forms for corroboration
         en_name_forms = set()
         if "en" in DUMPS[lang]:
-            en_path = klisy_dir / DUMPS[lang]["en"]
+            en_path = dump_dir / DUMPS[lang]["en"]
             print(f"\nScanning en Wiktionary: {DUMPS[lang]['en']}")
             pairs, lookup, headwords = extract_pairs(en_path, f"{lang}-en")
             all_pairs.extend(pairs)
@@ -557,7 +557,7 @@ def main():
         for wikt_lang, filename in DUMPS[lang].items():
             if wikt_lang == "en":
                 continue  # already processed
-            path = klisy_dir / filename
+            path = dump_dir / filename
             print(f"\nScanning {wikt_lang} Wiktionary: {path.name}")
             pairs, lookup, headwords = extract_pairs(
                 path, f"{lang}-{wikt_lang}",
