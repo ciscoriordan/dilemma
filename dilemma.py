@@ -192,7 +192,7 @@ def _strip_elision(word: str) -> str | None:
 
 class Dilemma:
     def __init__(self, lang="all", device=None, scale=None,
-                 resolve_articles=False):
+                 resolve_articles=False, normalize=False, period=None):
         """Initialize Dilemma.
 
         Args:
@@ -209,6 +209,13 @@ class Dilemma:
                   (better for alignment where you want surface-form
                   matching). Set True for evaluation against treebanks
                   like DiGreC/AGDT which use ὁ as the article lemma.
+            normalize: if True, enable orthographic normalization for
+                  Byzantine/papyrological texts. Generates candidate
+                  spellings (fixing itacism, missing iota subscripta,
+                  etc.) and checks them against the lookup table.
+            period: Historical period for normalization rule weights.
+                  One of: "hellenistic", "late_antique", "byzantine",
+                  "all" (default). Only used when normalize=True.
         """
         if lang == "both":
             lang = "all"
@@ -218,6 +225,10 @@ class Dilemma:
         self._model = None
         self._vocab = None
         self._device = device
+        self._normalizer = None
+        if normalize:
+            from normalize import Normalizer
+            self._normalizer = Normalizer(period=period)
 
         # Per-language lookup tables (always loaded separately for verbose mode)
         self._mg_lookup: dict[str, str] = {}
@@ -532,6 +543,13 @@ class Dilemma:
         lemma = self._lookup_word(word)
         if lemma:
             return lemma
+
+        # Normalizer: try orthographic variants against lookup
+        if self._normalizer:
+            for candidate in self._normalizer.normalize(word):
+                lemma = self._lookup_word(candidate)
+                if lemma:
+                    return lemma
 
         # Fall back to model
         self._load_model()
