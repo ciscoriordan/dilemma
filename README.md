@@ -4,7 +4,7 @@
   <img width="500" alt="dilemma" src="dilemma.png">
 </p>
 
-Greek lemmatizer with an **8.9 million form** lookup table and a ~4M
+Greek lemmatizer with a **9.7 million form** lookup table and a ~4M
 parameter character-level transformer trained on 3.2 million Wiktionary
 inflection pairs spanning Modern Greek, Ancient Greek, and Medieval Greek.
 
@@ -16,7 +16,7 @@ it trains from scratch in minutes and runs inference in under a millisecond,
 compared to fine-tuning approaches like *ByT5-small* (300M params) which take
 hours to train and ~10ms per word. Greek lemmatization is highly
 pattern-based - a small specialized model matches a large general-purpose
-one, and the 9.1M lookup table handles the rest.
+one, and the 9.7M lookup table handles the rest.
 
 **ONNX support:** Dilemma can run without PyTorch. When ONNX model files
 are present, inference uses ONNX Runtime (~50 MB) instead of PyTorch (~2 GB).
@@ -37,6 +37,7 @@ The lookup table combines forms from multiple sources:
 | **Wiktionary** (EN + EL, all periods) | 5.2M | Baseline from kaikki.org dumps |
 | **LSJ** (Liddell-Scott-Jones) | 4.2M | 32K nouns, 22K verbs, 14K adjectives expanded via Wiktionary Lua modules |
 | **Sophocles Lexicon** (Byzantine/Patristic) | 1.0M | 13.5K nouns, 4.6K verbs, 1.5K adverbs from OCR'd TEI data |
+| **[GLAUx](https://github.com/alekkeersmaekers/glaux)** (Keersmaekers, 2021) | 557K | 17M-token corpus, 8th c. BC - 4th c. AD, 98.8% lemma accuracy |
 | **UD Treebanks** (Perseus, PROIEL, DiGreC) | 27K | Gold form-lemma pairs from annotated treebanks |
 | Closed-class fixes | ~500 | Articles, pronouns, prepositions mapped to canonical lemmas |
 
@@ -73,7 +74,8 @@ DBBE gold standard (10K tokens of unedited Byzantine Greek epigrams):
 
 | Method | Accuracy |
 |--------|:--------:|
-| Swaelens et al. best (2024) | 65.8% |
+| Swaelens et al. best (2024, hybrid) | 65.8% |
+| Swaelens et al. best (2025, multi-task) | ~74-75% |
 | **Dilemma (lookup only)** | **85.9%** |
 
 The 85.9% is achieved with the lookup table alone, without the transformer
@@ -88,7 +90,12 @@ Homer through 15th century Byzantine Greek):
 |------|:--------:|
 | Form-only | 70.6% |
 | + resolve_articles | 81.4% |
-| **+ context heuristics** | **88.1%** |
+| **+ full pipeline** | **88.7%** |
+| + lemma equivalences | 92.6% |
+
+The equivalence-adjusted score accounts for legitimate convention
+differences between annotation schemes (e.g. `εἶπον`/`λέγω`,
+`ἐγώ`/`ἡμεῖς`, `πρότερος`/`πρῶτος`).
 
 ### Modern Greek varieties
 
@@ -239,7 +246,7 @@ ranked by vowel frequency in elision contexts (ε, α, ο most common).
 
 | Layer | Speed | Coverage | Source |
 |-------|-------|----------|--------|
-| **Lookup table** | instant | 9.1M known forms | Wiktionary + LSJ + Sophocles + treebanks |
+| **Lookup table** | instant | 9.7M known forms | Wiktionary + LSJ + Sophocles + treebanks |
 | **Normalizer** | instant | Byzantine orthographic variants | Rule-based candidate generation |
 | **Elision expansion** | instant | AG elided forms | Vowel expansion against lookup |
 | **Crasis table** | instant | ~50 common crasis forms | Hand-curated |
@@ -351,12 +358,16 @@ python train.py --scale 3                   # full data (~45 min)
 Every scale includes **100% of non-standard varieties** (Medieval,
 Katharevousa, Cypriot, Cretan, Maniot, Heptanesian, archaic, dialectal).
 The remaining budget is split 50/50 between Ancient Greek and standard MG.
+Perfect tense verb forms are oversampled 3x, following
+[Swaelens et al. (2025)](https://aclanthology.org/2025.acl-long.430/)'s
+finding that perfects are underrepresented in training data (2%) relative
+to Byzantine text (11.4%).
 
 | Scale | Training pairs | Varieties | AG | SMG | Time (2080 Ti) | Eval | Tests |
 |:-----:|---------------:|----------:|-------:|-------:|:--------------:|:----:|:-----:|
 | 1 | 20K | 9K (100%) | 5.5K | 5.5K | 16 sec | 2.6% | 53/55 |
 | 2 | 1M | 9K (100%) | 496K | 496K | 13 min | 62% | 54/55 |
-| 3 | 3.2M (all) | 9K (100%) | 1.5M (100%) | 1.7M (100%) | 36 min | 75% | 55/55 |
+| 3 | 3.2M (all) | 9K (100%) | 1.5M (100%) | 1.7M (100%) | 45 min | 75% | 55/55 |
 
 Eval accuracy is the model's score on held-out pairs *without* the
 lookup table. In practice, the lookup resolves most forms instantly
@@ -364,6 +375,18 @@ and the model only handles truly novel words. When the model is used,
 beam search generates 4 candidates and the first one that matches a
 known headword in the lookup wins. If none match, the input is returned
 unchanged (safe fallback).
+
+### Multi-task learning
+
+When training pairs include POS tags (from Wiktionary), the model
+jointly predicts POS alongside the lemma via an auxiliary classification
+head on the encoder output. This follows
+[Swaelens et al. (2025)](https://aclanthology.org/2025.acl-long.430/)'s
+finding that multi-task learning (joint POS + morphology + lemma)
+improved Byzantine Greek lemmatization by ~9 percentage points. The
+POS loss is weighted at 0.1x relative to the lemmatization loss, so
+the shared encoder learns better representations without the auxiliary
+task dominating.
 
 Tests are a 55-case suite covering SMG, Epic, Attic, Koine, Byzantine,
 Katharevousa, crasis, and model fallback across all resolution paths.
@@ -432,14 +455,17 @@ morphological inflection shared tasks.
 |-----------|--------|
 | Encoder | 3 transformer layers, 256 hidden, 4 heads |
 | Decoder | 3 transformer layers, 256 hidden, 4 heads |
+| POS head | Linear (256 -> 10 tags), auxiliary task |
 | FFN | 512 dim |
-| Vocabulary | ~160 Greek characters + special tokens |
+| Vocabulary | ~275 Greek characters + special tokens |
 | Parameters | ~4M |
 | Inference | <1ms/word (GPU), ~2ms/word (CPU) |
 
 No pretrained weights - the model is small enough to train from scratch
 on 500K+ pairs in minutes. The character vocabulary covers all Greek
-Unicode ranges (monotonic, polytonic, extended).
+Unicode ranges (monotonic, polytonic, extended). The optional POS
+classification head shares the encoder and improves representations
+via multi-task learning.
 
 ### Why not *ByT5*?
 
@@ -473,12 +499,20 @@ general-purpose one.
 | LSJ noun/verb/adj expansion | 4.2M | Via Wiktionary Lua modules |
 | Sophocles lexicon expansion | 1.0M | Byzantine/Patristic vocabulary |
 | UD Treebanks (AG) | 27K | Gold annotations from Perseus, PROIEL, DiGreC |
-| **Total lookup** | **9.1M** | |
+| GLAUx corpus | 557K | 17M tokens, 98.8% accuracy ([Keersmaekers 2021](https://github.com/alekkeersmaekers/glaux)) |
+| **Total lookup** | **9.7M** | |
 
 All Wiktionary data is extracted automatically from
 [kaikki.org](https://kaikki.org/) JSONL dumps. LSJ and Sophocles
 expansions use wikitextprocessor to run Wiktionary's grc-decl and grc-conj
 Lua modules on headwords extracted from lexicon XML/TEI files.
+
+The [GLAUx corpus](https://github.com/alekkeersmaekers/glaux) provides
+the largest single source of new form-lemma pairs outside Wiktionary.
+We chose GLAUx over [Opera Graeca Adnotata](https://doi.org/10.5281/zenodo.14206061)
+(OGA, 40M tokens) because GLAUx has higher lemma accuracy (98.8% vs
+91.4%), a simpler data format (AGDT XML vs standoff PAULA XML), and
+a manageable download size. Both are CC BY-SA 4.0.
 
 Each form is indexed under its original, monotonic, and accent-stripped
 variants for fuzzy matching.
@@ -560,7 +594,7 @@ present"). These are propagated to every form in that table section:
 | *spaCy* `el_core_news_sm` | MG only | ~30K tokens (news) | no | static |
 | *stanza* `el` | MG only | ~30K tokens (GDT treebank) | fails on augmented forms | static |
 | Perseus *Morpheus* | AG only | hand-crafted rules | no | not actively developed |
-| **Dilemma** | **MG + AG + Medieval + dialects** | **3.2M pairs + 9.1M lookup** | **yes (AG+MG combined)** | **monthly from Wiktionary** |
+| **Dilemma** | **MG + AG + Medieval + dialects** | **3.2M pairs + 9.7M lookup** | **yes (AG+MG combined)** | **monthly from Wiktionary** |
 
 Dilemma trains on **100x more data** than *stanza* or *spaCy*. *Morpheus*
 is more accurate on classical AG (decades of hand-tuned rules), but only
@@ -575,7 +609,7 @@ blinded evaluation by expert readers. They found that methods using
 large lexica combined with POS tagging (CLTK backoff lemmatizer,
 Diorisis corpus) consistently outperformed pure ML approaches with
 smaller lexica. Dilemma follows the same principle: a large lookup
-table (9.1M forms) handles the vast majority of words, with a small
+table (9.7M forms) handles the vast majority of words, with a small
 model as fallback.
 
 [Celano (2025)](https://aclanthology.org/2025.lm4dh-1.5/) presented
@@ -591,6 +625,15 @@ that classical accuracy (~95%) dropped 30+ points on Byzantine text
 due to itacism, crasis, and non-standard orthography. Their best hybrid
 method (transformer embeddings + dictionary lookup) reached 65.8%.
 Dilemma achieves 85.9% on the same dataset using only its lookup table.
+
+[Swaelens et al. (2025)](https://aclanthology.org/2025.acl-long.430/)
+showed that multi-task learning (joint POS + morphology + lemma
+prediction) improved Byzantine lemmatization by ~9pp, reaching ~74-75%.
+They also demonstrated that subword-tokenizing transformers plateau on
+Byzantine Greek due to orthographic inconsistency, and called for
+character-level models as the next step. Dilemma's character-level
+encoder-decoder is this architecture, and its perfect tense oversampling
+and multi-task POS head are directly informed by their findings.
 
 ### Known Issues
 

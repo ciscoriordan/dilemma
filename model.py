@@ -101,8 +101,15 @@ class LemmaTransformer(nn.Module):
         d_model=256, nhead=4, num_layers=3, dim_feedforward=512
     """
 
+    # UPOS tags for multi-task POS prediction head
+    UPOS_TAGS = [
+        "ADJ", "ADP", "ADV", "AUX", "CCONJ", "DET", "INTJ", "NOUN",
+        "NUM", "PART", "PRON", "PROPN", "PUNCT", "SCONJ", "VERB", "X",
+    ]
+
     def __init__(self, vocab_size, d_model=256, nhead=4, num_layers=3,
-                 dim_feedforward=512, max_len=64, dropout=0.1):
+                 dim_feedforward=512, max_len=64, dropout=0.1,
+                 num_pos_tags=0):
         super().__init__()
         self.d_model = d_model
         self.embedding = nn.Embedding(vocab_size, d_model, padding_idx=0)
@@ -118,6 +125,13 @@ class LemmaTransformer(nn.Module):
         self.decoder = nn.TransformerDecoder(decoder_layer, num_layers)
 
         self.output_proj = nn.Linear(d_model, vocab_size)
+
+        # Optional multi-task prediction heads
+        self.pos_head = None
+        if num_pos_tags > 0:
+            self.pos_head = nn.Linear(d_model, num_pos_tags)
+        self.nom_head = None  # Gender+Number+Case
+        self.verb_head = None  # Tense+Mood+Voice
 
     def _make_causal_mask(self, sz, device):
         return nn.Transformer.generate_square_subsequent_mask(sz, device=device)
@@ -141,6 +155,35 @@ class LemmaTransformer(nn.Module):
         memory = self.encode(src, src_key_padding_mask)
         return self.decode(tgt, memory, tgt_key_padding_mask,
                            memory_key_padding_mask=src_key_padding_mask)
+
+    def _pool_encoder(self, src, src_key_padding_mask=None):
+        """Mean-pool encoder output over non-padding positions."""
+        memory = self.encode(src, src_key_padding_mask)
+        if src_key_padding_mask is not None:
+            mask = ~src_key_padding_mask.unsqueeze(-1)
+            return (memory * mask).sum(dim=1) / mask.sum(dim=1).clamp(min=1)
+        return memory.mean(dim=1)
+
+    def predict_pos(self, src, src_key_padding_mask=None):
+        """Predict POS tag from encoder output (multi-task head).
+
+        Returns logits of shape (batch, num_pos_tags).
+        """
+        if self.pos_head is None:
+            return None
+        pooled = self._pool_encoder(src, src_key_padding_mask)
+        return self.pos_head(pooled)
+
+    def predict_morph(self, src, src_key_padding_mask=None):
+        """Predict nominal and verbal morphology groups.
+
+        Returns (nom_logits, verb_logits), either can be None if
+        the corresponding head isn't initialized.
+        """
+        pooled = self._pool_encoder(src, src_key_padding_mask)
+        nom = self.nom_head(pooled) if self.nom_head is not None else None
+        verb = self.verb_head(pooled) if self.verb_head is not None else None
+        return nom, verb
 
     @torch.no_grad()
     def generate(self, src, src_key_padding_mask=None, max_len=32,
