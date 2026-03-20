@@ -8,6 +8,8 @@ references, and dialect-tagged paradigms. Produces:
   - data/ag_pairs.json: Ancient Greek form->lemma training pairs
   - data/mg_lookup.json: flat lookup table {form: lemma}
   - data/ag_lookup.json: flat lookup table {form: lemma}
+  - data/mg_pos_lookup.json: POS-indexed disambiguation table
+  - data/ag_pos_lookup.json: POS-indexed disambiguation table
 
 The kaikki dumps are from https://kaikki.org/dictionary/ and contain
 complete Wiktionary entries in JSONL format with inflection paradigms.
@@ -94,6 +96,14 @@ DOWNLOAD_URLS = {
 DIALECT_PREFIXES = {
     "Epic", "Attic", "Ionic", "Doric", "Aeolic", "Koine",
     "Homeric", "Laconian", "Boeotian", "Arcadocypriot",
+}
+
+# Wiktionary POS field -> UPOS mapping (for POS-indexed lookup tables)
+WIKT_TO_UPOS = {
+    "noun": "NOUN", "verb": "VERB", "adj": "ADJ", "name": "PROPN",
+    "adv": "ADV", "pron": "PRON", "det": "DET", "num": "NUM",
+    "prep": "ADP", "conj": "CCONJ", "particle": "PART",
+    "article": "DET", "intj": "INTJ",
 }
 
 
@@ -209,8 +219,28 @@ def _add_lookup(lookup: dict, form: str, lemma: str, confidence: int = 1):
             lookup[key] = (lemma, confidence)
 
 
+def _add_pos_map(pos_map: dict, form: str, lemma: str, wikt_pos: str):
+    """Record a form->lemma mapping under its UPOS tag for POS disambiguation.
+
+    Only forms with mappable POS tags are recorded. The pos_map accumulates
+    {form: {upos: lemma}} entries. After all sources are processed, forms
+    where all UPOS keys map to the same lemma are filtered out (not ambiguous).
+    """
+    upos = WIKT_TO_UPOS.get(wikt_pos)
+    if not upos:
+        return
+    for key in (form, form.lower()):
+        if not key:
+            continue
+        if key not in pos_map:
+            pos_map[key] = {}
+        # First POS mapping wins (same convention as _add_lookup)
+        if upos not in pos_map[key]:
+            pos_map[key][upos] = lemma
+
+
 def extract_pairs(jsonl_path: Path, lang: str,
-                   skip_name_plurals: set = None) -> tuple[list[dict], dict, set]:
+                   skip_name_plurals: set = None) -> tuple[list[dict], dict, set, dict]:
     """Extract form->lemma pairs from a kaikki JSONL dump.
 
     Extracts from three sources per entry:
@@ -230,14 +260,16 @@ def extract_pairs(jsonl_path: Path, lang: str,
         pairs: list of {form, lemma, pos, tags} dicts (for training)
         lookup: {form: (lemma, confidence)} dict
         headwords: set of headwords that have their own page in this dump
+        pos_map: {form: {upos: lemma}} dict for POS disambiguation
     """
     if not jsonl_path.exists():
         print(f"  {lang}: not found at {jsonl_path}")
-        return [], {}, set()
+        return [], {}, set(), {}
 
     pairs = []
     page_headwords = set()
     lookup = {}
+    pos_map = {}  # {form: {upos: lemma}} for POS disambiguation
     skip_tags = {"romanization", "table-tags", "inflection-template", "class"}
     # Articles dump all genders/persons into each headword.
     # Pronouns have cross-contamination (εσύ lists εγώ as a "form").
@@ -373,6 +405,7 @@ def extract_pairs(jsonl_path: Path, lang: str,
                     continue
                 # This entry (lemma) is a form of ref_word
                 _add_lookup(lookup, lemma, ref_word)
+                _add_pos_map(pos_map, lemma, ref_word, pos)
                 pairs.append({
                     "form": lemma,
                     "lemma": ref_word,
@@ -390,6 +423,7 @@ def extract_pairs(jsonl_path: Path, lang: str,
                 if " " in ref_word:
                     continue
                 _add_lookup(lookup, lemma, ref_word)
+                _add_pos_map(pos_map, lemma, ref_word, pos)
                 pairs.append({
                     "form": lemma,
                     "lemma": ref_word,
@@ -504,10 +538,12 @@ def extract_pairs(jsonl_path: Path, lang: str,
 
                 # Lookup: original, lowercase, monotonic, accent-stripped
                 _add_lookup(lookup, form, lemma)
+                _add_pos_map(pos_map, form, lemma, pos)
 
                 # Also add the parenthetical-expanded form (e.g. ἐστίν from ἐστί(ν))
                 if extra_form and _is_greek(extra_form):
                     _add_lookup(lookup, extra_form, lemma)
+                    _add_pos_map(pos_map, extra_form, lemma, pos)
                     pairs.append({
                         "form": extra_form,
                         "lemma": lemma,
@@ -524,7 +560,7 @@ def extract_pairs(jsonl_path: Path, lang: str,
         print(f"    alt_of: {alt_of_count:,} pairs")
     if dialect_tagged:
         print(f"    dialect-tagged forms: {dialect_tagged:,}")
-    return pairs, lookup, page_headwords
+    return pairs, lookup, page_headwords, pos_map
 
 
 def main():
@@ -560,6 +596,7 @@ def main():
 
         all_pairs = []
         all_lookup = {}  # {form: (lemma, confidence)}
+        all_pos_map = {}  # {form: {upos: lemma}} for POS disambiguation
         source_lookups = []  # (wikt_lang, lookup, headwords)
 
         # Extract EN first to collect proper noun forms for corroboration
@@ -567,9 +604,16 @@ def main():
         if "en" in DUMPS[lang]:
             en_path = resolve_dump(DUMPS[lang]["en"], dump_dir)
             print(f"\nScanning en Wiktionary: {DUMPS[lang]['en']}")
-            pairs, lookup, headwords = extract_pairs(en_path, f"{lang}-en")
+            pairs, lookup, headwords, pos_map = extract_pairs(en_path, f"{lang}-en")
             all_pairs.extend(pairs)
             source_lookups.append(("en", lookup, headwords))
+            # Merge POS map (first source wins per form+upos)
+            for form, upos_lemmas in pos_map.items():
+                if form not in all_pos_map:
+                    all_pos_map[form] = {}
+                for upos, lemma in upos_lemmas.items():
+                    if upos not in all_pos_map[form]:
+                        all_pos_map[form][upos] = lemma
             # Collect all proper noun forms from EN for corroboration
             if en_path.exists():
                 with open(en_path, encoding="utf-8") as f:
@@ -588,11 +632,18 @@ def main():
                 continue  # already processed
             path = resolve_dump(filename, dump_dir)
             print(f"\nScanning {wikt_lang} Wiktionary: {path.name}")
-            pairs, lookup, headwords = extract_pairs(
+            pairs, lookup, headwords, pos_map = extract_pairs(
                 path, f"{lang}-{wikt_lang}",
                 skip_name_plurals=en_name_forms if en_name_forms else None)
             all_pairs.extend(pairs)
             source_lookups.append((wikt_lang, lookup, headwords))
+            # Merge POS map
+            for form, upos_lemmas in pos_map.items():
+                if form not in all_pos_map:
+                    all_pos_map[form] = {}
+                for upos, lemma in upos_lemmas.items():
+                    if upos not in all_pos_map[form]:
+                        all_pos_map[form][upos] = lemma
 
         # Collect headword sets by source for confidence scoring
         en_headwords = set()
@@ -731,6 +782,29 @@ def main():
         size_mb = lookup_path.stat().st_size / (1024 * 1024)
         print(f"Lookup table: {len(flat_lookup)} entries ({size_mb:.1f} MB)")
         print(f"  -> {lookup_path}")
+
+        # Filter POS map to only genuinely ambiguous forms (different
+        # lemmas for different POS tags). Also resolve lemmas through
+        # the cleaned lookup to use final headword forms.
+        ambiguous_pos = {}
+        for form, upos_lemmas in all_pos_map.items():
+            # Resolve each lemma through the flat lookup
+            resolved = {}
+            for upos, lemma in upos_lemmas.items():
+                if lemma in all_lookup:
+                    resolved[upos] = all_lookup[lemma][0]
+                else:
+                    resolved[upos] = lemma
+            # Only keep if there are multiple distinct lemmas
+            if len(set(resolved.values())) > 1:
+                ambiguous_pos[form] = resolved
+
+        pos_lookup_path = DATA_DIR / f"{prefix}_pos_lookup.json"
+        with open(pos_lookup_path, "w", encoding="utf-8") as f:
+            json.dump(ambiguous_pos, f, ensure_ascii=False, separators=(",", ":"))
+        size_kb = pos_lookup_path.stat().st_size / 1024
+        print(f"POS lookup: {len(ambiguous_pos)} ambiguous forms ({size_kb:.0f} KB)")
+        print(f"  -> {pos_lookup_path}")
 
         # Stats
         unique_lemmas = len(set(v[0] for v in all_lookup.values()))

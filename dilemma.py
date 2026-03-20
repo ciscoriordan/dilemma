@@ -34,6 +34,8 @@ MODEL_DIR = Path(__file__).parent / "model"
 LOOKUP_PATH = Path(__file__).parent / "data" / "mg_lookup.json"
 AG_LOOKUP_PATH = Path(__file__).parent / "data" / "ag_lookup.json"
 MED_LOOKUP_PATH = Path(__file__).parent / "data" / "med_lookup.json"
+MG_POS_LOOKUP_PATH = Path(__file__).parent / "data" / "mg_pos_lookup.json"
+AG_POS_LOOKUP_PATH = Path(__file__).parent / "data" / "ag_pos_lookup.json"
 LSJ_HEADWORDS_PATH = Path(__file__).parent / "data" / "lsj_headwords.json"
 CUNLIFFE_HEADWORDS_PATH = Path(__file__).parent / "data" / "cunliffe_headwords.json"
 
@@ -238,6 +240,9 @@ class Dilemma:
         # Combined lookup (respects lang priority)
         self._lookup: dict[str, str] = {}
 
+        # POS-indexed disambiguation table: {form: {upos: lemma}}
+        self._pos_lookup: dict[str, dict[str, str]] = {}
+
         self._load_lookups()
         self._check_backend()
 
@@ -301,6 +306,25 @@ class Dilemma:
                         self._lookup[k] = v
         elif self.lang == "grc":
             self._lookup = dict(self._ag_lookup)
+
+        # Load POS disambiguation tables
+        if self.lang in ("all", "el") and MG_POS_LOOKUP_PATH.exists():
+            with open(MG_POS_LOOKUP_PATH, encoding="utf-8") as f:
+                mg_pos = json.load(f)
+            for form, upos_lemmas in mg_pos.items():
+                if form not in self._pos_lookup:
+                    self._pos_lookup[form] = {}
+                self._pos_lookup[form].update(upos_lemmas)
+        if self.lang in ("all", "grc") and AG_POS_LOOKUP_PATH.exists():
+            with open(AG_POS_LOOKUP_PATH, encoding="utf-8") as f:
+                ag_pos = json.load(f)
+            for form, upos_lemmas in ag_pos.items():
+                if form not in self._pos_lookup:
+                    self._pos_lookup[form] = {}
+                # Don't override MG entries for same form+upos
+                for upos, lemma in upos_lemmas.items():
+                    if upos not in self._pos_lookup[form]:
+                        self._pos_lookup[form][upos] = lemma
 
     def _find_model_dir(self):
         """Find the best available model directory."""
@@ -554,6 +578,90 @@ class Dilemma:
         # Fall back to model
         self._load_model()
         return self._predict([word])[0]
+
+    def lemmatize_pos(self, word: str, upos: str) -> str:
+        """Lemmatize with POS-aware disambiguation.
+
+        If the form is in the POS lookup table and the given UPOS tag
+        matches a known disambiguation, returns the POS-specific lemma.
+        Otherwise falls back to regular lemmatize().
+
+        Args:
+            word: Greek word form.
+            upos: Universal POS tag (NOUN, VERB, ADJ, etc.).
+
+        Returns:
+            The lemma string.
+        """
+        # Closed class first (articles, pronouns)
+        closed = self._resolve_closed_class(word)
+        if closed is not None:
+            return closed
+
+        # Check POS lookup with cascade: exact, lower, monotonic, stripped
+        lower = word.lower()
+        mono = to_monotonic(lower)
+        stripped = strip_accents(lower)
+        for variant in (word, lower, mono, stripped):
+            pos_entry = self._pos_lookup.get(variant)
+            if pos_entry and upos in pos_entry:
+                return pos_entry[upos]
+
+        # Fall back to regular lemmatize
+        return self.lemmatize(word)
+
+    def lemmatize_batch_pos(self, words: list[str], upos_tags: list[str]) -> list[str]:
+        """Lemmatize a batch of words with POS-aware disambiguation.
+
+        For each word, tries POS-specific lookup first, then falls back
+        to regular batch lemmatization for unresolved words.
+
+        Args:
+            words: List of Greek word forms.
+            upos_tags: List of UPOS tags, one per word.
+
+        Returns:
+            List of lemma strings.
+        """
+        assert len(words) == len(upos_tags), (
+            f"words and upos_tags must have same length: {len(words)} vs {len(upos_tags)}"
+        )
+
+        results = [None] * len(words)
+        fallback_indices = []
+        fallback_words = []
+
+        for i, (word, upos) in enumerate(zip(words, upos_tags)):
+            # Closed class first
+            closed = self._resolve_closed_class(word)
+            if closed is not None:
+                results[i] = closed
+                continue
+
+            # POS lookup cascade
+            lower = word.lower()
+            mono = to_monotonic(lower)
+            stripped = strip_accents(lower)
+            pos_hit = None
+            for variant in (word, lower, mono, stripped):
+                pos_entry = self._pos_lookup.get(variant)
+                if pos_entry and upos in pos_entry:
+                    pos_hit = pos_entry[upos]
+                    break
+
+            if pos_hit is not None:
+                results[i] = pos_hit
+            else:
+                fallback_indices.append(i)
+                fallback_words.append(word)
+
+        # Batch-lemmatize the fallbacks
+        if fallback_words:
+            fallback_lemmas = self.lemmatize_batch(fallback_words)
+            for idx, lemma in zip(fallback_indices, fallback_lemmas):
+                results[idx] = lemma
+
+        return results
 
     def lemmatize_verbose(self, word: str) -> list[LemmaCandidate]:
         """Return all candidate lemmas with metadata.
