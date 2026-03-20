@@ -97,7 +97,8 @@ def export(lang="all", scale=None):
     vocab.load_state_dict(checkpoint["vocab"])
     cfg = checkpoint["config"]
     model = LemmaTransformer(**cfg)
-    model.load_state_dict(checkpoint["model_state_dict"])
+    # strict=False: skip auxiliary heads (POS, nom, verb) not needed for ONNX inference
+    model.load_state_dict(checkpoint["model_state_dict"], strict=False)
     model.eval()
 
     # Save vocab separately (needed by ONNX inference)

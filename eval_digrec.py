@@ -21,6 +21,7 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_DIGREC = Path.home() / "Documents" / "digrec" / "data" / "digrec.xml"
+EQUIV_PATH = SCRIPT_DIR / "data" / "lemma_equivalences.json"
 
 # TLG ID ranges for rough period classification
 # Based on TLG numbering conventions + known sources
@@ -159,6 +160,25 @@ def evaluate(tokens, dilemma_instance, greedy=True):
     if greedy:
         dilemma_instance._predict = orig_predict
 
+    # Load lemma equivalence table
+    equiv_map = {}  # lemma -> set of equivalent lemmas
+    if EQUIV_PATH.exists():
+        with open(EQUIV_PATH, encoding="utf-8") as f:
+            equiv_data = json.load(f)
+        for group in equiv_data["groups"]:
+            group_set = set(group)
+            for lemma in group:
+                equiv_map[lemma] = group_set
+                equiv_map[strip_accents(lemma.lower())] = {strip_accents(l.lower()) for l in group}
+
+    def is_equiv(pred, gold):
+        """Check if pred and gold are equivalent lemmas."""
+        stripped_pred = strip_accents(pred.lower())
+        stripped_gold = strip_accents(gold.lower())
+        if stripped_pred in equiv_map:
+            return stripped_gold in equiv_map[stripped_pred]
+        return False
+
     for t, pred in zip(tokens, predicted):
         gold = t["gold_lemma"]
 
@@ -166,6 +186,7 @@ def evaluate(tokens, dilemma_instance, greedy=True):
         strict = (pred == gold)
         mono = (to_monotonic(pred).lower() == to_monotonic(gold).lower())
         stripped = (strip_accents(pred.lower()) == strip_accents(gold.lower()))
+        equiv = stripped or is_equiv(pred, gold)
 
         results.append({
             **t,
@@ -173,6 +194,7 @@ def evaluate(tokens, dilemma_instance, greedy=True):
             "strict": strict,
             "mono": mono,
             "stripped": stripped,
+            "equiv": equiv,
         })
 
     return results
@@ -188,9 +210,11 @@ def print_results(results, label=""):
     strict = sum(1 for r in results if r["strict"])
     mono = sum(1 for r in results if r["mono"])
     stripped = sum(1 for r in results if r["stripped"])
+    equiv = sum(1 for r in results if r.get("equiv", r["stripped"]))
 
     print(f"  {label:30s}  {total:>6} tokens  "
-          f"strict={strict/total:5.1%}  mono={mono/total:5.1%}  stripped={stripped/total:5.1%}")
+          f"strict={strict/total:5.1%}  mono={mono/total:5.1%}  "
+          f"stripped={stripped/total:5.1%}  equiv={equiv/total:5.1%}")
 
 
 def main():
