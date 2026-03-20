@@ -12,10 +12,16 @@ data/wtp.db.pickle
 # Kaikki dumps
 kaikki/
 
-# Model artifacts
+# Model artifacts (except production models tracked via LFS)
 model/
+!model/combined-s3/
+!model/grc-s3/
 *.pt
 *.onnx
+!model/combined-s3/*.pt
+!model/combined-s3/*.onnx
+!model/grc-s3/*.pt
+!model/grc-s3/*.onnx
 
 # Python
 __pycache__/
