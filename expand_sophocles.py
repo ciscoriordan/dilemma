@@ -6,8 +6,9 @@ from inline grammatical info and ending patterns, then expands via
 grc-decl/grc-conj templates.
 
 Usage:
-    python expand_sophocles.py --analyze     # show stats, don't modify lookup
-    python expand_sophocles.py --expand      # expand and merge into ag_lookup.json
+    python expand_sophocles.py --analyze       # show stats, don't modify lookup
+    python expand_sophocles.py --expand        # expand nouns and merge into ag_lookup.json
+    python expand_sophocles.py --expand-verbs  # expand verbs and merge into ag_lookup.json
 """
 
 import argparse
@@ -21,7 +22,7 @@ from pathlib import Path
 
 # Import shared infrastructure from expand_lsj
 from expand_lsj import (
-    get_wtp, expand_noun, strip_length_marks, strip_diacritics,
+    get_wtp, expand_noun, expand_verb, strip_length_marks, strip_diacritics,
     mark_alpha_length, AG_LOOKUP, DATA_DIR, ARTICLES,
 )
 
@@ -363,18 +364,112 @@ def expand_all():
     print(f"  {size_mb:.1f} MB written")
 
 
+def find_verb_candidates(entries, lookup):
+    """Find Sophocles verb entries not already in ag_lookup.json."""
+    VERB_ENDINGS = ("ω", "εω", "αω", "οω", "μαι")
+    candidates = []
+
+    for hw, entry in entries.items():
+        plain = strip_diacritics(hw)
+        # Skip if already covered
+        if hw in lookup or plain in lookup:
+            continue
+        # Skip non-verb categories
+        if entry["is_xref"] or entry["is_adj"] or entry["is_indecl"]:
+            continue
+        # Check verb endings
+        if any(plain.endswith(e) for e in VERB_ENDINGS):
+            candidates.append(hw)
+
+    return candidates
+
+
+def expand_verbs():
+    """Expand Sophocles verb headwords and merge into ag_lookup.json."""
+    print("Parsing Sophocles entries...")
+    entries = parse_sophocles_entries()
+    print(f"Total entries: {len(entries)}")
+
+    print(f"\nLoading {AG_LOOKUP}...")
+    with open(AG_LOOKUP, encoding="utf-8") as f:
+        lookup = json.load(f)
+    original_size = len(lookup)
+    print(f"  {original_size:,} existing entries")
+
+    candidates = find_verb_candidates(entries, lookup)
+    print(f"Sophocles verbs to expand: {len(candidates):,}")
+
+    wtp = get_wtp()
+
+    stats = {"expanded": 0, "failed": 0, "mi_verbs": 0, "new_forms": 0, "collisions": 0}
+    t0 = time.time()
+
+    for i, hw in enumerate(candidates):
+        forms, err = expand_verb(wtp, hw)
+
+        if err or not forms:
+            stats["failed"] += 1
+            if err == "mi-verb":
+                stats["mi_verbs"] += 1
+            continue
+
+        stats["expanded"] += 1
+
+        for form in forms:
+            if form not in lookup:
+                lookup[form] = hw
+                stats["new_forms"] += 1
+            elif lookup[form] != hw:
+                stats["collisions"] += 1
+
+            plain = strip_diacritics(form)
+            if plain != form:
+                if plain not in lookup:
+                    lookup[plain] = hw
+                    stats["new_forms"] += 1
+                elif lookup[plain] != hw:
+                    stats["collisions"] += 1
+
+        if (i + 1) % 500 == 0:
+            elapsed = time.time() - t0
+            rate = (i + 1) / elapsed
+            remaining = (len(candidates) - i - 1) / rate
+            print(f"  {i+1:,}/{len(candidates):,} "
+                  f"({stats['expanded']:,} ok, {stats['failed']:,} fail, "
+                  f"{stats['new_forms']:,} new forms) "
+                  f"[{elapsed:.0f}s elapsed, ~{remaining:.0f}s remaining]")
+
+    elapsed = time.time() - t0
+    print(f"\nDone in {elapsed:.0f}s")
+    print(f"  Expanded: {stats['expanded']:,} / {len(candidates):,} verbs")
+    print(f"  Failed: {stats['failed']:,} (of which {stats['mi_verbs']:,} -μι verbs)")
+    print(f"  New forms added: {stats['new_forms']:,}")
+    print(f"  Collisions (kept existing): {stats['collisions']:,}")
+    print(f"  Lookup size: {original_size:,} -> {len(lookup):,}")
+
+    print(f"\nSaving to {AG_LOOKUP}...")
+    with open(AG_LOOKUP, "w", encoding="utf-8") as f:
+        json.dump(lookup, f, ensure_ascii=False)
+    size_mb = AG_LOOKUP.stat().st_size / (1024 * 1024)
+    print(f"  {size_mb:.1f} MB written")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Expand Sophocles lexicon headwords")
     parser.add_argument("--analyze", action="store_true",
                         help="Show stats without modifying lookup")
     parser.add_argument("--expand", action="store_true",
-                        help="Expand and merge into ag_lookup.json")
+                        help="Expand nouns and merge into ag_lookup.json")
+    parser.add_argument("--expand-verbs", action="store_true",
+                        help="Expand verbs and merge into ag_lookup.json")
     args = parser.parse_args()
 
     if args.analyze:
         analyze()
     elif args.expand:
         expand_all()
+    elif args.expand_verbs:
+        expand_verbs()
     else:
         parser.print_help()
 
