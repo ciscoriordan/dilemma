@@ -39,9 +39,19 @@ MODEL_DIR = SCRIPT_DIR / "model"
 
 
 class LemmaPairDataset(Dataset):
-    def __init__(self, pairs, vocab, max_len=48):
+    GENDER = {"masculine", "feminine", "neuter"}
+    NUMBER = {"singular", "plural", "dual"}
+    CASE = {"nominative", "genitive", "dative", "accusative", "vocative"}
+    TENSE = {"present", "imperfect", "aorist", "future", "perfect", "pluperfect"}
+    MOOD = {"indicative", "subjunctive", "optative", "imperative", "participle", "infinitive"}
+    VOICE = {"active", "middle", "passive"}
+
+    def __init__(self, pairs, vocab, pos_map=None, nom_map=None, verb_map=None, max_len=48):
         self.pairs = pairs
         self.vocab = vocab
+        self.pos_map = pos_map
+        self.nom_map = nom_map
+        self.verb_map = verb_map
         self.max_len = max_len
 
     def __len__(self):
@@ -56,10 +66,34 @@ class LemmaPairDataset(Dataset):
         src = src + [0] * (self.max_len - len(src))
         tgt = tgt + [0] * (self.max_len - len(tgt))
 
-        return {
+        result = {
             "src": torch.tensor(src, dtype=torch.long),
             "tgt": torch.tensor(tgt, dtype=torch.long),
         }
+
+        # POS label for multi-task learning (-1 = no label)
+        if self.pos_map is not None:
+            pos_idx = self.pos_map.get(p.get("pos", ""), -1)
+            result["pos"] = torch.tensor(pos_idx, dtype=torch.long)
+
+        # Morphology labels (Swaelens nominal/verbal grouping)
+        tags = set(p.get("tags", []))
+        if self.nom_map is not None:
+            g, n, c = tags & self.GENDER, tags & self.NUMBER, tags & self.CASE
+            if g and n and c:
+                label = f"{next(iter(g))[:1]}.{next(iter(n))[:1]}.{next(iter(c))[:1]}"
+                result["nom"] = torch.tensor(self.nom_map.get(label, -1), dtype=torch.long)
+            else:
+                result["nom"] = torch.tensor(-1, dtype=torch.long)
+        if self.verb_map is not None:
+            t, m, v = tags & self.TENSE, tags & self.MOOD, tags & self.VOICE
+            if t and m and v:
+                label = f"{next(iter(t))[:3]}.{next(iter(m))[:3]}.{next(iter(v))[:3]}"
+                result["verb"] = torch.tensor(self.verb_map.get(label, -1), dtype=torch.long)
+            else:
+                result["verb"] = torch.tensor(-1, dtype=torch.long)
+
+        return result
 
 
 # Tags that mark non-standard MG varieties — these get priority in training
@@ -105,7 +139,7 @@ def load_pairs(lang: str, max_pairs: int = 0) -> list[dict]:
         print("Error: no training data found.")
         sys.exit(1)
 
-    # Deduplicate globally
+    # Deduplicate globally (preserve POS and tags for multi-task learning)
     seen = set()
     def dedup(pairs_list):
         result = []
@@ -113,7 +147,12 @@ def load_pairs(lang: str, max_pairs: int = 0) -> list[dict]:
             key = (p["form"], p["lemma"])
             if key not in seen:
                 seen.add(key)
-                result.append({"form": p["form"], "lemma": p["lemma"]})
+                entry = {"form": p["form"], "lemma": p["lemma"]}
+                if "pos" in p:
+                    entry["pos"] = p["pos"]
+                if "tags" in p:
+                    entry["tags"] = p["tags"]
+                result.append(entry)
         return result
 
     # Separate pools
@@ -147,6 +186,16 @@ def load_pairs(lang: str, max_pairs: int = 0) -> list[dict]:
     if "ag" in by_source:
         ag_pool = dedup(by_source["ag"])
         print(f"  AG pool: {len(ag_pool)} pairs")
+
+    # Oversample perfect tense forms (underrepresented in training: ~2%
+    # vs 11.4% in Byzantine text per Swaelens et al. 2024/2025)
+    PERFECT_TAGS = {"perfect", "pluperfect", "future-perfect"}
+    perfect_pairs = [p for p in ag_pool
+                     if p.get("pos") == "verb" and PERFECT_TAGS & set(p.get("tags", []))]
+    if perfect_pairs:
+        # Add 2 extra copies to bring perfects from ~2% to ~6%
+        ag_pool.extend(perfect_pairs * 2)
+        print(f"  Perfect tense oversampling: {len(perfect_pairs)} pairs x3")
 
     # Build final set: all varieties + 50/50 AG/SMG for remaining budget
     if max_pairs > 0 and len(varieties) + len(ag_pool) + len(smg_pool) > max_pairs:
@@ -227,18 +276,72 @@ def train(lang: str, epochs: int, batch_size: int, lr: float, eval_split: float,
     vocab.fit(all_texts)
     print(f"Vocabulary: {len(vocab)} characters")
 
+    # Build POS tag mapping for multi-task learning
+    WIKT_TO_UPOS = {
+        "verb": 0, "noun": 1, "adj": 2, "adv": 3, "name": 4,
+        "pron": 5, "num": 6, "prep": 7, "article": 8, "character": 9,
+    }
+    has_pos = sum(1 for p in train_pairs if p.get("pos") in WIKT_TO_UPOS)
+    use_multitask = has_pos > len(train_pairs) * 0.3  # enable if 30%+ have POS
+    num_pos_tags = len(WIKT_TO_UPOS) if use_multitask else 0
+    if use_multitask:
+        print(f"Multi-task learning: {has_pos}/{len(train_pairs)} pairs have POS tags")
+
+    # Build nominal (Gender+Number+Case) and verbal (Tense+Mood+Voice) label maps
+    # Following Swaelens et al. (2025) feature grouping approach
+    GENDER = {"masculine", "feminine", "neuter"}
+    NUMBER = {"singular", "plural", "dual"}
+    CASE = {"nominative", "genitive", "dative", "accusative", "vocative"}
+    TENSE = {"present", "imperfect", "aorist", "future", "perfect", "pluperfect"}
+    MOOD = {"indicative", "subjunctive", "optative", "imperative", "participle", "infinitive"}
+    VOICE = {"active", "middle", "passive"}
+
+    nom_labels = {}  # "m.s.n" -> idx
+    verb_labels = {}  # "pre.ind.act" -> idx
+    for p in train_pairs:
+        tags = set(p.get("tags", []))
+        g, n, c = tags & GENDER, tags & NUMBER, tags & CASE
+        if g and n and c:
+            label = f"{next(iter(g))[:1]}.{next(iter(n))[:1]}.{next(iter(c))[:1]}"
+            if label not in nom_labels:
+                nom_labels[label] = len(nom_labels)
+        t, m, v = tags & TENSE, tags & MOOD, tags & VOICE
+        if t and m and v:
+            label = f"{next(iter(t))[:3]}.{next(iter(m))[:3]}.{next(iter(v))[:3]}"
+            if label not in verb_labels:
+                verb_labels[label] = len(verb_labels)
+
+    use_morph = len(nom_labels) > 5 and len(verb_labels) > 5
+    if use_morph:
+        print(f"Morphology heads: {len(nom_labels)} nominal labels, {len(verb_labels)} verbal labels")
+
     # Create model
-    model = LemmaTransformer(vocab_size=len(vocab))
+    model = LemmaTransformer(vocab_size=len(vocab), num_pos_tags=num_pos_tags)
+    if use_morph:
+        model.nom_head = torch.nn.Linear(model.d_model, len(nom_labels)).to(device)
+        model.verb_head = torch.nn.Linear(model.d_model, len(verb_labels)).to(device)
     model.to(device)
     param_count = sum(p.numel() for p in model.parameters())
-    print(f"Model: {param_count / 1e6:.1f}M parameters")
+    heads = []
+    if use_multitask:
+        heads.append(f"POS: {num_pos_tags}")
+    if use_morph:
+        heads.append(f"nom: {len(nom_labels)}")
+        heads.append(f"verb: {len(verb_labels)}")
+    head_str = f" (heads: {', '.join(heads)})" if heads else ""
+    print(f"Model: {param_count / 1e6:.1f}M parameters{head_str}")
 
-    dataset = LemmaPairDataset(train_pairs, vocab)
+    dataset = LemmaPairDataset(train_pairs, vocab,
+                               pos_map=WIKT_TO_UPOS if use_multitask else None,
+                               nom_map=nom_labels if use_morph else None,
+                               verb_map=verb_labels if use_morph else None)
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=True,
                         num_workers=0, pin_memory=device == "cuda")
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
     criterion = torch.nn.CrossEntropyLoss(ignore_index=0)  # ignore PAD
+    aux_criterion = torch.nn.CrossEntropyLoss(ignore_index=-1)
+    AUX_LOSS_WEIGHT = 0.1  # auxiliary tasks, don't dominate
 
     total_batches = len(loader)
     print(f"\nTraining for {epochs} epochs ({total_batches} batches/epoch)...",
@@ -266,6 +369,25 @@ def train(lang: str, epochs: int, batch_size: int, lr: float, eval_split: float,
 
             loss = criterion(logits.reshape(-1, logits.size(-1)),
                              tgt_out.reshape(-1))
+
+            # Multi-task auxiliary losses
+            if use_multitask and "pos" in batch_data:
+                pos_labels = batch_data["pos"].to(device)
+                pos_logits = model.predict_pos(src, src_pad_mask)
+                if pos_logits is not None:
+                    loss = loss + AUX_LOSS_WEIGHT * aux_criterion(pos_logits, pos_labels)
+
+            if use_morph:
+                if "nom" in batch_data:
+                    nom_labels = batch_data["nom"].to(device)
+                    nom_logits, _ = model.predict_morph(src, src_pad_mask)
+                    if nom_logits is not None:
+                        loss = loss + AUX_LOSS_WEIGHT * aux_criterion(nom_logits, nom_labels)
+                if "verb" in batch_data:
+                    verb_labels = batch_data["verb"].to(device)
+                    _, verb_logits = model.predict_morph(src, src_pad_mask)
+                    if verb_logits is not None:
+                        loss = loss + AUX_LOSS_WEIGHT * aux_criterion(verb_logits, verb_labels)
 
             optimizer.zero_grad()
             loss.backward()

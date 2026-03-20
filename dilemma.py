@@ -430,8 +430,9 @@ class Dilemma:
         if not self._resolve_articles:
             return None
         if (word in _ARTICLE_FORMS
-                or to_monotonic(word) in _ARTICLE_FORMS
-                or strip_accents(word.lower()) in _ARTICLE_FORMS):
+                or to_monotonic(word) in _ARTICLE_FORMS):
+            # Don't use strip_accents here - it's too aggressive for short
+            # words (e.g. ἤ "or" becomes η which matches the article)
             return _ARTICLE_LEMMA
         if word in _PRONOUN_LEMMAS:
             return _PRONOUN_LEMMAS[word]
@@ -595,16 +596,16 @@ class Dilemma:
         if crasis_result is not None:
             return crasis_result
 
-        # Elision expansion (before lookup, since elided forms like δ̓
-        # can false-match to letter headwords δ in the lookup)
-        elision_lemma = self._expand_elision(word)
-        if elision_lemma:
-            return elision_lemma
-
         # Lookup: exact -> lowercase -> monotonic -> accent-stripped
         lemma = self._lookup_word(word)
         if lemma:
             return lemma
+
+        # Elision expansion (after lookup, so known words like εἰ/οὐ
+        # aren't falsely caught by smooth-breathing-as-elision)
+        elision_lemma = self._expand_elision(word)
+        if elision_lemma:
+            return elision_lemma
 
         # Normalizer: try orthographic variants against lookup
         if self._normalizer:
