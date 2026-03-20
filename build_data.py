@@ -30,7 +30,10 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 DATA_DIR = SCRIPT_DIR / "data"
 
-# Default kaikki dump directory
+# Default kaikki dump directory. Set KAIKKI_DIR env var to override.
+# Supports two layouts:
+#   flat:   <dir>/kaikki.org-en-dictionary-Greek.jsonl
+#   nested: <dir>/en-el/kaikki.org-dictionary-Greek-words.jsonl
 DEFAULT_DUMP_DIR = Path(os.environ.get(
     "KAIKKI_DIR", DATA_DIR))
 
@@ -47,6 +50,32 @@ DUMPS = {
         "el": "kaikki.org-el-dictionary-MedievalGreek.jsonl",
     },
 }
+
+# Alternate filenames/paths for the nested directory layout
+_NESTED_MAP = {
+    "kaikki.org-en-dictionary-Greek.jsonl":
+        "en-el/kaikki.org-dictionary-Greek-words.jsonl",
+    "kaikki.org-en-dictionary-AncientGreek.jsonl":
+        "en-el/kaikki.org-dictionary-AncientGreek.jsonl",
+    "kaikki.org-el-dictionary-Greek.jsonl":
+        "el/kaikki.org-dictionary-Greek.jsonl",
+    "kaikki.org-el-dictionary-AncientGreek.jsonl":
+        "el/kaikki.org-dictionary-AncientGreek.jsonl",
+    "kaikki.org-el-dictionary-MedievalGreek.jsonl":
+        "el/kaikki.org-dictionary-MedievalGreek.jsonl",
+}
+
+
+def resolve_dump(filename: str, dump_dir: Path) -> Path:
+    """Resolve a dump filename, checking flat and nested layouts."""
+    direct = dump_dir / filename
+    if direct.exists():
+        return direct
+    if filename in _NESTED_MAP:
+        nested = dump_dir / _NESTED_MAP[filename]
+        if nested.exists():
+            return nested
+    return direct
 
 DOWNLOAD_URLS = {
     "kaikki.org-en-dictionary-Greek.jsonl":
@@ -536,7 +565,7 @@ def main():
         # Extract EN first to collect proper noun forms for corroboration
         en_name_forms = set()
         if "en" in DUMPS[lang]:
-            en_path = dump_dir / DUMPS[lang]["en"]
+            en_path = resolve_dump(DUMPS[lang]["en"], dump_dir)
             print(f"\nScanning en Wiktionary: {DUMPS[lang]['en']}")
             pairs, lookup, headwords = extract_pairs(en_path, f"{lang}-en")
             all_pairs.extend(pairs)
@@ -557,7 +586,7 @@ def main():
         for wikt_lang, filename in DUMPS[lang].items():
             if wikt_lang == "en":
                 continue  # already processed
-            path = dump_dir / filename
+            path = resolve_dump(filename, dump_dir)
             print(f"\nScanning {wikt_lang} Wiktionary: {path.name}")
             pairs, lookup, headwords = extract_pairs(
                 path, f"{lang}-{wikt_lang}",
