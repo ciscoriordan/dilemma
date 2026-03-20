@@ -598,7 +598,6 @@ will propagate into Dilemma via kaikki dumps.
 
 | Issue | Tokens | Notes |
 |-------|--------|-------|
-| **Grave accent variants** | ~700 | ὣς does not resolve to ὡς. Grave is a positional variant of acute in Greek but Wiktionary only lists acute forms. Needs a normalization step. |
 | **αὐτοῦ ambiguity** | ~200 | Genuine lexical ambiguity: both an adverb ("here/there") and genitive of αὐτός. Needs sentence context. |
 | **ταῦτα self-map** | ~100 | Also an adverb headword in Wiktionary, so self-maps instead of mapping to οὗτος. |
 | **μιν → οὗ** | ~340 | Wiktionary-correct (μιν is accusative of the 3rd person pronoun). Perseus treebank uses μιν as its own lemma - a convention difference. |
