@@ -64,8 +64,71 @@ def strip_length_marks(s: str) -> str:
         ''.join(c for c in nfd if ord(c) not in (0x0306, 0x0304)))
 
 
+def strip_diacritics(s: str) -> str:
+    """Strip all combining diacritics for accent-free comparison."""
+    nfd = unicodedata.normalize("NFD", s)
+    return ''.join(c for c in nfd if not unicodedata.combining(c))
+
+
+def build_genitive_from_itype(headword, itype):
+    """Build genitive form from headword + LSJ itype (genitive suffix).
+
+    The itype replaces a portion of the headword's ending. The number of
+    characters to strip depends on the nominative ending pattern.
+    """
+    if not itype:
+        return ""
+
+    hw_plain = strip_diacritics(headword)
+    it_plain = strip_diacritics(itype)
+
+    # (nominative ending, itype ending) → chars to strip from headword
+    # Ordered so more specific patterns match first
+    STRIP_RULES = [
+        # -ευς / -εως: strip 3 (the ε is shared between stem and itype)
+        ("ευς", "εως", 3),
+        # 1st/2nd declension
+        ("ος", "ου", 2),
+        ("ον", "ου", 2),
+        ("ης", "ου", 2),
+        ("ας", "ου", 2),
+        ("η", "ης", 1),
+        # 3rd declension -ις/-εως (biggest: 4451 entries, πόλις-type)
+        ("ις", "εως", 2),
+        # 3rd declension -υς/-εως (πῆχυς-type, NOT -ευς which is above)
+        ("υς", "εως", 2),
+        # 3rd declension -ης/-ους (Attic, e.g. Σωκράτης)
+        ("ης", "ους", 2),
+        # 3rd declension -ης/-ητος
+        ("ης", "ητος", 2),
+        # 3rd declension -ως/-ω (Attic, e.g. ἥρως)
+        ("ως", "ωος", 2),
+    ]
+
+    for nom_end, gen_itype, strip_n in STRIP_RULES:
+        if hw_plain.endswith(nom_end) and it_plain == strip_diacritics(gen_itype):
+            return headword[:-strip_n] + itype
+
+    # Default: strip 1 char (the final case marker) and append itype.
+    # Works for most 3rd declension patterns where itype starts from
+    # the oblique stem consonant:
+    #   -μα + ατος → -ματος (strip α, append ατος)
+    #   -ίς + ίδος → -ίδος (strip ς, append... wait, ίδος)
+    #   -ήρ + ῆρος → -ῆρος (strip ρ... hmm)
+    #
+    # Actually for consonant stems, strip 1 often leaves extra chars.
+    # Try strip 2 if itype starts with a char that matches the second-to-last
+    # char of the headword (accent-free).
+    if len(hw_plain) >= 2 and len(it_plain) >= 1:
+        if hw_plain[-2] == it_plain[0]:
+            # The itype "restarts" from a character that's already in the headword
+            # e.g. ἐλπίς + ίδος: ί matches → strip 2, append ίδος
+            return headword[:-2] + itype
+    return headword[:-1] + itype
+
+
 def parse_lsj_entries():
-    """Parse LSJ XML files, extract headword + gender + genitive."""
+    """Parse LSJ XML files, extract headword + gender + genitive + itype."""
     entries = {}
     for xml_file in sorted(LSJ_DIR.glob("greatscott*.xml")):
         try:
@@ -83,25 +146,47 @@ def parse_lsj_entries():
                                   '\u1F00' <= c <= '\u1FFF' for c in hw):
                 continue
 
+            # orth_orig preserves length marks and stem breaks
+            orth_orig = head.get('orth_orig', hw)
+
             # Gender from <gen> element
             gen_elem = entry.find('.//gen')
             article = ''.join(gen_elem.itertext()).strip() if gen_elem is not None else ""
             article = article.rstrip('.,; ')
             gender = GENDER_MAP.get(article, "")
 
-            # Try to extract explicit genitive
-            xml_str = ET.tostring(entry, encoding='unicode')
+            # itype: genitive suffix / oblique stem indicator
+            itype_elem = entry.find('.//itype')
+            itype = ''.join(itype_elem.itertext()).strip() if itype_elem is not None else ""
+            itype = itype.rstrip('.,; ')
+
+            # Filter non-genitive itypes
+            ADJ_ITYPES = {"ον", "ή", "η", "ές"}
             genitive = ""
-            m = re.search(r'gen\.\s*<foreign[^>]*>([α-ωά-ώἀ-ᾧΑ-ΩῬ]+)', xml_str)
-            if not m:
-                m = re.search(r'gen\.\s*([α-ωά-ώἀ-ᾧ]+)', xml_str)
-            if m:
-                genitive = strip_length_marks(m.group(1).strip().rstrip(','))
+            is_valid_itype = (itype
+                              and itype not in ADJ_ITYPES
+                              and "-" not in itype
+                              and "." not in itype
+                              and " " not in itype
+                              and len(itype) <= 8)
+            if is_valid_itype:
+                genitive = build_genitive_from_itype(hw, itype)
+
+            # Fallback: try regex for explicit "gen." in entry text
+            if not genitive:
+                xml_str = ET.tostring(entry, encoding='unicode')
+                m = re.search(r'gen\.\s*<foreign[^>]*>([α-ωά-ώἀ-ᾧΑ-ΩῬ]+)', xml_str)
+                if not m:
+                    m = re.search(r'gen\.\s*([α-ωά-ώἀ-ᾧ]+)', xml_str)
+                if m:
+                    genitive = strip_length_marks(m.group(1).strip().rstrip(','))
 
             entries[hw] = {
                 "headword": hw,
+                "orth_orig": orth_orig,
                 "article": article,
                 "gender": gender,
+                "itype": itype,
                 "genitive": genitive,
             }
     return entries
@@ -141,77 +226,63 @@ def load_wiktionary_forms():
 
 def infer_genitive(headword, gender):
     """Infer genitive singular from nominative ending + gender."""
+    hw_plain = strip_diacritics(headword)
     for (ending, g), gen_ending in REGULAR_GENITIVE.items():
-        if gender == g and headword.endswith(ending):
+        if gender == g and hw_plain.endswith(ending):
             stem = headword[:-len(ending)]
             return stem + gen_ending
     return ""
 
 
 def setup_wtp():
-    """Set up wikitextprocessor database from Wiktionary dump.
+    """Set up wikitextprocessor database from kaikki.org module/template tarballs.
 
-    This processes the dump to extract all Lua modules and templates.
+    Downloads tarballs if needed, loads modules and templates into a SQLite db.
     Only needs to run once.
     """
+    import tarfile
+    import urllib.request
     from wikitextprocessor import Wtp
 
     print("Setting up wikitextprocessor database...")
-    print("This processes the Wiktionary dump to extract Lua modules.")
-    print("It takes a while on first run but only needs to happen once.")
 
-    # We need an enwiktionary dump. Check if we have one.
-    dump_candidates = list(DATA_DIR.glob("enwiktionary-*-pages-articles.xml*"))
-    if not dump_candidates:
-        dump_dir = Path.home() / "Documents" / "Klisy" / "word_collector"
-        dump_candidates = list(dump_dir.glob("enwiktionary-*-pages-articles.xml*"))
-    if not dump_candidates:
-        # Try downloading just the modules
-        print("\nNo Wiktionary dump found. Downloading module data from kaikki.org...")
-        print("(This is much faster than processing a full dump)")
+    modules_url = "https://kaikki.org/dictionary/wiktionary-modules.tar.gz"
+    templates_url = "https://kaikki.org/dictionary/wiktionary-templates.tar.gz"
 
-        import urllib.request
-        import tempfile
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-        modules_url = "https://kaikki.org/dictionary/wiktionary-modules.tar.gz"
-        templates_url = "https://kaikki.org/dictionary/wiktionary-templates.tar.gz"
+    for url, name in [(modules_url, "wiktionary-modules"),
+                      (templates_url, "wiktionary-templates")]:
+        dest = DATA_DIR / f"{name}.tar.gz"
+        if not dest.exists():
+            print(f"  Downloading {name}...")
+            urllib.request.urlretrieve(url, dest)
+            size_mb = dest.stat().st_size / (1024 * 1024)
+            print(f"  {size_mb:.1f} MB")
 
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
+    if WTP_DB.exists():
+        WTP_DB.unlink()
 
-        for url, name in [(modules_url, "wiktionary-modules"),
-                          (templates_url, "wiktionary-templates")]:
-            dest = DATA_DIR / f"{name}.tar.gz"
-            if not dest.exists():
-                print(f"  Downloading {name}...")
-                urllib.request.urlretrieve(url, dest)
-                size_mb = dest.stat().st_size / (1024 * 1024)
-                print(f"  {size_mb:.1f} MB")
+    wtp = Wtp(db_path=str(WTP_DB))
 
-        # Load into wtp
-        import tarfile
+    NS_MODULE = 828
+    NS_TEMPLATE = 10
 
-        wtp = Wtp(cache_file=str(WTP_DB))
+    def tar_to_title(member_name, namespace):
+        """Convert tar path like 'Module/grc-decl.txt' to 'Module:grc-decl'."""
+        name = member_name
+        if name.startswith(f"{namespace}/"):
+            name = name[len(f"{namespace}/"):]
+        if name.endswith(".txt"):
+            name = name[:-4]
+        return f"{namespace}:{name}"
 
-        def tar_to_title(member_name, namespace):
-            """Convert tar path like 'Module/grc-decl.txt' to 'Module:grc-decl'."""
-            # Strip namespace prefix directory (Module/ or Template/)
-            name = member_name
-            for prefix in (f"{namespace}/", ):
-                if name.startswith(prefix):
-                    name = name[len(prefix):]
-                    break
-            # Strip .txt extension
-            if name.endswith(".txt"):
-                name = name[:-4]
-            # Convert / to : for submodules (e.g. grc-decl/decl -> grc-decl/decl)
-            # MediaWiki uses / for subpages, which is already correct
-            return f"{namespace}:{name}"
-
-        # Modules (Scribunto model)
-        modules_path = DATA_DIR / "wiktionary-modules.tar.gz"
-        print(f"  Loading modules...")
+    for ns_name, ns_id, model in [("Module", NS_MODULE, "Scribunto"),
+                                   ("Template", NS_TEMPLATE, "wikitext")]:
+        tarball = DATA_DIR / f"wiktionary-{ns_name.lower()}s.tar.gz"
+        print(f"  Loading {ns_name.lower()}s...")
         count = 0
-        with tarfile.open(modules_path, "r:gz") as tar:
+        with tarfile.open(tarball, "r:gz") as tar:
             for member in tar.getmembers():
                 if not member.isfile():
                     continue
@@ -219,37 +290,12 @@ def setup_wtp():
                 if f is None:
                     continue
                 body = f.read().decode("utf-8", errors="replace")
-                title = tar_to_title(member.name, "Module")
-                wtp.add_page("Scribunto", title, body)
+                title = tar_to_title(member.name, ns_name)
+                wtp.add_page(title, ns_id, body, model=model)
                 count += 1
-        print(f"  Loaded {count:,} modules")
+        print(f"  Loaded {count:,} {ns_name.lower()}s")
 
-        # Templates (wikitext model)
-        templates_path = DATA_DIR / "wiktionary-templates.tar.gz"
-        print(f"  Loading templates...")
-        count = 0
-        with tarfile.open(templates_path, "r:gz") as tar:
-            for member in tar.getmembers():
-                if not member.isfile():
-                    continue
-                f = tar.extractfile(member)
-                if f is None:
-                    continue
-                body = f.read().decode("utf-8", errors="replace")
-                title = tar_to_title(member.name, "Template")
-                wtp.add_page("wikitext", title, body)
-                count += 1
-        print(f"  Loaded {count:,} templates")
-
-        wtp.analyze_templates()
-        print("  Database ready.")
-        return wtp
-
-    # Process dump
-    dump = dump_candidates[0]
-    print(f"  Processing dump: {dump}")
-    wtp = Wtp(cache_file=str(WTP_DB))
-    wtp.process_dump(str(dump), phase1_only=True)
+    wtp.db_conn.commit()
     print("  Database ready.")
     return wtp
 
@@ -259,9 +305,43 @@ def get_wtp():
     from wikitextprocessor import Wtp
 
     if WTP_DB.exists():
-        wtp = Wtp(cache_file=str(WTP_DB))
+        wtp = Wtp(db_path=str(WTP_DB))
         return wtp
     return setup_wtp()
+
+
+MACRON = "\u0304"  # combining macron
+BREVE = "\u0306"   # combining breve
+
+def mark_alpha_length(word):
+    """Add macron to final alpha if it follows ι, ρ, or ε (long alpha rule).
+    Add breve for short alpha patterns."""
+    base = strip_diacritics(word)
+    if not base.endswith("α") and not base.endswith("ας"):
+        return word
+    # Find the character before the alpha
+    alpha_pos = len(base) - 1 if base.endswith("α") else len(base) - 2
+    if alpha_pos < 1:
+        return word
+    preceding = base[alpha_pos - 1]
+    if preceding in ("ι", "ρ", "ε"):
+        # Long alpha after ι, ρ, ε - insert macron after the α
+        # Find the actual α in the original word (may have accents)
+        nfd = unicodedata.normalize("NFD", word)
+        # Find the alpha at the right position and add macron after it
+        result = []
+        base_idx = 0
+        for ch in nfd:
+            if not unicodedata.combining(ch):
+                base_idx += 1
+            if base_idx == alpha_pos + 1 and ch == "α":
+                result.append(ch)
+                result.append(MACRON)
+                base_idx_done = True
+            else:
+                result.append(ch)
+        return unicodedata.normalize("NFC", "".join(result))
+    return word
 
 
 def expand_noun(wtp, headword, gender, genitive=""):
@@ -269,13 +349,21 @@ def expand_noun(wtp, headword, gender, genitive=""):
     if not genitive:
         genitive = infer_genitive(headword, gender)
 
-    article = {"m": "ὁ", "f": "ἡ", "n": "τό"}.get(gender, "")
+    # grc-decl gender codes
+    gender_code = {"m": "M", "f": "F", "n": "N"}.get(gender, "")
 
-    # Try with genitive if we have it
-    if genitive:
-        template = f"{{{{grc-decl|{headword}|{genitive}|{article}}}}}"
+    # Mark alpha length for disambiguation
+    hw_marked = mark_alpha_length(headword)
+    gen_marked = mark_alpha_length(genitive) if genitive else ""
+
+    parts = [hw_marked]
+    if gen_marked:
+        parts.append(gen_marked)
     else:
-        template = f"{{{{grc-decl|{headword}||{article}}}}}"
+        parts.append("")
+
+    form_param = f"|form={gender_code}" if gender_code else ""
+    template = "{{grc-decl|" + "|".join(parts) + form_param + "}}"
 
     try:
         wtp.start_page(headword)
@@ -288,25 +376,33 @@ def expand_noun(wtp, headword, gender, genitive=""):
 
 def expand_verb(wtp, headword):
     """Expand a verb using grc-conj template. Returns set of forms."""
-    # Determine conjugation type from ending
-    if headword.endswith("ω"):
-        # Regular thematic
-        stem = headword[:-1]
-        template = f"{{{{grc-conj|pres|act|{stem}}}}}"
-    elif headword.endswith("έω") or headword.endswith("εω"):
-        stem = headword[:-2]
-        template = f"{{{{grc-conj|pres-ew|act|{stem}}}}}"
-    elif headword.endswith("άω") or headword.endswith("αω"):
-        stem = headword[:-2]
-        template = f"{{{{grc-conj|pres-aw|act|{stem}}}}}"
-    elif headword.endswith("όω") or headword.endswith("οω"):
-        stem = headword[:-2]
-        template = f"{{{{grc-conj|pres-ow|act|{stem}}}}}"
-    elif headword.endswith("μι"):
-        # -μι verbs need more info, skip for now
+    hw_plain = strip_diacritics(headword)
+
+    # Determine conjugation type and stem from ending
+    # Contract verbs: stem excludes the contract vowel
+    # Regular verbs: stem excludes -ω
+    if hw_plain.endswith("εω"):
+        stem = strip_diacritics(headword[:-2])
+        conj_type = "pres-con-e"
+    elif hw_plain.endswith("αω"):
+        stem = strip_diacritics(headword[:-2])
+        conj_type = "pres-con-a"
+    elif hw_plain.endswith("οω"):
+        stem = strip_diacritics(headword[:-2])
+        conj_type = "pres-con-o"
+    elif hw_plain.endswith("ω"):
+        stem = strip_diacritics(headword[:-1])
+        conj_type = "pres"
+    elif hw_plain.endswith("μι"):
         return set(), "mi-verb"
+    elif hw_plain.endswith("μαι"):
+        # Deponent - try as middle/passive present
+        stem = strip_diacritics(headword[:-3])
+        conj_type = "pres"
     else:
         return set(), f"unknown-ending:{headword[-3:]}"
+
+    template = "{{grc-conj|" + conj_type + "|" + stem + "}}"
 
     try:
         wtp.start_page(headword)
@@ -317,26 +413,32 @@ def expand_verb(wtp, headword):
     return parse_html_forms(html, headword), ""
 
 
+ARTICLES = {"ὁ", "ἡ", "τό", "τοῦ", "τῆς", "τῷ", "τῇ", "τόν", "τήν",
+            "τών", "τῶν", "τοῖς", "ταῖς", "τούς", "τάς", "τά",
+            "τοῖν", "ταῖν", "τώ", "τὼ", "αἱ", "οἱ",
+            "τὰς", "τὴν", "τὸ", "τὸν", "τοὺς", "τὰ"}
+
 def parse_html_forms(html, headword):
     """Extract Greek word forms from expanded HTML table."""
     forms = set()
-    # Find all text content that looks like Greek words
-    # Strip HTML tags and extract Greek tokens
+    # Strip HTML tags
     text = re.sub(r'<[^>]+>', ' ', html)
     for token in re.split(r'[\s,/;]+', text):
         token = token.strip('.,;:()[]—– ')
+        # Handle wikilink pipe artifacts like "Greek|λύπη"
+        if '|' in token:
+            token = token.split('|')[-1]
+        # Strip anchor fragments like "λύπη#Ancient&#95"
+        if '#' in token:
+            token = token.split('#')[0]
         token = strip_length_marks(token)
         if (token and len(token) > 1 and
             any('\u0370' <= c <= '\u03FF' or '\u1F00' <= c <= '\u1FFF'
-                for c in token)):
+                for c in token)
+            and token not in ARTICLES
+            and not token.isupper()
+            and token[0] != '-'):
             forms.add(token)
-    # Remove the headword label texts that aren't inflected forms
-    noise = {"Active", "Middle", "Passive", "Indicative", "Subjunctive",
-             "Optative", "Imperative", "Infinitive", "Participle",
-             "Present", "Imperfect", "Future", "Aorist", "Perfect",
-             "Pluperfect", "Singular", "Dual", "Plural",
-             "Nominative", "Genitive", "Dative", "Accusative", "Vocative"}
-    forms -= {n.lower() for n in noise}
     return forms
 
 
@@ -441,6 +543,178 @@ def test_overlap():
     print(f"  Error: {results['error']}")
 
 
+AG_LOOKUP = DATA_DIR / "ag_lookup.json"
+
+
+def expand_all():
+    """Expand LSJ-only nouns and merge into ag_lookup.json."""
+    import time
+
+    print("Loading data...")
+    lsj_entries = parse_lsj_entries()
+    wikt = load_wiktionary_forms()
+
+    # Load existing lookup
+    print(f"Loading {AG_LOOKUP}...")
+    with open(AG_LOOKUP, encoding="utf-8") as f:
+        lookup = json.load(f)
+    original_size = len(lookup)
+    print(f"  {original_size:,} existing entries")
+
+    # Find LSJ-only nouns with gender
+    candidates = []
+    for hw, entry in lsj_entries.items():
+        if hw in wikt:
+            continue  # already covered by Wiktionary
+        if not entry["gender"]:
+            continue  # no gender = can't decline
+        if not entry["genitive"] and not infer_genitive(hw, entry["gender"]):
+            continue  # no genitive info at all
+        candidates.append(hw)
+
+    print(f"LSJ-only nouns to expand: {len(candidates):,}")
+
+    wtp = get_wtp()
+
+    stats = {"expanded": 0, "failed": 0, "new_forms": 0, "collisions": 0}
+    t0 = time.time()
+
+    for i, hw in enumerate(candidates):
+        entry = lsj_entries[hw]
+        forms, err = expand_noun(wtp, hw, entry["gender"], entry["genitive"])
+
+        if err or not forms:
+            stats["failed"] += 1
+            continue
+
+        stats["expanded"] += 1
+
+        for form in forms:
+            # Accented version
+            if form not in lookup:
+                lookup[form] = hw
+                stats["new_forms"] += 1
+            elif lookup[form] != hw:
+                stats["collisions"] += 1
+
+            # Accent-stripped version
+            plain = strip_diacritics(form)
+            if plain != form:
+                if plain not in lookup:
+                    lookup[plain] = hw
+                    stats["new_forms"] += 1
+                elif lookup[plain] != hw:
+                    stats["collisions"] += 1
+
+        if (i + 1) % 1000 == 0:
+            elapsed = time.time() - t0
+            rate = (i + 1) / elapsed
+            remaining = (len(candidates) - i - 1) / rate
+            print(f"  {i+1:,}/{len(candidates):,} "
+                  f"({stats['expanded']:,} ok, {stats['failed']:,} fail, "
+                  f"{stats['new_forms']:,} new forms) "
+                  f"[{elapsed:.0f}s elapsed, ~{remaining:.0f}s remaining]")
+
+    elapsed = time.time() - t0
+    print(f"\nDone in {elapsed:.0f}s")
+    print(f"  Expanded: {stats['expanded']:,} / {len(candidates):,} nouns")
+    print(f"  Failed: {stats['failed']:,}")
+    print(f"  New forms added: {stats['new_forms']:,}")
+    print(f"  Collisions (kept existing): {stats['collisions']:,}")
+    print(f"  Lookup size: {original_size:,} -> {len(lookup):,}")
+
+    # Save
+    out_path = AG_LOOKUP
+    print(f"\nSaving to {out_path}...")
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(lookup, f, ensure_ascii=False)
+    size_mb = out_path.stat().st_size / (1024 * 1024)
+    print(f"  {size_mb:.1f} MB written")
+
+
+def expand_verbs():
+    """Expand LSJ verbs and merge into ag_lookup.json."""
+    import time
+
+    print("Loading data...")
+    lsj_entries = parse_lsj_entries()
+    wikt = load_wiktionary_forms()
+
+    print(f"Loading {AG_LOOKUP}...")
+    with open(AG_LOOKUP, encoding="utf-8") as f:
+        lookup = json.load(f)
+    original_size = len(lookup)
+    print(f"  {original_size:,} existing entries")
+
+    # Find LSJ-only verbs (entries without gender = likely verbs)
+    candidates = []
+    hw_plain = strip_diacritics
+    for hw, entry in lsj_entries.items():
+        if hw in wikt:
+            continue
+        if entry["gender"]:
+            continue  # has gender = noun/adj, not verb
+        dp = strip_diacritics(hw)
+        if dp.endswith("ω") or dp.endswith("εω") or dp.endswith("αω") or dp.endswith("οω") or dp.endswith("μαι"):
+            # Check it's not already fully covered
+            if hw not in lookup and strip_diacritics(hw) not in lookup:
+                candidates.append(hw)
+
+    print(f"LSJ-only verbs to expand: {len(candidates):,}")
+
+    wtp = get_wtp()
+
+    stats = {"expanded": 0, "failed": 0, "new_forms": 0, "collisions": 0}
+    t0 = time.time()
+
+    for i, hw in enumerate(candidates):
+        forms, err = expand_verb(wtp, hw)
+
+        if err or not forms:
+            stats["failed"] += 1
+            continue
+
+        stats["expanded"] += 1
+
+        for form in forms:
+            if form not in lookup:
+                lookup[form] = hw
+                stats["new_forms"] += 1
+            elif lookup[form] != hw:
+                stats["collisions"] += 1
+
+            plain = strip_diacritics(form)
+            if plain != form:
+                if plain not in lookup:
+                    lookup[plain] = hw
+                    stats["new_forms"] += 1
+                elif lookup[plain] != hw:
+                    stats["collisions"] += 1
+
+        if (i + 1) % 500 == 0:
+            elapsed = time.time() - t0
+            rate = (i + 1) / elapsed
+            remaining = (len(candidates) - i - 1) / rate
+            print(f"  {i+1:,}/{len(candidates):,} "
+                  f"({stats['expanded']:,} ok, {stats['failed']:,} fail, "
+                  f"{stats['new_forms']:,} new forms) "
+                  f"[{elapsed:.0f}s elapsed, ~{remaining:.0f}s remaining]")
+
+    elapsed = time.time() - t0
+    print(f"\nDone in {elapsed:.0f}s")
+    print(f"  Expanded: {stats['expanded']:,} / {len(candidates):,} verbs")
+    print(f"  Failed: {stats['failed']:,}")
+    print(f"  New forms added: {stats['new_forms']:,}")
+    print(f"  Collisions (kept existing): {stats['collisions']:,}")
+    print(f"  Lookup size: {original_size:,} -> {len(lookup):,}")
+
+    print(f"\nSaving to {AG_LOOKUP}...")
+    with open(AG_LOOKUP, "w", encoding="utf-8") as f:
+        json.dump(lookup, f, ensure_ascii=False)
+    size_mb = AG_LOOKUP.stat().st_size / (1024 * 1024)
+    print(f"  {size_mb:.1f} MB written")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Expand LSJ headwords via Wiktionary Lua")
     parser.add_argument("--setup", action="store_true",
@@ -450,7 +724,11 @@ def main():
     parser.add_argument("--test-one", type=str, default=None,
                         help="Test a single word")
     parser.add_argument("--expand", action="store_true",
-                        help="Expand LSJ-only entries and add to lookup")
+                        help="Expand LSJ-only noun entries and add to lookup")
+    parser.add_argument("--expand-verbs", action="store_true",
+                        help="Expand LSJ-only verb entries and add to lookup")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="With --expand, show stats but don't save")
     args = parser.parse_args()
 
     if args.setup:
@@ -460,7 +738,9 @@ def main():
     elif args.test:
         test_overlap()
     elif args.expand:
-        print("Not yet implemented - run --test first to validate")
+        expand_all()
+    elif args.expand_verbs:
+        expand_verbs()
     else:
         parser.print_help()
 
