@@ -6,9 +6,9 @@ on Greek lemmatization. The model learns morphological patterns like
 -ωσε -> -ώνω (aorist -> present stem) and generalizes to unseen forms.
 
 Usage:
-    python train.py --scale 0               # quick test (~30s)
-    python train.py --scale 1               # default (~10 min on RTX 2080)
-    python train.py --scale 4               # full data (~1h on 4090)
+    python train.py --scale 1               # 20K pairs (~15 sec)
+    python train.py --scale 2               # 1M pairs (~13 min on RTX 2080)
+    python train.py --scale 3               # full data (~40 min on RTX 2080)
     python train.py --eval-only             # evaluate existing model
 
 Prerequisites:
