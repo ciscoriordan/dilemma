@@ -161,8 +161,10 @@ def setup_wtp():
     print("It takes a while on first run but only needs to happen once.")
 
     # We need an enwiktionary dump. Check if we have one.
-    dump_dir = Path.home() / "Documents" / "Klisy" / "word_collector"
-    dump_candidates = list(dump_dir.glob("enwiktionary-*-pages-articles.xml*"))
+    dump_candidates = list(DATA_DIR.glob("enwiktionary-*-pages-articles.xml*"))
+    if not dump_candidates:
+        dump_dir = Path.home() / "Documents" / "Klisy" / "word_collector"
+        dump_candidates = list(dump_dir.glob("enwiktionary-*-pages-articles.xml*"))
     if not dump_candidates:
         # Try downloading just the modules
         print("\nNo Wiktionary dump found. Downloading module data from kaikki.org...")
