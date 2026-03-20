@@ -2,3 +2,5 @@ data/ag_lookup.json filter=lfs diff=lfs merge=lfs -text
 data/mg_lookup.json filter=lfs diff=lfs merge=lfs -text
 data/ag_pairs.json filter=lfs diff=lfs merge=lfs -text
 data/mg_pairs.json filter=lfs diff=lfs merge=lfs -text
+data/med_lookup.json filter=lfs diff=lfs merge=lfs -text
+data/med_pairs.json filter=lfs diff=lfs merge=lfs -text
