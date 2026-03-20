@@ -61,6 +61,30 @@ REGULAR_GENITIVE = {
     ("ης", "m"): "ου",
     ("ᾱς", "m"): "ου",
     ("ας", "m"): "ου",
+    # 3rd declension regular patterns
+    ("μα", "n"): "ματος",
+    ("ξ", "m"): "κος",
+    ("ξ", "f"): "κος",
+    ("ψ", "m"): "πος",
+    ("ψ", "f"): "πος",
+}
+
+# 3rd declension patterns that need stem analysis (ending, gender) -> genitive suffix
+# These replace the entire ending, not just append
+THIRD_DECL_GENITIVE = {
+    # -ις / -εως (πόλις type) vs -ις / -ιδος (ἐλπίς type)
+    # Ambiguous: needs itype or Wiktionary cross-ref to disambiguate
+    # -υς patterns
+    ("ευς", "m"): "εως",       # βασιλεύς -> βασιλέως
+    # -ων patterns
+    ("ων", "m"): "ονος",       # λέων -> λέοντος is irregular, but δαίμων -> δαίμονος
+    ("ων", "f"): "ονος",
+    # -ηρ patterns
+    ("ηρ", "m"): "ηρος",       # πατήρ -> πατρός is irregular, σωτήρ -> σωτῆρος
+    ("ωρ", "m"): "ορος",       # ῥήτωρ -> ῥήτορος
+    ("ωρ", "f"): "ορος",
+    # -ης 3rd decl (proper nouns, Σωκράτης -> Σωκράτους)
+    # Covered by itype usually
 }
 
 
@@ -230,13 +254,66 @@ def load_wiktionary_forms():
     return wikt
 
 
-def infer_genitive(headword, gender):
-    """Infer genitive singular from nominative ending + gender."""
+def load_wiktionary_genitives():
+    """Load genitive forms from Wiktionary for cross-referencing with LSJ.
+
+    Returns {headword: genitive_form} for nouns/adjectives that have
+    genitive singular forms tagged in Wiktionary.
+    """
+    genitives = {}
+    if not KAIKKI_AG.exists():
+        return genitives
+    with open(KAIKKI_AG, encoding="utf-8") as f:
+        for line in f:
+            try:
+                e = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            word = e.get("word", "")
+            pos = e.get("pos", "")
+            if pos not in ("noun", "adj"):
+                continue
+            forms = e.get("forms", [])
+            for fe in forms:
+                tags = fe.get("tags", [])
+                form = strip_length_marks(fe.get("form", ""))
+                if "genitive" in tags and "singular" in tags and form:
+                    # Strip article prefix if present (e.g. "τῆς κυνός" -> "κυνός")
+                    if " " in form:
+                        form = form.split()[-1]
+                    genitives[strip_length_marks(word)] = form
+                    break
+    return genitives
+
+
+def infer_genitive(headword, gender, wikt_genitives=None):
+    """Infer genitive singular from nominative ending + gender.
+
+    Priority:
+    1. Wiktionary cross-reference (gold standard)
+    2. Regular 1st/2nd declension patterns
+    3. 3rd declension heuristics (lower confidence)
+    """
+    # Check Wiktionary cross-reference first
+    if wikt_genitives:
+        hw_clean = strip_length_marks(headword)
+        if hw_clean in wikt_genitives:
+            return wikt_genitives[hw_clean]
+
     hw_plain = strip_diacritics(headword)
+
+    # Regular patterns (1st/2nd declension - high confidence)
     for (ending, g), gen_ending in REGULAR_GENITIVE.items():
         if gender == g and hw_plain.endswith(ending):
             stem = headword[:-len(ending)]
             return stem + gen_ending
+
+    # 3rd declension patterns (moderate confidence)
+    for (ending, g), gen_ending in THIRD_DECL_GENITIVE.items():
+        if gender == g and hw_plain.endswith(ending):
+            stem = headword[:-len(ending)]
+            return stem + gen_ending
+
     return ""
 
 
@@ -350,10 +427,10 @@ def mark_alpha_length(word):
     return word
 
 
-def expand_noun(wtp, headword, gender, genitive=""):
+def expand_noun(wtp, headword, gender, genitive="", wikt_genitives=None):
     """Expand a noun using grc-decl template. Returns set of forms."""
     if not genitive:
-        genitive = infer_genitive(headword, gender)
+        genitive = infer_genitive(headword, gender, wikt_genitives)
 
     # grc-decl gender codes
     gender_code = {"m": "M", "f": "F", "n": "N"}.get(gender, "")
@@ -380,43 +457,120 @@ def expand_noun(wtp, headword, gender, genitive=""):
     return parse_html_forms(html, headword), ""
 
 
-def expand_verb(wtp, headword):
-    """Expand a verb using grc-conj template. Returns set of forms."""
+# Cache: (conj_type, stem_len) -> list of suffix offsets extracted from a reference expansion
+# Each cached entry is [(suffix, strip_n), ...] where form = stem[:-strip_n] + suffix
+_VERB_CACHE = {}
+
+
+def _classify_verb(headword):
+    """Classify a verb into conjugation type and stem. Returns (conj_type, stem) or (None, None)."""
     hw_plain = strip_diacritics(headword)
 
-    # Determine conjugation type and stem from ending
-    # Contract verbs: stem excludes the contract vowel
-    # Regular verbs: stem excludes -ω
     if hw_plain.endswith("εω"):
-        stem = strip_diacritics(headword[:-2])
-        conj_type = "pres-con-e"
+        return "pres-con-e", strip_diacritics(headword[:-2])
     elif hw_plain.endswith("αω"):
-        stem = strip_diacritics(headword[:-2])
-        conj_type = "pres-con-a"
+        return "pres-con-a", strip_diacritics(headword[:-2])
     elif hw_plain.endswith("οω"):
-        stem = strip_diacritics(headword[:-2])
-        conj_type = "pres-con-o"
-    elif hw_plain.endswith("ω"):
-        stem = strip_diacritics(headword[:-1])
-        conj_type = "pres"
+        return "pres-con-o", strip_diacritics(headword[:-2])
+    elif hw_plain.endswith("ννυμι"):
+        return "pres-numi", strip_diacritics(headword[:-5])
+    elif hw_plain.endswith("νυμι"):
+        return "pres-numi", strip_diacritics(headword[:-4])
+    elif hw_plain.endswith("ημι"):
+        return "pres-emi", strip_diacritics(headword[:-3])
+    elif hw_plain.endswith("ωμι"):
+        return "pres-omi", strip_diacritics(headword[:-3])
+    elif hw_plain.endswith("αμι"):
+        return "pres-ami", strip_diacritics(headword[:-3])
     elif hw_plain.endswith("μι"):
-        return set(), "mi-verb"
+        return "pres-mi", strip_diacritics(headword[:-2])
+    elif hw_plain.endswith("ω"):
+        return "pres", strip_diacritics(headword[:-1])
     elif hw_plain.endswith("μαι"):
-        # Deponent - try as middle/passive present
-        stem = strip_diacritics(headword[:-3])
-        conj_type = "pres"
-    else:
+        return "pres", strip_diacritics(headword[:-3])
+    return None, None
+
+
+def _build_suffix_cache(forms, stem):
+    """Extract suffix patterns from expanded forms relative to the stem.
+
+    Returns list of suffixes where each form = stem_prefix + suffix.
+    The stem_prefix is the longest common prefix between stem and form.
+    """
+    stem_plain = strip_diacritics(stem.lower())
+    suffixes = []
+    for form in forms:
+        form_plain = strip_diacritics(form.lower())
+        # Find how much of the stem matches the beginning of the form
+        match_len = 0
+        for i in range(min(len(stem_plain), len(form_plain))):
+            if stem_plain[i] == form_plain[i]:
+                match_len = i + 1
+            else:
+                break
+        if match_len > 0:
+            suffixes.append(form_plain[match_len:])
+    return suffixes
+
+
+def _apply_suffix_cache(stem, suffixes, headword):
+    """Apply cached suffix patterns to a new stem. Returns set of forms."""
+    stem_plain = strip_diacritics(stem.lower())
+    forms = set()
+    for suffix in suffixes:
+        form = stem_plain + suffix
+        if len(form) > 1:
+            forms.add(form)
+    return forms
+
+
+def expand_verb(wtp, headword):
+    """Expand a verb using grc-conj template. Returns set of forms.
+
+    Uses a cache keyed by conjugation type: if we've already expanded a verb
+    with the same conj_type, apply the suffix pattern instead of calling Lua.
+    """
+    conj_type, stem = _classify_verb(headword)
+    if conj_type is None:
         return set(), f"unknown-ending:{headword[-3:]}"
 
+    # Check cache
+    if conj_type in _VERB_CACHE:
+        forms = _apply_suffix_cache(stem, _VERB_CACHE[conj_type], headword)
+        if forms:
+            return forms, ""
+
+    # Cache miss - call Lua
     template = "{{grc-conj|" + conj_type + "|" + stem + "}}"
 
     try:
         wtp.start_page(headword)
         html = wtp.expand(template)
     except Exception as e:
+        # For -μι verbs, try falling back to simpler conjugation types
+        if conj_type.startswith("pres-") and conj_type != "pres":
+            for fallback in ["pres-mi", "pres"]:
+                if fallback == conj_type:
+                    continue
+                try:
+                    template = "{{grc-conj|" + fallback + "|" + stem + "}}"
+                    wtp.start_page(headword)
+                    html = wtp.expand(template)
+                    forms = parse_html_forms(html, headword)
+                    if forms:
+                        # Cache the working fallback under the original conj_type
+                        _VERB_CACHE[conj_type] = _build_suffix_cache(forms, stem)
+                        return forms, ""
+                except Exception:
+                    continue
         return set(), str(e)
 
-    return parse_html_forms(html, headword), ""
+    forms = parse_html_forms(html, headword)
+    # Cache the suffix pattern for this conjugation type
+    if forms and conj_type not in _VERB_CACHE:
+        _VERB_CACHE[conj_type] = _build_suffix_cache(forms, stem)
+
+    return forms, ""
 
 
 ARTICLES = {"ὁ", "ἡ", "τό", "τοῦ", "τῆς", "τῷ", "τῇ", "τόν", "τήν",
@@ -493,6 +647,8 @@ def test_overlap():
     print("Loading data...")
     lsj_entries = parse_lsj_entries()
     wikt = load_wiktionary_forms()
+    wikt_genitives = load_wiktionary_genitives()
+    print(f"  {len(wikt_genitives):,} Wiktionary genitives loaded")
     overlap = {w for w in lsj_entries if w in wikt and lsj_entries[w]["gender"]}
 
     print(f"Overlap nouns with gender: {len(overlap)}")
@@ -510,7 +666,8 @@ def test_overlap():
 
     for i, word in enumerate(sample):
         entry = lsj_entries[word]
-        forms, err = expand_noun(wtp, word, entry["gender"], entry["genitive"])
+        forms, err = expand_noun(wtp, word, entry["gender"], entry["genitive"],
+                                 wikt_genitives=wikt_genitives)
 
         if err:
             results["error"] += 1
@@ -559,6 +716,9 @@ def expand_all():
     print("Loading data...")
     lsj_entries = parse_lsj_entries()
     wikt = load_wiktionary_forms()
+    print("Loading Wiktionary genitives for cross-reference...")
+    wikt_genitives = load_wiktionary_genitives()
+    print(f"  {len(wikt_genitives):,} Wiktionary genitives loaded")
 
     # Load existing lookup
     print(f"Loading {AG_LOOKUP}...")
@@ -574,7 +734,7 @@ def expand_all():
             continue  # already covered by Wiktionary
         if not entry["gender"]:
             continue  # no gender = can't decline
-        if not entry["genitive"] and not infer_genitive(hw, entry["gender"]):
+        if not entry["genitive"] and not infer_genitive(hw, entry["gender"], wikt_genitives):
             continue  # no genitive info at all
         candidates.append(hw)
 
@@ -587,7 +747,8 @@ def expand_all():
 
     for i, hw in enumerate(candidates):
         entry = lsj_entries[hw]
-        forms, err = expand_noun(wtp, hw, entry["gender"], entry["genitive"])
+        forms, err = expand_noun(wtp, hw, entry["gender"], entry["genitive"],
+                                 wikt_genitives=wikt_genitives)
 
         if err or not forms:
             stats["failed"] += 1
@@ -654,17 +815,15 @@ def expand_verbs():
 
     # Find LSJ-only verbs (entries without gender = likely verbs)
     candidates = []
-    hw_plain = strip_diacritics
     for hw, entry in lsj_entries.items():
         if hw in wikt:
             continue
         if entry["gender"]:
             continue  # has gender = noun/adj, not verb
         dp = strip_diacritics(hw)
-        if dp.endswith("ω") or dp.endswith("εω") or dp.endswith("αω") or dp.endswith("οω") or dp.endswith("μαι"):
-            # Check it's not already fully covered
-            if hw not in lookup and strip_diacritics(hw) not in lookup:
-                candidates.append(hw)
+        if (dp.endswith("ω") or dp.endswith("μι")
+                or dp.endswith("μαι")):
+            candidates.append(hw)
 
     print(f"LSJ-only verbs to expand: {len(candidates):,}")
 

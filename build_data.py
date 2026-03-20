@@ -229,7 +229,8 @@ def _add_pos_map(pos_map: dict, form: str, lemma: str, wikt_pos: str):
     upos = WIKT_TO_UPOS.get(wikt_pos)
     if not upos:
         return
-    for key in (form, form.lower()):
+    for key in (form, form.lower(), to_monotonic(form), to_monotonic(form).lower(),
+                strip_accents(form.lower())):
         if not key:
             continue
         if key not in pos_map:

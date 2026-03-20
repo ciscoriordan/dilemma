@@ -36,6 +36,7 @@ AG_LOOKUP_PATH = Path(__file__).parent / "data" / "ag_lookup.json"
 MED_LOOKUP_PATH = Path(__file__).parent / "data" / "med_lookup.json"
 MG_POS_LOOKUP_PATH = Path(__file__).parent / "data" / "mg_pos_lookup.json"
 AG_POS_LOOKUP_PATH = Path(__file__).parent / "data" / "ag_pos_lookup.json"
+TREEBANK_POS_LOOKUP_PATH = Path(__file__).parent / "data" / "treebank_pos_lookup.json"
 LSJ_HEADWORDS_PATH = Path(__file__).parent / "data" / "lsj_headwords.json"
 CUNLIFFE_HEADWORDS_PATH = Path(__file__).parent / "data" / "cunliffe_headwords.json"
 
@@ -289,39 +290,69 @@ class Dilemma:
         # regardless of language priority. Self-maps just mean "this is a
         # headword" — a weaker signal than "this is an inflected form of X".
         # E.g. MG τούτου→τούτου (self-map) should NOT block AG τούτου→οὗτος.
+        # Also treat "polytonic -> monotonic of same word" as a notation
+        # variant (e.g. MG ἐν→εν), not a real mapping. When both languages
+        # have notation variants, prefer the one that preserves the input form.
+        def _is_self_map(form, lemma):
+            return (form == lemma
+                    or strip_accents(form.lower()) == strip_accents(lemma.lower()))
+
         if self.lang == "all":
             for data in [self._mg_lookup, self._med_lookup, self._ag_lookup]:
                 for k, v in data.items():
                     if k not in self._lookup:
                         self._lookup[k] = v
-                    elif self._lookup[k] == k and v != k:
-                        # Existing is a self-map, new is a real mapping — override
+                    elif _is_self_map(k, self._lookup[k]) and not _is_self_map(k, v):
+                        # Existing is a self-map, new is a real mapping - override
+                        self._lookup[k] = v
+                    elif (_is_self_map(k, self._lookup[k])
+                          and _is_self_map(k, v) and v == k
+                          and self._lookup[k] != k):
+                        # Both are notation variants, but new one preserves
+                        # the exact form (true self-map) - prefer it
+                        # E.g. MG ἐν→εν replaced by AG ἐν→ἐν
                         self._lookup[k] = v
         elif self.lang == "el":
             for data in [self._mg_lookup, self._med_lookup]:
                 for k, v in data.items():
                     if k not in self._lookup:
                         self._lookup[k] = v
-                    elif self._lookup[k] == k and v != k:
+                    elif _is_self_map(k, self._lookup[k]) and not _is_self_map(k, v):
                         self._lookup[k] = v
         elif self.lang == "grc":
             self._lookup = dict(self._ag_lookup)
 
-        # Load POS disambiguation tables
+        # Load POS disambiguation tables.
+        # Priority: treebank (gold) > MG Wiktionary > AG Wiktionary.
+        # Lower-priority sources only fill in form+upos slots not already set.
+
+        # 1. Treebank POS lookup (gold-annotated, highest priority for AG)
+        if self.lang in ("all", "grc") and TREEBANK_POS_LOOKUP_PATH.exists():
+            with open(TREEBANK_POS_LOOKUP_PATH, encoding="utf-8") as f:
+                tb_pos = json.load(f)
+            for form, upos_lemmas in tb_pos.items():
+                if form not in self._pos_lookup:
+                    self._pos_lookup[form] = {}
+                self._pos_lookup[form].update(upos_lemmas)
+
+        # 2. MG POS lookup (Wiktionary-derived)
         if self.lang in ("all", "el") and MG_POS_LOOKUP_PATH.exists():
             with open(MG_POS_LOOKUP_PATH, encoding="utf-8") as f:
                 mg_pos = json.load(f)
             for form, upos_lemmas in mg_pos.items():
                 if form not in self._pos_lookup:
                     self._pos_lookup[form] = {}
-                self._pos_lookup[form].update(upos_lemmas)
+                for upos, lemma in upos_lemmas.items():
+                    if upos not in self._pos_lookup[form]:
+                        self._pos_lookup[form][upos] = lemma
+
+        # 3. AG Wiktionary POS lookup (fills remaining gaps)
         if self.lang in ("all", "grc") and AG_POS_LOOKUP_PATH.exists():
             with open(AG_POS_LOOKUP_PATH, encoding="utf-8") as f:
                 ag_pos = json.load(f)
             for form, upos_lemmas in ag_pos.items():
                 if form not in self._pos_lookup:
                     self._pos_lookup[form] = {}
-                # Don't override MG entries for same form+upos
                 for upos, lemma in upos_lemmas.items():
                     if upos not in self._pos_lookup[form]:
                         self._pos_lookup[form][upos] = lemma
@@ -498,8 +529,15 @@ class Dilemma:
         for table, lang in tables:
             for suffix, vowel_name in all_candidates:
                 expanded = stem + suffix
-                # Try exact and lowercase
-                lemma = table.get(expanded) or table.get(expanded.lower())
+                # Try full normalization cascade
+                lemma = None
+                for variant in (expanded, expanded.lower(),
+                                grave_to_acute(expanded),
+                                to_monotonic(expanded.lower()),
+                                strip_accents(expanded.lower())):
+                    lemma = table.get(variant)
+                    if lemma:
+                        break
                 if lemma and lemma not in seen_lemmas:
                     seen_lemmas.add(lemma)
                     results.append((expanded, lemma, suffix))
@@ -598,11 +636,12 @@ class Dilemma:
         if closed is not None:
             return closed
 
-        # Check POS lookup with cascade: exact, lower, monotonic, stripped
+        # Check POS lookup with cascade: exact, lower, grave_to_acute, monotonic, stripped
         lower = word.lower()
+        acute = grave_to_acute(lower)
         mono = to_monotonic(lower)
         stripped = strip_accents(lower)
-        for variant in (word, lower, mono, stripped):
+        for variant in (word, lower, acute, mono, stripped):
             pos_entry = self._pos_lookup.get(variant)
             if pos_entry and upos in pos_entry:
                 return pos_entry[upos]
@@ -753,7 +792,30 @@ class Dilemma:
                              via=via + "+case_alt")
                     break  # first matching variant wins per language
 
-        # 5. Model fallback (if no candidates yet)
+        # 5. Normalizer: try orthographic variants against all tables
+        if not candidates and self._normalizer:
+            for norm_candidate in self._normalizer.normalize(word):
+                norm_lower = norm_candidate.lower()
+                norm_mono = to_monotonic(norm_lower)
+                norm_stripped = strip_accents(norm_lower)
+                norm_variants = [
+                    (norm_candidate, "normalize"),
+                    (norm_lower, "normalize+lower"),
+                    (norm_mono, "normalize+mono"),
+                    (norm_stripped, "normalize+stripped"),
+                ]
+                for table, lang in [(self._mg_lookup, "el"),
+                                    (self._med_lookup, "med"),
+                                    (self._ag_lookup, "grc")]:
+                    for variant, via in norm_variants:
+                        lemma = table.get(variant)
+                        if lemma:
+                            if len(variant) <= 2 and lemma == variant and via.endswith(("mono", "stripped")):
+                                continue
+                            _add(lemma, lang=lang, source="normalize", via=via)
+                            break
+
+        # 6. Model fallback (if no candidates yet)
         if not candidates:
             try:
                 self._load_model()
@@ -804,6 +866,17 @@ class Dilemma:
             if lemma:
                 results.append(lemma)
                 continue
+
+            # Normalizer: try orthographic variants against lookup
+            if self._normalizer:
+                norm_hit = None
+                for candidate in self._normalizer.normalize(word):
+                    norm_hit = self._lookup_word(candidate)
+                    if norm_hit:
+                        break
+                if norm_hit:
+                    results.append(norm_hit)
+                    continue
 
             results.append(None)
             model_indices.append(i)
@@ -874,7 +947,11 @@ class Dilemma:
             decoded = [self._vocab.decode(ids) for ids, score in candidates]
             chosen = None
             for d in decoded:
-                if d in self._headwords or d.lower() in self._headwords:
+                # Check headword with normalization cascade
+                if any(v in self._headwords for v in (
+                    d, d.lower(), to_monotonic(d), to_monotonic(d).lower(),
+                    d[0].upper() + d[1:] if d else d,
+                ) if v):
                     chosen = d
                     break
             if chosen is None:

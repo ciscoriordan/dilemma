@@ -4,7 +4,7 @@
   <img width="500" alt="dilemma" src="dilemma.png">
 </p>
 
-Greek lemmatizer with an **8.1 million form** lookup table and a ~4M
+Greek lemmatizer with an **8.9 million form** lookup table and a ~4M
 parameter character-level transformer trained on 3.2 million Wiktionary
 inflection pairs spanning Modern Greek, Ancient Greek, and Medieval Greek.
 
@@ -16,7 +16,7 @@ it trains from scratch in minutes and runs inference in under a millisecond,
 compared to fine-tuning approaches like *ByT5-small* (300M params) which take
 hours to train and ~10ms per word. Greek lemmatization is highly
 pattern-based - a small specialized model matches a large general-purpose
-one, and the 8.1M lookup table handles the rest.
+one, and the 9.1M lookup table handles the rest.
 
 **ONNX support:** Dilemma can run without PyTorch. When ONNX model files
 are present, inference uses ONNX Runtime (~50 MB) instead of PyTorch (~2 GB).
@@ -37,6 +37,7 @@ The lookup table combines forms from multiple sources:
 | **Wiktionary** (EN + EL, all periods) | 5.2M | Baseline from kaikki.org dumps |
 | **LSJ** (Liddell-Scott-Jones) | 4.2M | 32K nouns, 22K verbs, 14K adjectives expanded via Wiktionary Lua modules |
 | **Sophocles Lexicon** (Byzantine/Patristic) | 1.0M | 13.5K nouns, 4.6K verbs, 1.5K adverbs from OCR'd TEI data |
+| **UD Treebanks** (Perseus, PROIEL, DiGreC) | 27K | Gold form-lemma pairs from annotated treebanks |
 | Closed-class fixes | ~500 | Articles, pronouns, prepositions mapped to canonical lemmas |
 
 The LSJ and Sophocles expansions use Wiktionary's own
@@ -87,7 +88,7 @@ Homer through 15th century Byzantine Greek):
 |------|:--------:|
 | Form-only | 70.6% |
 | + resolve_articles | 81.4% |
-| **+ context heuristics** | **83.8%** |
+| **+ context heuristics** | **88.1%** |
 
 ### Modern Greek varieties
 
@@ -238,7 +239,7 @@ ranked by vowel frequency in elision contexts (ε, α, ο most common).
 
 | Layer | Speed | Coverage | Source |
 |-------|-------|----------|--------|
-| **Lookup table** | instant | 8.1M known forms | Wiktionary + LSJ + Sophocles |
+| **Lookup table** | instant | 9.1M known forms | Wiktionary + LSJ + Sophocles + treebanks |
 | **Normalizer** | instant | Byzantine orthographic variants | Rule-based candidate generation |
 | **Elision expansion** | instant | AG elided forms | Vowel expansion against lookup |
 | **Crasis table** | instant | ~50 common crasis forms | Hand-curated |
@@ -257,7 +258,7 @@ forms take priority, then Medieval, then AG.
 When the transformer handles an unseen form, beam search generates
 multiple candidates and picks the first that matches a known headword
 from Wiktionary, [LSJ](https://github.com/helmadik/LSJLogeion) (116K
-headwords), or Cunliffe's Homeric Lexicon (11K headwords). If nothing
+headwords), or [Cunliffe's Homeric Lexicon](https://archive.org/details/lexiconofhomeric0000cunn) (12K headwords). If nothing
 matches, the input is returned unchanged.
 
 **Wiktionary as upstream:** Because Dilemma's lookup tables are built
@@ -471,7 +472,8 @@ general-purpose one.
 | EL Wiktionary (Medieval) | 6.9K | From kaikki.org dumps |
 | LSJ noun/verb/adj expansion | 4.2M | Via Wiktionary Lua modules |
 | Sophocles lexicon expansion | 1.0M | Byzantine/Patristic vocabulary |
-| **Total lookup** | **8.1M** | |
+| UD Treebanks (AG) | 27K | Gold annotations from Perseus, PROIEL, DiGreC |
+| **Total lookup** | **9.1M** | |
 
 All Wiktionary data is extracted automatically from
 [kaikki.org](https://kaikki.org/) JSONL dumps. LSJ and Sophocles
@@ -536,8 +538,8 @@ present"). These are propagated to every form in that table section:
   characters (U+0370-03FF, U+1F00-1FFF, U+0300-036F). Removes Latin
   letters, digits, template artifacts.
 - **Chain-breaking**. If form A maps to lemma B, and B maps to C, the
-  chain is followed to the real headword. Fixes ~300K entries caused by
-  accent-stripped key collisions.
+  chain is resolved to the real headword at build time. Fixes ~65K entries
+  caused by accent-stripped key collisions and treebank convention differences.
 - **Pronoun cross-contamination**. Greek Wiktionary dumps the entire
   pronoun paradigm table into each pronoun entry (e.g. `εσύ` lists
   `εγώ` as a "form"). Articles and determiners are restricted to
@@ -558,7 +560,7 @@ present"). These are propagated to every form in that table section:
 | *spaCy* `el_core_news_sm` | MG only | ~30K tokens (news) | no | static |
 | *stanza* `el` | MG only | ~30K tokens (GDT treebank) | fails on augmented forms | static |
 | Perseus *Morpheus* | AG only | hand-crafted rules | no | not actively developed |
-| **Dilemma** | **MG + AG + Medieval + dialects** | **3.2M pairs + 8.1M lookup** | **yes (AG+MG combined)** | **monthly from Wiktionary** |
+| **Dilemma** | **MG + AG + Medieval + dialects** | **3.2M pairs + 9.1M lookup** | **yes (AG+MG combined)** | **monthly from Wiktionary** |
 
 Dilemma trains on **100x more data** than *stanza* or *spaCy*. *Morpheus*
 is more accurate on classical AG (decades of hand-tuned rules), but only
@@ -573,7 +575,7 @@ blinded evaluation by expert readers. They found that methods using
 large lexica combined with POS tagging (CLTK backoff lemmatizer,
 Diorisis corpus) consistently outperformed pure ML approaches with
 smaller lexica. Dilemma follows the same principle: a large lookup
-table (8.1M forms) handles the vast majority of words, with a small
+table (9.1M forms) handles the vast majority of words, with a small
 model as fallback.
 
 [Celano (2025)](https://aclanthology.org/2025.lm4dh-1.5/) presented
