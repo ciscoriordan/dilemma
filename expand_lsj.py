@@ -18,6 +18,7 @@ Usage:
 
 import argparse
 import json
+import os
 import re
 import sys
 import unicodedata
@@ -28,7 +29,12 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 DATA_DIR = SCRIPT_DIR / "data"
 LSJ_DIR = Path.home() / "Documents" / "LSJLogeion"
-KAIKKI_AG = SCRIPT_DIR / "kaikki" / "kaikki.org-en-dictionary-AncientGreek.jsonl"
+KAIKKI_DIR = Path(os.environ.get(
+    "KAIKKI_DIR", Path.home() / "Documents" / "Klisy" / "word_collector"))
+# Try nested layout first (en-el/), then flat layout
+_KAIKKI_AG_NESTED = KAIKKI_DIR / "en-el" / "kaikki.org-dictionary-AncientGreek.jsonl"
+_KAIKKI_AG_FLAT = KAIKKI_DIR / "kaikki.org-en-dictionary-AncientGreek.jsonl"
+KAIKKI_AG = _KAIKKI_AG_NESTED if _KAIKKI_AG_NESTED.exists() else _KAIKKI_AG_FLAT
 WTP_DB = DATA_DIR / "wtp.db"
 
 # Article -> gender mapping
