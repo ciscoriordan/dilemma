@@ -1,5 +1,30 @@
-data/
+# Data files (large, generated)
+data/*.json
+data/*.jsonl
+data/*.db
+data/*.tar.gz
+data/*.xml
+data/*.xml.bz2
+data/sophocles/
+data/dbbe/
+data/wtp.db-shm
+data/wtp.db-wal
+data/wtp.db.pickle
+
+# Kaikki dumps
 kaikki/
+
+# Model artifacts
+model/
+*.pt
+*.onnx
+
+# Python
 __pycache__/
 *.pyc
-progress.log
+*.egg-info/
+dist/
+build/
+
+# OS
+.DS_Store
