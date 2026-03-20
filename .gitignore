@@ -4,7 +4,6 @@ data/*.db
 data/*.tar.gz
 data/*.xml
 data/*.xml.bz2
-data/sophocles/
 data/dbbe/
 data/wtp.db-shm
 data/wtp.db-wal
