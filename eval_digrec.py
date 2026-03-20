@@ -138,23 +138,11 @@ def evaluate(tokens, dilemma_instance, greedy=True):
     """
     results = []
 
-    # For greedy mode, replace _predict with a simple greedy version
+    # For greedy mode, set num_beams=1 on the existing _predict method
     if greedy:
-        import torch
         orig_predict = dilemma_instance._predict
         def _greedy_predict(words, num_beams=1):
-            dilemma_instance._load_model()
-            max_len = max(len(w) for w in words) + 1
-            src_ids = []
-            for w in words:
-                ids = dilemma_instance._vocab.encode(w)
-                ids = ids + [0] * (max_len - len(ids))
-                src_ids.append(ids)
-            src = torch.tensor(src_ids, dtype=torch.long, device=dilemma_instance._device)
-            src_pad_mask = (src == 0)
-            with torch.no_grad():
-                out_ids = dilemma_instance._model.generate(src, src_key_padding_mask=src_pad_mask, num_beams=1)
-            return [dilemma_instance._vocab.decode(ids.tolist()) for ids in out_ids]
+            return orig_predict(words, num_beams=1)
         dilemma_instance._predict = _greedy_predict
 
     # Batch lemmatize
@@ -176,7 +164,7 @@ def evaluate(tokens, dilemma_instance, greedy=True):
 
         # Compare at multiple normalization levels
         strict = (pred == gold)
-        mono = (to_monotonic(pred) == to_monotonic(gold))
+        mono = (to_monotonic(pred).lower() == to_monotonic(gold).lower())
         stripped = (strip_accents(pred.lower()) == strip_accents(gold.lower()))
 
         results.append({

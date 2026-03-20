@@ -95,8 +95,12 @@ def strip_length(s: str) -> str:
 
 def in_lsj(lemma: str, lsj_set: set) -> bool:
     """Check if a lemma is in LSJ (with normalization variants)."""
-    for v in [lemma, lemma.lower(), lemma[0].upper() + lemma[1:],
-              strip_length(lemma), strip_length(lemma).lower()]:
+    variants = [lemma, lemma.lower(), lemma[0].upper() + lemma[1:],
+                strip_length(lemma), strip_length(lemma).lower()]
+    # Add monotonic variants
+    from dilemma import to_monotonic
+    variants.extend([to_monotonic(lemma), to_monotonic(lemma).lower()])
+    for v in variants:
         if v in lsj_set:
             return True
     return False
