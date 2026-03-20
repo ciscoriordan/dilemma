@@ -42,7 +42,7 @@
   <text x="297" y="210" text-anchor="middle" fill="#8a8279" font-size="9" letter-spacing="0.5">PAIRS</text>
 
   <!-- ── Right: Dilemma layers ── -->
-  <text x="390" y="38" fill="#1a2744" font-size="14" font-weight="700" letter-spacing="0.5">Dilemma</text>
+  <text x="520" y="42" text-anchor="middle" fill="#1a2744" font-size="26" font-weight="700" font-style="italic" letter-spacing="1.5">Dilemma</text>
 
   <!-- Lookup -->
   <rect x="370" y="62" width="300" height="100" rx="2" fill="#f5f2ec" stroke="#1a2744" stroke-width="1"/>
