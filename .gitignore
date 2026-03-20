@@ -1,5 +1,4 @@
-# Data files (large, generated)
-data/*.json
+# Data files (large, generated - except LFS-tracked ones)
 data/*.jsonl
 data/*.db
 data/*.tar.gz
