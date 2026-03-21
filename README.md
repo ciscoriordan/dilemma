@@ -80,12 +80,13 @@ DBBE gold standard (10K tokens of unedited Byzantine Greek epigrams):
 |--------|:--------:|
 | Swaelens et al. best (2024, hybrid) | 65.8% |
 | Swaelens et al. best (2025, multi-task) | ~74-75% |
-| **Dilemma** | **90.8%** |
+| **Dilemma** | **91.5%** |
 
-The remaining 9.2% errors break down as 3.5% no lookup hit (forms not in
-any source lexicon) and 5.7% wrong lemma or convention difference. The
-dedicated eval script (`eval_dbbe.py`) provides per-POS breakdowns and
-error categorization.
+The remaining 8.5% errors break down as 3.0% no lookup hit and 5.5%
+wrong lemma or convention difference. Compound decomposition (splitting
+Byzantine compounds at linking vowels, e.g. θεοφθόγγοις -> θεο+φθόγγος)
+reduced the no-lookup rate from 4.4% to 3.0%. The dedicated eval script
+(`eval_dbbe.py`) provides per-POS breakdowns and error categorization.
 
 On the [DiGreC treebank](https://github.com/mdm33/digrec) (119K tokens,
 Homer through 15th century Byzantine Greek):
@@ -235,8 +236,8 @@ Each `LemmaCandidate` has:
 - `lemma` - the lemma string
 - `lang` - `"el"` (SMG), `"grc"` (AG), `"med"` (Medieval)
 - `proper` - `True` if lemma is a proper noun (capitalized headword)
-- `source` - `"lookup"`, `"elision"`, `"crasis"`, `"model"`, `"identity"`
-- `via` - how it matched: `"exact"`, `"lower"`, `"elision:ε"`, `"+case_alt"`, etc.
+- `source` - `"lookup"`, `"elision"`, `"crasis"`, `"compound"`, `"model"`, `"identity"`
+- `via` - how it matched: `"exact"`, `"lower"`, `"elision:ε"`, `"θεο+φθόγγος"`, `"+case_alt"`, etc.
 - `score` - `1.0` for lookup, `0.5` for model, `0.0` for identity fallback
 
 ### POS-aware disambiguation
@@ -281,8 +282,9 @@ first call.
 
 Ancient Greek texts frequently elide final vowels before a following
 vowel, marking the elision with an apostrophe (U+0313 in polytonic
-encoding). Dilemma resolves these by stripping the elision mark and
-trying each Greek vowel against the lookup table:
+encoding, U+02B9/U+02BC/U+2019 in other encodings). Dilemma resolves
+these by stripping the elision mark and trying each Greek vowel against
+the lookup table:
 
 | Elided | Expanded | Lemma |
 |--------|----------|-------|
@@ -309,6 +311,7 @@ in elision contexts (ε, α, ο most common).
 | **Normalizer** | instant | Byzantine orthographic variants | Rule-based candidate generation |
 | **Elision expansion** | instant | AG elided forms | Vowel expansion against lookup |
 | **Crasis table** | instant | ~50 common crasis forms | Hand-curated |
+| **Compound decomposition** | instant | Byzantine compound words | Split at linking vowel, look up base |
 | **Spelling correction** | lazy index | ED0-2 suggestions for unknown words | Accent-stripped edit distance |
 | **Transformer** | <1ms/word | generalizes to unseen forms | Trained on Wiktionary pairs |
 
@@ -596,10 +599,11 @@ We chose GLAUx over two larger corpora:
   + LSJ, since the remaining lookup gaps are mostly Byzantine compounds
   not found in any classical corpus.
 
-All three are CC BY-SA 4.0. The remaining 4.3% no-lookup-hit errors
-(on DBBE) are primarily rare Byzantine compounds like θεόφθογγος or
-τριφεγγής, which would benefit more from compound decomposition than
-from additional classical corpus data.
+All three are CC BY-SA 4.0. Compound decomposition (added in v1.5)
+reduced the no-lookup-hit rate on DBBE from 4.4% to 3.0% by splitting
+compound words at linking vowels (ο/ι/υ) and looking up the base
+element. The remaining 3.0% are forms where neither lookup, compound
+decomposition, nor the seq2seq model can recover the correct lemma.
 
 Each form is indexed under its original, monotonic, and accent-stripped
 variants for fuzzy matching.
