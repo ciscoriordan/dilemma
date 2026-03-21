@@ -162,12 +162,46 @@ def export(lang="all", scale=None):
     )
     print(f"  Exported decoder to {dec_path} ({dec_path.stat().st_size / 1024:.0f} KB)")
 
+    # Export morphology heads as numpy weights (trivial matmul, no ONNX needed)
+    import numpy as np
+
+    state = checkpoint["model_state_dict"]
+    head_weights = {}
+    for head_name in ["pos_head", "nom_head", "verb_head"]:
+        w_key = f"{head_name}.weight"
+        b_key = f"{head_name}.bias"
+        if w_key in state:
+            head_weights[f"{head_name}_weight"] = state[w_key].numpy()
+            head_weights[f"{head_name}_bias"] = state[b_key].numpy()
+
+    if head_weights:
+        heads_path = model_path / "heads.npz"
+        np.savez(str(heads_path), **head_weights)
+        print(f"  Exported morphology heads to {heads_path} "
+              f"({heads_path.stat().st_size / 1024:.0f} KB)")
+
+        # Save label mappings
+        head_cfg = checkpoint.get("head_config", {})
+        # Build fallback POS labels if not saved
+        if not head_cfg.get("pos_labels") and "pos_head.weight" in state:
+            head_cfg["pos_labels"] = {
+                str(i): name for i, name in enumerate([
+                    "verb", "noun", "adj", "adv", "name",
+                    "pron", "num", "prep", "article", "character",
+                ])
+            }
+        labels_path = model_path / "head_labels.json"
+        with open(labels_path, "w", encoding="utf-8") as f:
+            json.dump(head_cfg, f, ensure_ascii=False, indent=2)
+        print(f"  Saved head labels to {labels_path}")
+    else:
+        print("  No morphology heads found in checkpoint")
+
     # Verify
     import onnxruntime as ort
     enc_sess = ort.InferenceSession(str(enc_path))
     dec_sess = ort.InferenceSession(str(dec_path))
 
-    import numpy as np
     src_np = dummy_src.numpy()
     mask_np = dummy_mask.numpy()
     mem_out = enc_sess.run(None, {"src": src_np, "src_key_padding_mask": mask_np})[0]

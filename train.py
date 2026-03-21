@@ -532,6 +532,11 @@ def train(lang: str, epochs: int, batch_size: int, lr: float, eval_split: float,
     out_dir = MODEL_DIR / lang_dir
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    # Build label maps for inference (index -> label string)
+    pos_labels_inv = {v: k for k, v in WIKT_TO_UPOS.items()} if use_multitask else {}
+    nom_labels_inv = {v: k for k, v in nom_labels.items()} if use_morph else {}
+    verb_labels_inv = {v: k for k, v in verb_labels.items()} if use_morph else {}
+
     torch.save({
         "model_state_dict": model.state_dict(),
         "vocab": vocab.state_dict(),
@@ -541,6 +546,14 @@ def train(lang: str, epochs: int, batch_size: int, lr: float, eval_split: float,
             "nhead": 4,
             "num_layers": 3,
             "dim_feedforward": 512,
+            "num_pos_tags": num_pos_tags,
+        },
+        "head_config": {
+            "num_nom_labels": len(nom_labels) if use_morph else 0,
+            "num_verb_labels": len(verb_labels) if use_morph else 0,
+            "pos_labels": pos_labels_inv,
+            "nom_labels": nom_labels_inv,
+            "verb_labels": verb_labels_inv,
         },
     }, out_dir / "model.pt")
     print(f"\nModel saved to {out_dir}")

@@ -678,7 +678,12 @@ class Dilemma:
         self._use_onnx = True
 
     def _load_pytorch(self, model_path):
-        """Load PyTorch model (original path)."""
+        """Load PyTorch model (original path).
+
+        Detects and loads morphology heads (POS, nominal, verbal) when
+        present in the checkpoint. Head label mappings are stored in
+        self._head_labels for inference use.
+        """
         import torch
         from model import CharVocab, LemmaTransformer
 
@@ -698,11 +703,50 @@ class Dilemma:
         self._vocab = CharVocab()
         self._vocab.load_state_dict(checkpoint["vocab"])
         cfg = checkpoint["config"]
+
+        # Detect morphology heads from state dict keys
+        state = checkpoint["model_state_dict"]
+        head_cfg = checkpoint.get("head_config", {})
+
+        # Infer head dimensions from weights if head_config is missing
+        num_pos = cfg.get("num_pos_tags", 0)
+        if not num_pos and "pos_head.weight" in state:
+            num_pos = state["pos_head.weight"].shape[0]
+            cfg["num_pos_tags"] = num_pos
+
         self._model = LemmaTransformer(**cfg)
-        self._model.load_state_dict(checkpoint["model_state_dict"])
+
+        # Create nom/verb heads if weights exist
+        d_model = cfg.get("d_model", 256)
+        if "nom_head.weight" in state:
+            num_nom = state["nom_head.weight"].shape[0]
+            import torch.nn as nn
+            self._model.nom_head = nn.Linear(d_model, num_nom)
+        if "verb_head.weight" in state:
+            num_verb = state["verb_head.weight"].shape[0]
+            import torch.nn as nn
+            self._model.verb_head = nn.Linear(d_model, num_verb)
+
+        self._model.load_state_dict(state)
         self._model.to(device)
         self._model.eval()
         self._use_onnx = False
+
+        # Store label mappings for inference
+        self._head_labels = {
+            "pos": {int(k): v for k, v in head_cfg.get("pos_labels", {}).items()},
+            "nom": {int(k): v for k, v in head_cfg.get("nom_labels", {}).items()},
+            "verb": {int(k): v for k, v in head_cfg.get("verb_labels", {}).items()},
+        }
+        # Build fallback POS label map if not saved
+        if num_pos and not self._head_labels["pos"]:
+            _POS_FALLBACK = {
+                0: "verb", 1: "noun", 2: "adj", 3: "adv", 4: "name",
+                5: "pron", 6: "num", 7: "prep", 8: "article", 9: "character",
+            }
+            self._head_labels["pos"] = {
+                i: _POS_FALLBACK.get(i, f"tag{i}") for i in range(num_pos)
+            }
 
     def _resolve_closed_class(self, word: str) -> str | None:
         """Resolve articles/pronouns to canonical lemma if enabled."""
@@ -915,6 +959,65 @@ class Dilemma:
     def _is_proper(self, lemma: str) -> bool:
         """Check if a lemma is a proper noun (capitalized headword)."""
         return bool(lemma) and lemma[0].isupper()
+
+    # ---- Morphology head inference ----
+
+    # POS tag to UPOS mapping for POS-lookup integration
+    _POS_TO_UPOS = {
+        "verb": "VERB", "noun": "NOUN", "adj": "ADJ", "adv": "ADV",
+        "name": "PROPN", "pron": "PRON", "num": "NUM", "prep": "ADP",
+        "article": "DET", "character": "PROPN",
+    }
+
+    def predict_pos_tag(self, word: str) -> str:
+        """Predict POS tag for a Greek word using the model's POS head.
+
+        Returns a Wiktionary-style POS label ("verb", "noun", "adj", etc.)
+        or "" if no POS head is available.
+
+        Requires the model to be loaded (lazy-loads on first call).
+        """
+        self._load_model()
+        if hasattr(self._model, 'has_pos_head') and self._model.has_pos_head:
+            # ONNX path
+            src, mask = self._encode_word(word)
+            tags = self._model.predict_pos(src, mask)
+            return tags[0]
+        return ""
+
+    def predict_pos_batch(self, words: list[str]) -> list[str]:
+        """Predict POS tags for a batch of Greek words.
+
+        Returns list of Wiktionary-style POS labels.
+        """
+        self._load_model()
+        if hasattr(self._model, 'has_pos_head') and self._model.has_pos_head:
+            src, mask = self._encode_words(words)
+            return self._model.predict_pos(src, mask)
+        return [""] * len(words)
+
+    def _encode_word(self, word: str):
+        """Encode a single word for ONNX inference. Returns (src, mask) arrays."""
+        import numpy as np
+        ids = self._vocab.encode(word)
+        max_len = 48  # ONNX_MAX_LEN
+        ids = ids + [0] * (max_len - len(ids))
+        src = np.array([ids[:max_len]], dtype=np.int64)
+        mask = (src == 0)
+        return src, mask
+
+    def _encode_words(self, words: list[str]):
+        """Encode a batch of words for ONNX inference."""
+        import numpy as np
+        max_len = 48
+        batch = []
+        for w in words:
+            ids = self._vocab.encode(w)
+            ids = ids + [0] * (max_len - len(ids))
+            batch.append(ids[:max_len])
+        src = np.array(batch, dtype=np.int64)
+        mask = (src == 0)
+        return src, mask
 
     # ---- Compound decomposition ----
 
