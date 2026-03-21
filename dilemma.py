@@ -303,6 +303,51 @@ class LookupDB:
         for form, lemma in self.items():
             self._dict[form] = lemma
 
+    def spell_lookup_stripped(self, candidates: set[str]) -> dict[str, list[str]]:
+        """Look up stripped forms in the DB, return {stripped: [original_forms]}.
+
+        Uses the indexed 'stripped' column for fast batch lookup.
+        Only returns forms matching this LookupDB's language filter.
+        """
+        if not candidates:
+            return {}
+        result: dict[str, list[str]] = {}
+        # SQLite has a limit of 999 variables per query, batch accordingly
+        candidate_list = list(candidates)
+        for i in range(0, len(candidate_list), 900):
+            batch = candidate_list[i:i + 900]
+            placeholders = ",".join("?" * len(batch))
+            # Match against both this lang and combined ('c') for AG fallback
+            if self._lang == 'a':
+                query = (
+                    f"SELECT DISTINCT stripped, form FROM lookup "
+                    f"WHERE stripped IN ({placeholders}) "
+                    f"AND lang IN ('a', 'c')"
+                )
+            else:
+                query = (
+                    f"SELECT DISTINCT stripped, form FROM lookup "
+                    f"WHERE stripped IN ({placeholders}) AND lang = ?"
+                )
+                batch = batch + [self._lang]
+            for stripped, form in self._conn.execute(query, batch):
+                if stripped not in result:
+                    result[stripped] = []
+                result[stripped].append(form)
+        return result
+
+    def has_stripped(self, stripped: str) -> bool:
+        """Check if a stripped form exists in the DB."""
+        if self._lang == 'a':
+            row = self._conn.execute(
+                "SELECT 1 FROM lookup WHERE stripped = ? AND lang IN ('a', 'c') LIMIT 1",
+                (stripped,)).fetchone()
+        else:
+            row = self._conn.execute(
+                "SELECT 1 FROM lookup WHERE stripped = ? AND lang = ? LIMIT 1",
+                (stripped, self._lang)).fetchone()
+        return row is not None
+
     def close(self):
         if self._conn:
             self._conn.close()
@@ -410,10 +455,14 @@ class Dilemma:
 
         JSON fallback: loads all three JSON files and merges at init (~11s).
         """
-        if LOOKUP_DB_PATH.exists() and self.lang == "all":
-            # SQLite: instant startup
-            self._lookup = LookupDB(LOOKUP_DB_PATH, lang='c')
-            self._ag_lookup = LookupDB(LOOKUP_DB_PATH, lang='a')
+        if LOOKUP_DB_PATH.exists():
+            # SQLite: instant startup for all language modes
+            if self.lang == "grc":
+                self._lookup = LookupDB(LOOKUP_DB_PATH, lang='a')
+                self._ag_lookup = self._lookup
+            else:
+                self._lookup = LookupDB(LOOKUP_DB_PATH, lang='c')
+                self._ag_lookup = LookupDB(LOOKUP_DB_PATH, lang='a')
             self._using_db = True
         else:
             # JSON fallback
@@ -1203,12 +1252,15 @@ class Dilemma:
     def _build_spell_index(self):
         """Build the accent-stripped index for spelling correction.
 
-        Maps each accent-stripped form to all its original polytonic
-        variants in the lookup table. This collapses the 8-11M entry
-        lookup into a ~1-3M normalized set, making ED1 candidate
-        generation fast.
+        With SQLite backend: no-op (queries use the indexed 'stripped' column).
+        With JSON fallback: builds in-memory norm map from dict.
         """
         if hasattr(self, "_spell_norm_map"):
+            return
+        if self._using_db:
+            # SQLite path: no in-memory index needed
+            self._spell_norm_map = None
+            self._spell_norm_set = None
             return
         norm_map: dict[str, set[str]] = {}
         for form in self._lookup:
@@ -1260,23 +1312,63 @@ class Dilemma:
             suggestions found within max_distance.
         """
         self._build_spell_index()
-
         query_stripped = strip_accents(word.lower())
 
-        # Collect normalized matches at each distance level
+        if self._using_db:
+            return self._suggest_spelling_db(word, query_stripped, max_distance)
+        return self._suggest_spelling_mem(word, query_stripped, max_distance)
+
+    def _suggest_spelling_db(self, word: str, query_stripped: str,
+                             max_distance: int) -> list[tuple[str, int]]:
+        """SQLite-backed spelling suggestion. No in-memory index needed.
+
+        Generates ED1/ED2 candidate strings, then batch-queries the
+        indexed 'stripped' column. ~1000 candidates for ED1, checked
+        in one SQL query.
+        """
+        # Collect candidate stripped forms at each distance level
+        candidates: set[str] = set()
+
+        # ED0: just the query itself
+        candidates.add(query_stripped)
+
+        # ED1: all edits of the stripped query
+        if max_distance >= 1:
+            ed1 = self._edits1(query_stripped)
+            candidates.update(ed1)
+
+        # Look up which candidates actually exist in the DB
+        hits = self._lookup.spell_lookup_stripped(candidates)
+
+        # ED2: if few hits so far, expand
+        if max_distance >= 2 and len(hits) < 3:
+            ed2_candidates: set[str] = set()
+            for e1 in ed1:
+                ed2_candidates.update(self._edits1(e1))
+            # Remove already-checked candidates
+            ed2_candidates -= candidates
+            # ED2 can generate huge candidate sets; batch-query in chunks
+            ed2_hits = self._lookup.spell_lookup_stripped(ed2_candidates)
+            hits.update(ed2_hits)
+
+        if not hits:
+            return []
+
+        return self._rank_spell_results(word, query_stripped, hits)
+
+    def _suggest_spelling_mem(self, word: str, query_stripped: str,
+                              max_distance: int) -> list[tuple[str, int]]:
+        """In-memory spelling suggestion (JSON fallback)."""
         norm_hits: set[str] = set()
 
-        # ED0: exact match on stripped form (handles pure diacritic errors)
         if query_stripped in self._spell_norm_set:
             norm_hits.add(query_stripped)
 
-        # ED1 on stripped forms
         if not norm_hits or max_distance >= 1:
             for candidate in self._edits1(query_stripped):
                 if candidate in self._spell_norm_set:
                     norm_hits.add(candidate)
 
-        # ED2: edits of edits (only if requested and ED0/ED1 found few results)
         if max_distance >= 2 and len(norm_hits) < 3:
             for e1 in self._edits1(query_stripped):
                 for candidate in self._edits1(e1):
@@ -1286,18 +1378,20 @@ class Dilemma:
         if not norm_hits:
             return []
 
-        # Expand normalized hits back to original polytonic forms.
-        # Rank by edit distance on stripped forms (so diacritic
-        # differences don't inflate the distance), but also compute
-        # the full-form distance for the returned value.
-        results: list[tuple[str, int, int]] = []  # (form, stripped_dist, full_dist)
-        for norm in norm_hits:
+        # Convert to {stripped: [original_forms]} format
+        hits = {n: list(self._spell_norm_map[n]) for n in norm_hits}
+        return self._rank_spell_results(word, query_stripped, hits)
+
+    def _rank_spell_results(self, word: str, query_stripped: str,
+                            hits: dict[str, list[str]]) -> list[tuple[str, int]]:
+        """Rank spelling suggestions by edit distance."""
+        results: list[tuple[str, int, int]] = []
+        for norm, originals in hits.items():
             stripped_dist = _levenshtein(query_stripped, norm)
-            for original in self._spell_norm_map[norm]:
+            for original in originals:
                 full_dist = _levenshtein(word.lower(), original.lower())
                 results.append((original, stripped_dist, full_dist))
 
-        # Deduplicate preserving best stripped distance
         best: dict[str, tuple[int, int]] = {}
         for form, sd, fd in results:
             if form not in best or sd < best[form][0]:
