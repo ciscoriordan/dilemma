@@ -303,22 +303,32 @@ class LookupDB:
         for form, lemma in self.items():
             self._dict[form] = lemma
 
-    def spell_lookup_stripped(self, candidates: set[str]) -> dict[str, list[str]]:
+    def spell_lookup_stripped(self, candidates: set[str],
+                             src_filter: str = None
+                             ) -> dict[str, list[str]]:
         """Look up stripped forms in the DB, return {stripped: [original_forms]}.
 
         Uses the indexed 'stripped' column for fast batch lookup.
-        Only returns forms matching this LookupDB's language filter.
+
+        Args:
+            candidates: Set of accent-stripped forms to look up.
+            src_filter: If set, only return forms from this source
+                (e.g., 'a' for AG-sourced forms only).
         """
         if not candidates:
             return {}
         result: dict[str, list[str]] = {}
-        # SQLite has a limit of 999 variables per query, batch accordingly
         candidate_list = list(candidates)
         for i in range(0, len(candidate_list), 900):
             batch = candidate_list[i:i + 900]
             placeholders = ",".join("?" * len(batch))
-            # Match against both this lang and combined ('c') for AG fallback
-            if self._lang == 'a':
+            if src_filter:
+                query = (
+                    f"SELECT DISTINCT stripped, form FROM lookup "
+                    f"WHERE stripped IN ({placeholders}) AND src = ?"
+                )
+                batch = batch + [src_filter]
+            elif self._lang == 'a':
                 query = (
                     f"SELECT DISTINCT stripped, form FROM lookup "
                     f"WHERE stripped IN ({placeholders}) "
@@ -1326,6 +1336,10 @@ class Dilemma:
         indexed 'stripped' column. ~1000 candidates for ED1, checked
         in one SQL query.
         """
+        # For AG mode, filter to AG-sourced forms only (src='a')
+        # to avoid suggesting monotonic MG forms
+        src_filter = 'a' if self.lang == 'grc' else None
+
         # Collect candidate stripped forms at each distance level
         candidates: set[str] = set()
 
@@ -1338,7 +1352,8 @@ class Dilemma:
             candidates.update(ed1)
 
         # Look up which candidates actually exist in the DB
-        hits = self._lookup.spell_lookup_stripped(candidates)
+        hits = self._lookup.spell_lookup_stripped(candidates,
+                                                  src_filter=src_filter)
 
         # ED2: if few hits so far, expand
         if max_distance >= 2 and len(hits) < 3:
@@ -1347,8 +1362,8 @@ class Dilemma:
                 ed2_candidates.update(self._edits1(e1))
             # Remove already-checked candidates
             ed2_candidates -= candidates
-            # ED2 can generate huge candidate sets; batch-query in chunks
-            ed2_hits = self._lookup.spell_lookup_stripped(ed2_candidates)
+            ed2_hits = self._lookup.spell_lookup_stripped(ed2_candidates,
+                                                          src_filter=src_filter)
             hits.update(ed2_hits)
 
         if not hits:
@@ -1382,9 +1397,25 @@ class Dilemma:
         hits = {n: list(self._spell_norm_map[n]) for n in norm_hits}
         return self._rank_spell_results(word, query_stripped, hits)
 
+    @staticmethod
+    def _has_breathing(s: str) -> bool:
+        """Check if a string contains Greek breathing marks (polytonic)."""
+        nfd = unicodedata.normalize("NFD", s)
+        return "\u0313" in nfd or "\u0314" in nfd
+
     def _rank_spell_results(self, word: str, query_stripped: str,
                             hits: dict[str, list[str]]) -> list[tuple[str, int]]:
-        """Rank spelling suggestions by edit distance."""
+        """Rank spelling suggestions by edit distance.
+
+        Sorts by (stripped_dist, full_dist, form) so that at the same
+        stripped distance, forms closer to the original polytonic input
+        are preferred. Polytonic forms (with breathing marks) are
+        preferred over monotonic when the input is polytonic or when
+        using AG mode.
+        """
+        # For AG mode or polytonic input, prefer polytonic suggestions
+        prefer_polytonic = self.lang == "grc" or self._has_breathing(word)
+
         results: list[tuple[str, int, int]] = []
         for norm, originals in hits.items():
             stripped_dist = _levenshtein(query_stripped, norm)
@@ -1392,14 +1423,28 @@ class Dilemma:
                 full_dist = _levenshtein(word.lower(), original.lower())
                 results.append((original, stripped_dist, full_dist))
 
+        # Deduplicate: keep best (lowest stripped_dist, then full_dist)
         best: dict[str, tuple[int, int]] = {}
         for form, sd, fd in results:
-            if form not in best or sd < best[form][0]:
+            if form not in best or (sd, fd) < best[form]:
                 best[form] = (sd, fd)
+
+        if prefer_polytonic:
+            # Filter: if polytonic forms exist at a given stripped_dist,
+            # remove monotonic forms at that same distance
+            by_sd: dict[int, list[str]] = {}
+            for form, (sd, fd) in best.items():
+                by_sd.setdefault(sd, []).append(form)
+            for sd, forms in by_sd.items():
+                poly = [f for f in forms if self._has_breathing(f)]
+                if poly:
+                    for f in forms:
+                        if not self._has_breathing(f):
+                            del best[f]
 
         return sorted(
             [(form, sd) for form, (sd, fd) in best.items()],
-            key=lambda x: (x[1], x[0]),
+            key=lambda x: (x[1], best[x[0]][1], x[0]),
         )
 
     def _predict(self, words: list[str], num_beams=4) -> list[str]:
