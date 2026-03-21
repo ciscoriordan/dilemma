@@ -681,7 +681,7 @@ will propagate into Dilemma via kaikki dumps.
 ## How to Cite
 
 ```
-Francisco Riordan, "Dilemma: Greek Lemmatizer" (2026).
+Francisco Riordan, Dilemma [computer software] (2026).
 https://github.com/ciscoriordan/dilemma
 ```
 
