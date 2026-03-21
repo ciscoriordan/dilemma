@@ -4,8 +4,8 @@
   <img width="500" alt="dilemma" src="dilemma.png">
 </p>
 
-Greek lemmatizer with a **9.7 million form** lookup table and a ~4M
-parameter character-level transformer trained on 3.2 million Wiktionary
+Greek lemmatizer with a **12.3 million form** lookup table and a ~4M
+parameter character-level transformer trained on 3.4 million Wiktionary
 inflection pairs spanning Modern Greek, Ancient Greek, and Medieval Greek.
 
 Most Greek words resolve instantly via the lookup table. For unseen forms,
@@ -16,7 +16,11 @@ it trains from scratch in minutes and runs inference in under a millisecond,
 compared to fine-tuning approaches like *ByT5-small* (300M params) which take
 hours to train and ~10ms per word. Greek lemmatization is highly
 pattern-based - a small specialized model matches a large general-purpose
-one, and the 9.7M lookup table handles the rest.
+one, and the 12.3M lookup table handles the rest.
+
+**SQLite backend:** The lookup table loads from a pre-built SQLite database
+(instant startup, ~0.3s) instead of parsing 600MB of JSON (~11s). Falls
+back to JSON if the database isn't present.
 
 **ONNX support:** Dilemma can run without PyTorch. When ONNX model files
 are present, inference uses ONNX Runtime (~50 MB) instead of PyTorch (~2 GB).
@@ -76,22 +80,22 @@ DBBE gold standard (10K tokens of unedited Byzantine Greek epigrams):
 |--------|:--------:|
 | Swaelens et al. best (2024, hybrid) | 65.8% |
 | Swaelens et al. best (2025, multi-task) | ~74-75% |
-| **Dilemma (lookup only)** | **85.9%** |
+| **Dilemma** | **90.8%** |
 
-The 85.9% is achieved with the lookup table alone, without the transformer
-model. The remaining errors break down as 2.7% wrong lemma (genuine
-ambiguity needing POS context) and 11.4% no lookup hit (forms not in any
-source lexicon).
+The remaining 9.2% errors break down as 3.5% no lookup hit (forms not in
+any source lexicon) and 5.7% wrong lemma or convention difference. The
+dedicated eval script (`eval_dbbe.py`) provides per-POS breakdowns and
+error categorization.
 
 On the [DiGreC treebank](https://github.com/mdm33/digrec) (119K tokens,
 Homer through 15th century Byzantine Greek):
 
 | Mode | Accuracy |
 |------|:--------:|
-| Form-only | 70.6% |
-| + resolve_articles | 81.4% |
-| **+ full pipeline** | **88.7%** |
-| + lemma equivalences | 92.6% |
+| Strict match | 90.3% |
+| + monotonic normalization | 91.2% |
+| + accent stripping | 91.6% |
+| **+ lemma equivalences** | **93.5%** |
 
 The equivalence-adjusted score accounts for legitimate convention
 differences between annotation schemes (e.g. `εἶπον`/`λέγω`,
@@ -221,6 +225,23 @@ Each `LemmaCandidate` has:
 - `via` - how it matched: `"exact"`, `"lower"`, `"elision:ε"`, `"+case_alt"`, etc.
 - `score` - `1.0` for lookup, `0.5` for model, `0.0` for identity fallback
 
+### POS-aware disambiguation
+
+When a POS tagger (e.g. [Opla](https://github.com/ciscoriordan/opla))
+provides UPOS tags, `lemmatize_pos` uses a 85K-entry POS lookup table
+to disambiguate:
+
+```python
+d = Dilemma()
+d.lemmatize_pos("αὐτοῦ", "ADV")    # "αὐτοῦ" (adverb: here/there)
+d.lemmatize_pos("αὐτοῦ", "PRON")   # "αὐτός" (pronoun: genitive)
+d.lemmatize_pos("ἄκρα", "NOUN")    # "ἄκρον" (noun: summit)
+d.lemmatize_pos("ἄκρα", "ADJ")     # "ἄκρος" (adjective: outermost)
+```
+
+The POS lookup is built from four sources in priority order: UD treebanks
+(gold), GLAUx corpus (8.7K entries), MG Wiktionary, AG Wiktionary.
+
 ### Spelling correction
 
 For unknown or misspelled words, `suggest_spelling` returns candidate
@@ -260,14 +281,17 @@ trying each Greek vowel against the lookup table:
 | `βάλλ̓` | `βάλλε` | `βάλλω` |
 
 Polytonic input automatically restricts expansion to the AG lookup
-table, avoiding false matches from MG monotonic forms. Candidates are
-ranked by vowel frequency in elision contexts (ε, α, ο most common).
+table, avoiding false matches from MG monotonic forms. Common function
+words (prepositions, particles, conjunctions like ἀλλά, μετά, παρά, κατά,
+διά) are prioritized over content words when disambiguating, and proper
+nouns are deprioritized. Remaining candidates are ranked by vowel frequency
+in elision contexts (ε, α, ο most common).
 
 ## How It Works
 
 | Layer | Speed | Coverage | Source |
 |-------|-------|----------|--------|
-| **Lookup table** | instant | 9.7M known forms | Wiktionary + LSJ + Sophocles + treebanks |
+| **Lookup table** | instant | 12.3M known forms | Wiktionary + LSJ + Sophocles + GLAUx + treebanks |
 | **Normalizer** | instant | Byzantine orthographic variants | Rule-based candidate generation |
 | **Elision expansion** | instant | AG elided forms | Vowel expansion against lookup |
 | **Crasis table** | instant | ~50 common crasis forms | Hand-curated |
@@ -281,8 +305,11 @@ lexicon of Roman and Byzantine Greek, then augmented with form-lemma pairs
 from gold-standard treebanks (Gorman, AGDT). Each form is indexed under
 its original, monotonic, and accent-stripped variants, so `θεοὶ` (polytonic
 with grave), `θεοί` (monotonic with acute), and `θεοι` (stripped) all
-resolve to `θεός`. Input can be polytonic, monotonic, or unaccented. MG
-forms take priority, then Medieval, then AG.
+resolve to `θεός`. Input can be polytonic, monotonic, or unaccented. AG
+forms take priority, then Medieval, then MG - this ensures classical lemma
+forms (βιβλίον, φύσις, θεῖος) are preferred over their MG equivalents
+(βιβλίο, φύση, θείο). For polytonic input (breathings/circumflex), an
+additional AG-only lookup pass runs first.
 
 When the transformer handles an unseen form, beam search generates
 multiple candidates and picks the first that matches a known headword
@@ -315,9 +342,12 @@ transformations (`σκότωσε` → `σκοτώνω`). For katharevousa forms 
 git clone https://github.com/ciscoriordan/dilemma.git && cd dilemma
 pip install onnxruntime                # ~50 MB, no PyTorch needed
 python build_data.py --download        # downloads Wiktionary dumps, builds lookup tables
+python build_lookup_db.py              # builds SQLite DB for instant startup (optional)
 ```
 
-The lookup table handles 95%+ of words with no model at all. For the
+The lookup table handles 95%+ of words with no model at all. The SQLite
+step is optional but recommended - it reduces startup time from ~11s to
+~0.3s. Without it, Dilemma falls back to loading JSON files. For the
 remaining ~5% (unseen forms), the ONNX model files (`encoder.onnx`,
 `decoder_step.onnx`) in `model/combined-s3/` provide transformer
 inference without PyTorch. If these files aren't present, install
@@ -389,7 +419,7 @@ to Byzantine text (11.4%).
 |:-----:|---------------:|----------:|-------:|-------:|:--------------:|:----:|:-----:|
 | 1 | 20K | 9K (100%) | 5.5K | 5.5K | 16 sec | 2.6% | 53/55 |
 | 2 | 1M | 9K (100%) | 496K | 496K | 13 min | 62% | 54/55 |
-| 3 | 3.2M (all) | 9K (100%) | 1.5M (100%) | 1.7M (100%) | 45 min | 75% | 55/55 |
+| 3 | 3.4M (all) | 9K (100%) | 1.5M (100%) | 1.7M (100%) | 95 min | 71.5% | 55/55 |
 
 Eval accuracy is the model's score on held-out pairs *without* the
 lookup table. In practice, the lookup resolves most forms instantly
@@ -400,15 +430,20 @@ unchanged (safe fallback).
 
 ### Multi-task learning
 
-When training pairs include POS tags (from Wiktionary), the model
-jointly predicts POS alongside the lemma via an auxiliary classification
-head on the encoder output. This follows
+When training pairs include POS tags (from Wiktionary) and morphological
+features (from GLAUx), the model jointly predicts POS, nominal morphology
+(gender/number/case, 45 labels), and verbal morphology (tense/mood/voice,
+69 labels) alongside the lemma via auxiliary classification heads on the
+encoder output. This follows
 [Swaelens et al. (2025)](https://aclanthology.org/2025.acl-long.430/)'s
 finding that multi-task learning (joint POS + morphology + lemma)
-improved Byzantine Greek lemmatization by ~9 percentage points. The
-POS loss is weighted at 0.1x relative to the lemmatization loss, so
-the shared encoder learns better representations without the auxiliary
-task dominating.
+improved Byzantine Greek lemmatization by ~9 percentage points. Each
+auxiliary loss is weighted at 0.1x relative to the lemmatization loss.
+At scale 3, the heads reach 90.4% POS, 81.5% nominal, and 91.2% verbal
+accuracy on the held-out set.
+
+Training uses a linear warmup LR scheduler (500 steps warmup, then linear
+decay) and gradient clipping (max norm 1.0) for stable convergence.
 
 Tests are a 55-case suite covering SMG, Epic, Attic, Koine, Byzantine,
 Katharevousa, crasis, and model fallback across all resolution paths.
@@ -462,6 +497,7 @@ python export_onnx.py                  # exports encoder.onnx + decoder_step.onn
 git clone https://github.com/ciscoriordan/dilemma.git && cd dilemma
 pip install -r requirements.txt
 python build_data.py --download
+python build_lookup_db.py              # SQLite for instant startup
 python train.py --scale 2
 python export_onnx.py                  # optional: enable PyTorch-free inference
 ```
@@ -478,16 +514,18 @@ morphological inflection shared tasks.
 | Encoder | 3 transformer layers, 256 hidden, 4 heads |
 | Decoder | 3 transformer layers, 256 hidden, 4 heads |
 | POS head | Linear (256 -> 10 tags), auxiliary task |
+| Nominal head | Linear (256 -> 45 labels), gender/number/case |
+| Verbal head | Linear (256 -> 69 labels), tense/mood/voice |
 | FFN | 512 dim |
-| Vocabulary | ~275 Greek characters + special tokens |
-| Parameters | ~4M |
+| Vocabulary | ~381 Greek characters + special tokens |
+| Parameters | ~4.2M |
 | Inference | <1ms/word (GPU), ~2ms/word (CPU) |
 
 No pretrained weights - the model is small enough to train from scratch
 on 500K+ pairs in minutes. The character vocabulary covers all Greek
-Unicode ranges (monotonic, polytonic, extended). The optional POS
-classification head shares the encoder and improves representations
-via multi-task learning.
+Unicode ranges (monotonic, polytonic, extended). Three auxiliary
+classification heads (POS, nominal morphology, verbal morphology) share
+the encoder and improve representations via multi-task learning.
 
 ### Why not *ByT5*?
 
@@ -502,7 +540,7 @@ vocabulary (~160 tokens), so the same word is ~10 steps. Combined with
 |--|:----------:|:-------:|
 | Parameters | 300M | 4M |
 | Training (500K pairs, 3 epochs) | ~4 hours | ~10 min |
-| Training (3.4M pairs, 3 epochs) | ~20 hours | ~1 hour |
+| Training (3.4M pairs, 3 epochs) | ~20 hours | ~95 min |
 | Inference | ~10ms/word | <1ms/word |
 | Dependencies | torch + transformers | torch only |
 
@@ -522,7 +560,7 @@ general-purpose one.
 | Sophocles lexicon expansion | 1.0M | Byzantine/Patristic vocabulary |
 | UD Treebanks (AG) | 27K | Gold annotations from Perseus, PROIEL, DiGreC |
 | GLAUx corpus | 557K | 17M tokens, 98.8% accuracy ([Keersmaekers 2021](https://github.com/alekkeersmaekers/glaux)) |
-| **Total lookup** | **9.7M** | |
+| **Total lookup** | **12.3M** | |
 
 All Wiktionary data is extracted automatically from
 [kaikki.org](https://kaikki.org/) JSONL dumps. LSJ and Sophocles
@@ -616,7 +654,7 @@ present"). These are propagated to every form in that table section:
 | *spaCy* `el_core_news_sm` | MG only | ~30K tokens (news) | no | static |
 | *stanza* `el` | MG only | ~30K tokens (GDT treebank) | fails on augmented forms | static |
 | Perseus *Morpheus* | AG only | hand-crafted rules | no | not actively developed |
-| **Dilemma** | **MG + AG + Medieval + dialects** | **3.2M pairs + 9.7M lookup** | **yes (AG+MG combined)** | **monthly from Wiktionary** |
+| **Dilemma** | **MG + AG + Medieval + dialects** | **3.4M pairs + 12.3M lookup** | **yes (AG+MG combined)** | **monthly from Wiktionary** |
 
 Dilemma trains on **100x more data** than *stanza* or *spaCy*. *Morpheus*
 is more accurate on classical AG (decades of hand-tuned rules), but only
@@ -646,7 +684,7 @@ tested lemmatization on unedited Byzantine Greek epigrams and found
 that classical accuracy (~95%) dropped 30+ points on Byzantine text
 due to itacism, crasis, and non-standard orthography. Their best hybrid
 method (transformer embeddings + dictionary lookup) reached 65.8%.
-Dilemma achieves 85.9% on the same dataset using only its lookup table.
+Dilemma achieves 90.8% on the same dataset.
 
 [Swaelens et al. (2025)](https://aclanthology.org/2025.acl-long.430/)
 showed that multi-task learning (joint POS + morphology + lemma
@@ -665,16 +703,16 @@ will propagate into Dilemma via kaikki dumps.
 
 | Issue | Tokens | Notes |
 |-------|--------|-------|
-| **αὐτοῦ ambiguity** | ~200 | Genuine lexical ambiguity: both an adverb ("here/there") and genitive of αὐτός. Needs sentence context. |
-| **ταῦτα self-map** | ~100 | Also an adverb headword in Wiktionary, so self-maps instead of mapping to οὗτος. |
-| **μιν → οὗ** | ~340 | Wiktionary-correct (μιν is accusative of the 3rd person pronoun). Perseus treebank uses μιν as its own lemma - a convention difference. |
-| **Lemma convention differences** | ~400 | αὐτάρ vs ἀτάρ, κε vs ἄν - Wiktionary and the Perseus treebank use different citation forms for some Homeric particles. |
+| **αὐτοῦ ambiguity** | ~200 | Genuine lexical ambiguity: both an adverb ("here/there") and genitive of αὐτός. Resolved when POS context is available via `lemmatize_pos()`. |
+| **μιν → ὅς** | ~340 | Convention difference. Wiktionary maps μιν to the 3rd person pronoun. Perseus treebank uses μιν as its own lemma. |
+| **Lemma convention differences** | ~400 | αὐτάρ vs ἀτάρ, κε vs ἄν - Wiktionary and Perseus use different citation forms for some Homeric particles. Handled by lemma equivalence groups for evaluation. |
 
 ## Credits
 
 - Training data from [English Wiktionary](https://en.wiktionary.org/) and [Greek Wiktionary](https://el.wiktionary.org/) via [kaikki.org](https://kaikki.org/) JSONL dumps
 - LSJ data from [LSJLogeion](https://github.com/helmadik/LSJLogeion) (Helma Dik)
 - Sophocles lexicon TEI from [Ionian University / Internet Archive](https://archive.org/details/pateres)
+- [GLAUx](https://github.com/alekkeersmaekers/glaux) corpus data (Keersmaekers, 2021) (CC BY-SA 4.0)
 - DBBE evaluation data from [Swaelens et al.](https://github.com/coswaele/ByzantineGreekDatasets) (CC BY 4.0)
 - Flag icons by [svg-flags](https://github.com/ciscoriordan/svg-flags)
 
