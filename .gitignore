@@ -20,6 +20,8 @@ model/*
 model/combined-s3/*
 !model/combined-s3/*.pt
 !model/combined-s3/*.onnx
+!model/combined-s3/*.npz
+!model/combined-s3/*.json
 model/grc-s3/*
 !model/grc-s3/*.pt
 !model/grc-s3/*.onnx
