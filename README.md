@@ -221,6 +221,27 @@ Each `LemmaCandidate` has:
 - `via` - how it matched: `"exact"`, `"lower"`, `"elision:ε"`, `"+case_alt"`, etc.
 - `score` - `1.0` for lookup, `0.5` for model, `0.0` for identity fallback
 
+### Spelling correction
+
+For unknown or misspelled words, `suggest_spelling` returns candidate
+corrections from the lookup table ranked by edit distance:
+
+```python
+d = Dilemma()
+d.suggest_spelling("θεός")       # [("θεός", 0), ...]  (exact match)
+d.suggest_spelling("θεος")       # [("θεός", 0), ...]  (diacritic error = free)
+d.suggest_spelling("θδός")       # [("θεός", 1), ...]  (letter-level ED1)
+```
+
+The approach works in two layers. First, diacritics are stripped from both
+the input and the dictionary, collapsing the 9.7M-entry lookup into ~1-3M
+unique base forms. ED0/ED1/ED2 matches are found on these stripped forms,
+then expanded back to their original polytonic variants and ranked by true
+Levenshtein distance. This means accent and breathing errors (wrong accent,
+missing breathing mark) are corrected for free, while letter-level errors
+(θ/δ, ρ/ν) use standard edit distance. The spell index is built lazily on
+first call.
+
 ### Elision expansion
 
 Ancient Greek texts frequently elide final vowels before a following
@@ -250,6 +271,7 @@ ranked by vowel frequency in elision contexts (ε, α, ο most common).
 | **Normalizer** | instant | Byzantine orthographic variants | Rule-based candidate generation |
 | **Elision expansion** | instant | AG elided forms | Vowel expansion against lookup |
 | **Crasis table** | instant | ~50 common crasis forms | Hand-curated |
+| **Spelling correction** | lazy index | ED0-2 suggestions for unknown words | Accent-stripped edit distance |
 | **Transformer** | <1ms/word | generalizes to unseen forms | Trained on Wiktionary pairs |
 
 The lookup table is built from Wiktionary [kaikki dumps](https://kaikki.org/)
