@@ -182,6 +182,11 @@ d_eval.lemmatize("μοι")                       # "ἐγώ" (not "μοι")
 # Byzantine text with orthographic normalization
 d_byz = Dilemma(normalize=True, period="byzantine")
 d_byz.lemmatize("θεω")                        # "θεός" (restores iota subscriptum)
+
+# LSJ lemma convention: remap output to LSJ dictionary headwords
+d_lsj = Dilemma(convention="lsj")
+d_lsj.lemmatize("αἰνῶς")                     # "αἰνός" (adverb -> adjective)
+d_lsj.lemmatize("εἶπον")                      # "λέγω" (aorist -> present stem)
 ```
 
 By default, articles and pronoun clitics self-map (e.g. `τῆς` returns
@@ -189,6 +194,15 @@ By default, articles and pronoun clitics self-map (e.g. `τῆς` returns
 surface-form matching. Set `resolve_articles=True` to resolve them
 to canonical lemmas (`ὁ`, `ἐγώ`, `σύ`), matching treebank conventions
 (AGDT, DiGreC, PROIEL).
+
+The `convention` parameter remaps output lemmas to match a specific
+dictionary or treebank convention. Set `convention="lsj"` for LSJ
+dictionary headwords (maps suppletive aorists to present stems, adverbs
+to adjective entries, MG -o neuter forms to AG -on, etc.). Default is
+`None` (Wiktionary convention, no remapping). The mapping is built
+automatically from `data/lemma_equivalences.json` cross-referenced
+against LSJ headwords, with explicit overrides in
+`data/convention_lsj.json`.
 
 ### Verbose mode
 

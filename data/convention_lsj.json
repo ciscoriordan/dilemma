@@ -1,0 +1,13 @@
+{
+  "_comment": "LSJ convention overrides. Applied after auto-derivation from lemma_equivalences.json + LSJ headwords. Each entry corrects a case where the auto-heuristic picks the wrong canonical for the equivalence group. Identity entries (x -> x) cancel wrong auto-derived mappings.",
+  "mappings": {
+    "εἶπον": "λέγω",
+    "λέγω": "λέγω",
+    "εἶδον": "ὁράω",
+    "ὁράω": "ὁράω",
+    "θέλω": "ἐθέλω",
+    "ἐθέλω": "ἐθέλω",
+    "εὐσεβοφρόνως": "εὐσεβόφρων",
+    "εὐσεβόφρων": "εὐσεβόφρων"
+  }
+}
