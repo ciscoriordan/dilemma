@@ -225,6 +225,68 @@ def load_pairs(lang: str, max_pairs: int = 0) -> list[dict]:
     return pairs
 
 
+def evaluate_heads(model, vocab, eval_pairs, device, batch_size=256,
+                   pos_map=None, nom_map=None, verb_map=None):
+    """Evaluate auxiliary head accuracy on held-out pairs.
+
+    Returns dict of {head_name: (correct, total)} for each active head.
+    """
+    model.eval()
+    stats = {}
+    if pos_map:
+        stats["pos"] = [0, 0]
+    if nom_map:
+        stats["nom"] = [0, 0]
+    if verb_map:
+        stats["verb"] = [0, 0]
+
+    if not stats:
+        return {}
+
+    dataset = LemmaPairDataset(eval_pairs, vocab,
+                               pos_map=pos_map, nom_map=nom_map,
+                               verb_map=verb_map)
+
+    for i in range(0, len(eval_pairs), batch_size):
+        batch_indices = range(i, min(i + batch_size, len(eval_pairs)))
+        batch_items = [dataset[j] for j in batch_indices]
+
+        src = torch.stack([b["src"] for b in batch_items]).to(device)
+        src_pad_mask = (src == 0)
+
+        with torch.no_grad():
+            if "pos" in stats:
+                pos_logits = model.predict_pos(src, src_pad_mask)
+                if pos_logits is not None:
+                    pos_labels = torch.stack([b["pos"] for b in batch_items]).to(device)
+                    mask = pos_labels != -1
+                    if mask.any():
+                        preds = pos_logits.argmax(dim=-1)
+                        stats["pos"][0] += (preds[mask] == pos_labels[mask]).sum().item()
+                        stats["pos"][1] += mask.sum().item()
+
+            if "nom" in stats or "verb" in stats:
+                nom_logits, verb_logits = model.predict_morph(src, src_pad_mask)
+
+                if "nom" in stats and nom_logits is not None:
+                    nom_labels = torch.stack([b["nom"] for b in batch_items]).to(device)
+                    mask = nom_labels != -1
+                    if mask.any():
+                        preds = nom_logits.argmax(dim=-1)
+                        stats["nom"][0] += (preds[mask] == nom_labels[mask]).sum().item()
+                        stats["nom"][1] += mask.sum().item()
+
+                if "verb" in stats and verb_logits is not None:
+                    verb_labels = torch.stack([b["verb"] for b in batch_items]).to(device)
+                    mask = verb_labels != -1
+                    if mask.any():
+                        preds = verb_logits.argmax(dim=-1)
+                        stats["verb"][0] += (preds[mask] == verb_labels[mask]).sum().item()
+                        stats["verb"][1] += mask.sum().item()
+
+    return {k: tuple(v) for k, v in stats.items()}
+
+
 def evaluate(model, vocab, eval_pairs, device, batch_size=256):
     """Evaluate model accuracy on held-out pairs."""
     model.eval()
@@ -351,10 +413,25 @@ def train(lang: str, epochs: int, batch_size: int, lr: float, eval_split: float,
     criterion = torch.nn.CrossEntropyLoss(ignore_index=0)  # ignore PAD
     aux_criterion = torch.nn.CrossEntropyLoss(ignore_index=-1)
     AUX_LOSS_WEIGHT = 0.1  # auxiliary tasks, don't dominate
+    MAX_GRAD_NORM = 1.0
 
+    # LR scheduler: linear warmup then linear decay
     total_batches = len(loader)
-    print(f"\nTraining for {epochs} epochs ({total_batches} batches/epoch)...",
+    num_training_steps = total_batches * epochs
+    num_warmup_steps = min(500, num_training_steps // 10)
+
+    def lr_lambda(step):
+        if step < num_warmup_steps:
+            return step / max(1, num_warmup_steps)
+        return max(0.0, (num_training_steps - step) /
+                   max(1, num_training_steps - num_warmup_steps))
+
+    scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
+
+    print(f"\nTraining for {epochs} epochs ({total_batches} batches/epoch, "
+          f"warmup={num_warmup_steps} steps, grad_clip={MAX_GRAD_NORM})...",
           flush=True)
+    global_step = 0
     for epoch in range(1, epochs + 1):
         model.train()
         total_loss = 0
@@ -388,29 +465,33 @@ def train(lang: str, epochs: int, batch_size: int, lr: float, eval_split: float,
 
             if use_morph:
                 if "nom" in batch_data:
-                    nom_labels = batch_data["nom"].to(device)
+                    nom_labels_batch = batch_data["nom"].to(device)
                     nom_logits, _ = model.predict_morph(src, src_pad_mask)
                     if nom_logits is not None:
-                        loss = loss + AUX_LOSS_WEIGHT * aux_criterion(nom_logits, nom_labels)
+                        loss = loss + AUX_LOSS_WEIGHT * aux_criterion(nom_logits, nom_labels_batch)
                 if "verb" in batch_data:
-                    verb_labels = batch_data["verb"].to(device)
+                    verb_labels_batch = batch_data["verb"].to(device)
                     _, verb_logits = model.predict_morph(src, src_pad_mask)
                     if verb_logits is not None:
-                        loss = loss + AUX_LOSS_WEIGHT * aux_criterion(verb_logits, verb_labels)
+                        loss = loss + AUX_LOSS_WEIGHT * aux_criterion(verb_logits, verb_labels_batch)
 
             optimizer.zero_grad()
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), MAX_GRAD_NORM)
             optimizer.step()
+            scheduler.step()
 
             total_loss += loss.item()
             batches += 1
+            global_step += 1
 
             if batches % 100 == 0:
                 elapsed = time.time() - t0
                 rate = batches / elapsed
                 eta = (total_batches - batches) / rate
+                current_lr = scheduler.get_last_lr()[0]
                 msg = (f"    [{batches}/{total_batches}] loss={total_loss/batches:.4f} "
-                       f"({rate:.1f} batch/s, ETA {eta/60:.0f}m)")
+                       f"lr={current_lr:.2e} ({rate:.1f} batch/s, ETA {eta/60:.0f}m)")
                 print(msg, flush=True)
                 with open(SCRIPT_DIR / "progress.log", "a") as pf:
                     pf.write(msg + "\n")
@@ -418,12 +499,28 @@ def train(lang: str, epochs: int, batch_size: int, lr: float, eval_split: float,
         avg_loss = total_loss / batches
         elapsed = time.time() - t0
 
-        # Evaluate every epoch
+        # Evaluate lemma accuracy
         accuracy, correct, total = evaluate(
             model, vocab, eval_pairs[:2000], device
         )
         msg = (f"  Epoch {epoch}/{epochs}: loss={avg_loss:.4f}, "
                f"eval={correct}/{total} ({accuracy:.1%}), {elapsed:.0f}s")
+
+        # Evaluate morphology head accuracy
+        if use_multitask or use_morph:
+            head_stats = evaluate_heads(
+                model, vocab, eval_pairs[:2000], device,
+                pos_map=WIKT_TO_UPOS if use_multitask else None,
+                nom_map=nom_labels if use_morph else None,
+                verb_map=verb_labels if use_morph else None,
+            )
+            head_parts = []
+            for name, (hcorrect, htotal) in head_stats.items():
+                if htotal > 0:
+                    head_parts.append(f"{name}={hcorrect}/{htotal} ({hcorrect/htotal:.1%})")
+            if head_parts:
+                msg += "\n    Heads: " + ", ".join(head_parts)
+
         print(msg, flush=True)
         with open(SCRIPT_DIR / "progress.log", "a") as pf:
             pf.write(msg + "\n")

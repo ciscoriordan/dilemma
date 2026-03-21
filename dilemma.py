@@ -37,6 +37,7 @@ MED_LOOKUP_PATH = Path(__file__).parent / "data" / "med_lookup.json"
 MG_POS_LOOKUP_PATH = Path(__file__).parent / "data" / "mg_pos_lookup.json"
 AG_POS_LOOKUP_PATH = Path(__file__).parent / "data" / "ag_pos_lookup.json"
 TREEBANK_POS_LOOKUP_PATH = Path(__file__).parent / "data" / "treebank_pos_lookup.json"
+GLAUX_POS_LOOKUP_PATH = Path(__file__).parent / "data" / "glaux_pos_lookup.json"
 LSJ_HEADWORDS_PATH = Path(__file__).parent / "data" / "lsj_headwords.json"
 CUNLIFFE_HEADWORDS_PATH = Path(__file__).parent / "data" / "cunliffe_headwords.json"
 
@@ -314,7 +315,7 @@ class Dilemma:
                     or strip_accents(form.lower()) == strip_accents(lemma.lower()))
 
         if self.lang == "all":
-            for data in [self._mg_lookup, self._med_lookup, self._ag_lookup]:
+            for data in [self._ag_lookup, self._med_lookup, self._mg_lookup]:
                 for k, v in data.items():
                     if k not in self._lookup:
                         self._lookup[k] = v
@@ -339,7 +340,7 @@ class Dilemma:
             self._lookup = dict(self._ag_lookup)
 
         # Load POS disambiguation tables.
-        # Priority: treebank (gold) > MG Wiktionary > AG Wiktionary.
+        # Priority: treebank (gold) > GLAUx (corpus) > MG Wiktionary > AG Wiktionary.
         # Lower-priority sources only fill in form+upos slots not already set.
 
         # 1. Treebank POS lookup (gold-annotated, highest priority for AG)
@@ -351,7 +352,18 @@ class Dilemma:
                     self._pos_lookup[form] = {}
                 self._pos_lookup[form].update(upos_lemmas)
 
-        # 2. MG POS lookup (Wiktionary-derived)
+        # 2. GLAUx POS lookup (corpus-derived, 8.7K entries)
+        if self.lang in ("all", "grc") and GLAUX_POS_LOOKUP_PATH.exists():
+            with open(GLAUX_POS_LOOKUP_PATH, encoding="utf-8") as f:
+                glaux_pos = json.load(f)
+            for form, upos_lemmas in glaux_pos.items():
+                if form not in self._pos_lookup:
+                    self._pos_lookup[form] = {}
+                for upos, lemma in upos_lemmas.items():
+                    if upos not in self._pos_lookup[form]:
+                        self._pos_lookup[form][upos] = lemma
+
+        # 3. MG POS lookup (Wiktionary-derived, fills remaining gaps)
         if self.lang in ("all", "el") and MG_POS_LOOKUP_PATH.exists():
             with open(MG_POS_LOOKUP_PATH, encoding="utf-8") as f:
                 mg_pos = json.load(f)
@@ -362,7 +374,7 @@ class Dilemma:
                     if upos not in self._pos_lookup[form]:
                         self._pos_lookup[form][upos] = lemma
 
-        # 3. AG Wiktionary POS lookup (fills remaining gaps)
+        # 4. AG Wiktionary POS lookup (fills remaining gaps)
         if self.lang in ("all", "grc") and AG_POS_LOOKUP_PATH.exists():
             with open(AG_POS_LOOKUP_PATH, encoding="utf-8") as f:
                 ag_pos = json.load(f)
@@ -464,10 +476,36 @@ class Dilemma:
         breathings and circumflex (lighter normalization). ὣς → ὡς works
         here without losing the breathing that monotonic would strip.
 
+        For polytonic input (breathings/circumflex present), AG lookup is
+        tried first to avoid MG lemma forms (βιβλίο vs βιβλίον).
+
         Skips mono/stripped matches that are trivially short (1-2 chars)
         and map to themselves — these are usually false positives from
         accent stripping on elided or particle forms.
         """
+        # For polytonic input (breathings/circumflex), try AG-only lookup
+        # first. Even though AG has priority in the combined table, the
+        # normalization cascade (mono/stripped) can still land on MG entries.
+        nfd = unicodedata.normalize("NFD", word)
+        has_poly = any(ord(ch) in _POLYTONIC_STRIP | _POLYTONIC_TO_ACUTE
+                       for ch in nfd)
+        if has_poly and self.lang == "all" and self._ag_lookup:
+            tbl = self._ag_lookup
+            hit = tbl.get(word) or tbl.get(word.lower())
+            if not hit:
+                acute = grave_to_acute(word)
+                if acute != word:
+                    hit = tbl.get(acute) or tbl.get(acute.lower())
+            if not hit:
+                for variant in [to_monotonic(word.lower()),
+                                strip_accents(word.lower())]:
+                    hit = tbl.get(variant)
+                    if hit and not (len(variant) <= 2 and hit == variant):
+                        break
+                    hit = None
+            if hit:
+                return hit
+
         lemma = self._lookup.get(word) or self._lookup.get(word.lower())
         if lemma:
             return lemma
@@ -484,6 +522,7 @@ class Dilemma:
             if hit and not (len(variant) <= 2 and hit == variant):
                 return hit
         return None
+
 
     def _expand_elision(self, word: str) -> str | None:
         """Try to resolve an elided form by expanding with vowels.
@@ -559,15 +598,35 @@ class Dilemma:
                     seen_lemmas.add(lemma)
                     results.append((expanded, lemma, suffix))
 
-        # Sort by vowel frequency (same ranking as _expand_elision)
+        # Common elided function words - these should always win over
+        # content words when ambiguous. Maps stem -> expected lemma.
+        _ELISION_PRIORITY = {
+            "αλλ", "μετ", "παρ", "κατ", "δι", "απ", "επ",
+            "υπ", "αφ", "εφ", "υφ", "μηδ", "ουδ", "αντ", "περ",
+        }
+        stem_lower = strip_accents(stem.lower())
+
+        # Sort by: (1) function word priority, (2) vowel frequency, (3) lemma length
         _VOWEL_RANK = {v: i for i, v in enumerate("εαοιηυω")}
         _ACC_VOWEL_RANK = {"ά": 1, "έ": 0, "ί": 4, "ό": 2,
                            "ή": 3, "ύ": 5, "ώ": 6}
 
+        # Function word lemmas (prepositions, particles, conjunctions)
+        _FUNCTION_LEMMAS = {
+            "ἀλλά", "μετά", "παρά", "κατά", "διά", "ἀπό", "ἐπί",
+            "ὑπό", "ἀπό", "ἐπί", "ὑπό", "μηδέ", "οὐδέ", "ἀντί",
+            "περί", "δέ", "γε", "τε", "ἄρα", "ἔτι",
+        }
+
         def _rank(item):
             expanded, lemma, vowel = item
+            # Prefer function words when stem is a known elision stem
+            is_function = 0 if (stem_lower in _ELISION_PRIORITY
+                                and lemma in _FUNCTION_LEMMAS) else 1
+            # Deprioritize proper nouns
+            is_proper = 1 if lemma and lemma[0].isupper() else 0
             vrank = _ACC_VOWEL_RANK.get(vowel, _VOWEL_RANK.get(vowel, 10))
-            return (vrank, len(lemma))
+            return (is_function, is_proper, vrank, len(lemma))
 
         results.sort(key=_rank)
         return results
