@@ -187,6 +187,15 @@ def load_pairs(lang: str, max_pairs: int = 0) -> list[dict]:
         ag_pool = dedup(by_source["ag"])
         print(f"  AG pool: {len(ag_pool)} pairs")
 
+    # GLAUx corpus pairs (morphologically tagged AG, folded into AG pool)
+    glaux_path = DATA_DIR / "glaux_pairs.json"
+    if glaux_path.exists() and lang in ("all", "grc"):
+        with open(glaux_path, encoding="utf-8") as f:
+            glaux_data = json.load(f)
+        glaux = dedup(glaux_data)
+        ag_pool.extend(glaux)
+        print(f"  GLAUx: {len(glaux)} morphologically tagged AG pairs")
+
     # Oversample perfect tense forms (underrepresented in training: ~2%
     # vs 11.4% in Byzantine text per Swaelens et al. 2024/2025)
     PERFECT_TAGS = {"perfect", "pluperfect", "future-perfect"}
