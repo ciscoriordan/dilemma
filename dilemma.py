@@ -22,6 +22,11 @@ Usage:
     m.lemmatize_verbose("πόλεμο")
     # -> [LemmaCandidate(lemma="πόλεμος", lang="el"),
     #     LemmaCandidate(lemma="πόλεμος", lang="grc")]
+
+    # Convention remapping: LSJ dictionary headwords
+    m_lsj = Dilemma(convention="lsj")
+    m_lsj.lemmatize("αἰνῶς")        # -> "αἰνός" (adverb -> adjective)
+    m_lsj.lemmatize("εἶπον")        # -> "λέγω" (aorist -> present stem)
 """
 
 import json
@@ -42,6 +47,10 @@ TREEBANK_POS_LOOKUP_PATH = Path(__file__).parent / "data" / "treebank_pos_lookup
 GLAUX_POS_LOOKUP_PATH = Path(__file__).parent / "data" / "glaux_pos_lookup.json"
 LSJ_HEADWORDS_PATH = Path(__file__).parent / "data" / "lsj_headwords.json"
 CUNLIFFE_HEADWORDS_PATH = Path(__file__).parent / "data" / "cunliffe_headwords.json"
+LEMMA_EQUIVALENCES_PATH = Path(__file__).parent / "data" / "lemma_equivalences.json"
+CONVENTION_DIR = Path(__file__).parent / "data"
+
+_VALID_CONVENTIONS = {None, "lsj", "wiktionary"}
 
 
 _POLYTONIC_STRIP = {0x0313, 0x0314, 0x0345, 0x0306, 0x0304}
@@ -302,7 +311,8 @@ class LookupDB:
 
 class Dilemma:
     def __init__(self, lang="all", device=None, scale=None,
-                 resolve_articles=False, normalize=False, period=None):
+                 resolve_articles=False, normalize=False, period=None,
+                 convention=None):
         """Initialize Dilemma.
 
         Args:
@@ -326,7 +336,18 @@ class Dilemma:
             period: Historical period for normalization rule weights.
                   One of: "hellenistic", "late_antique", "byzantine",
                   "all" (default). Only used when normalize=True.
+            convention: Lemma convention for output remapping. Controls
+                  which citation form is returned when multiple conventions
+                  exist for the same word (e.g. LSJ vs Wiktionary headwords).
+                  One of: None (default, no remapping), "wiktionary" (same
+                  as None), "lsj" (remap to LSJ dictionary headwords using
+                  lemma equivalence groups).
         """
+        if convention not in _VALID_CONVENTIONS:
+            raise ValueError(
+                f"Unknown convention {convention!r}. "
+                f"Valid values: {sorted(c for c in _VALID_CONVENTIONS if c)}, or None."
+            )
         if lang == "both":
             lang = "all"
         self.lang = lang
@@ -351,6 +372,7 @@ class Dilemma:
         self._pos_lookup: dict[str, dict[str, str]] = {}
 
         self._load_lookups()
+        self._convention_map = self._build_convention_map(convention)
         self._check_backend()
 
     def _check_backend(self):
@@ -483,6 +505,77 @@ class Dilemma:
                 for upos, lemma in upos_lemmas.items():
                     if upos not in self._pos_lookup[form]:
                         self._pos_lookup[form][upos] = lemma
+
+    def _build_convention_map(self, convention: str | None) -> dict[str, str]:
+        """Build a lemma remapping dict for the given convention.
+
+        For "lsj", each equivalence group is resolved to the first member
+        that appears in the LSJ headword list. All other members map to it.
+        For None or "wiktionary", returns an empty dict (no remapping).
+
+        After auto-deriving from equivalences, explicit overrides from
+        data/convention_{name}.json are applied (if the file exists).
+        The override file format is: {"mappings": {"from_lemma": "to_lemma"}}.
+        """
+        if convention is None or convention == "wiktionary":
+            return {}
+
+        remap = {}
+
+        # Auto-derive from equivalence groups + LSJ headwords
+        if LEMMA_EQUIVALENCES_PATH.exists():
+            with open(LEMMA_EQUIVALENCES_PATH, encoding="utf-8") as f:
+                equiv_data = json.load(f)
+
+            # Load LSJ headwords for cross-referencing.
+            # LSJ headwords often include vowel-length marks (macron U+0304,
+            # breve U+0306) like βᾰρύς. Strip these so they match our
+            # plain equivalence group members.
+            lsj_headwords = set()
+            if LSJ_HEADWORDS_PATH.exists():
+                with open(LSJ_HEADWORDS_PATH, encoding="utf-8") as f:
+                    raw = json.load(f)
+                lsj_headwords = set(raw)
+                for h in raw:
+                    nfd = unicodedata.normalize("NFD", h)
+                    stripped = "".join(
+                        c for c in nfd if ord(c) not in (0x0304, 0x0306))
+                    stripped = unicodedata.normalize("NFC", stripped)
+                    if stripped != h:
+                        lsj_headwords.add(stripped)
+
+            for group in equiv_data.get("groups", []):
+                if len(group) < 2:
+                    continue
+
+                # Find the canonical for this convention: first member
+                # in the LSJ headword list. Fall back to the first
+                # member of the group if none are LSJ headwords.
+                canonical = group[0]
+                for member in group:
+                    if member in lsj_headwords:
+                        canonical = member
+                        break
+
+                for member in group:
+                    if member != canonical:
+                        remap[member] = canonical
+
+        # Apply explicit overrides from convention file
+        override_path = CONVENTION_DIR / f"convention_{convention}.json"
+        if override_path.exists():
+            with open(override_path, encoding="utf-8") as f:
+                overrides = json.load(f)
+            for from_lemma, to_lemma in overrides.get("mappings", {}).items():
+                remap[from_lemma] = to_lemma
+
+        return remap
+
+    def _apply_convention(self, lemma: str) -> str:
+        """Remap a lemma according to the active convention."""
+        if self._convention_map:
+            return self._convention_map.get(lemma, lemma)
+        return lemma
 
     def _find_model_dir(self):
         """Find the best available model directory."""
@@ -773,40 +866,42 @@ class Dilemma:
           3. Lookup table (instant, 5M+ forms)
           4. Elision expansion (strip mark, try vowels against lookup)
           5. Model with beam search + headword filter
+
+        If a convention is set, the output lemma is remapped accordingly.
         """
         # Resolve articles/pronouns to canonical lemma
         closed = self._resolve_closed_class(word)
         if closed is not None:
-            return closed
+            return self._apply_convention(closed)
 
         # Check crasis first (before lookup, since crasis forms are
         # Wiktionary headwords that self-map in the lookup)
         from crasis import resolve_crasis
         crasis_result = resolve_crasis(word) or resolve_crasis(to_monotonic(word))
         if crasis_result is not None:
-            return crasis_result
+            return self._apply_convention(crasis_result)
 
         # Lookup: exact -> lowercase -> monotonic -> accent-stripped
         lemma = self._lookup_word(word)
         if lemma:
-            return lemma
+            return self._apply_convention(lemma)
 
         # Elision expansion (after lookup, so known words like εἰ/οὐ
         # aren't falsely caught by smooth-breathing-as-elision)
         elision_lemma = self._expand_elision(word)
         if elision_lemma:
-            return elision_lemma
+            return self._apply_convention(elision_lemma)
 
         # Normalizer: try orthographic variants against lookup
         if self._normalizer:
             for candidate in self._normalizer.normalize(word):
                 lemma = self._lookup_word(candidate)
                 if lemma:
-                    return lemma
+                    return self._apply_convention(lemma)
 
         # Fall back to model
         self._load_model()
-        return self._predict([word])[0]
+        return self._apply_convention(self._predict([word])[0])
 
     def lemmatize_pos(self, word: str, upos: str) -> str:
         """Lemmatize with POS-aware disambiguation.
@@ -825,7 +920,7 @@ class Dilemma:
         # Closed class first (articles, pronouns)
         closed = self._resolve_closed_class(word)
         if closed is not None:
-            return closed
+            return self._apply_convention(closed)
 
         # Check POS lookup with cascade: exact, lower, grave_to_acute, monotonic, stripped
         lower = word.lower()
@@ -835,9 +930,9 @@ class Dilemma:
         for variant in (word, lower, acute, mono, stripped):
             pos_entry = self._pos_lookup.get(variant)
             if pos_entry and upos in pos_entry:
-                return pos_entry[upos]
+                return self._apply_convention(pos_entry[upos])
 
-        # Fall back to regular lemmatize
+        # Fall back to regular lemmatize (convention applied there)
         return self.lemmatize(word)
 
     def lemmatize_batch_pos(self, words: list[str], upos_tags: list[str]) -> list[str]:
@@ -865,7 +960,7 @@ class Dilemma:
             # Closed class first
             closed = self._resolve_closed_class(word)
             if closed is not None:
-                results[i] = closed
+                results[i] = self._apply_convention(closed)
                 continue
 
             # POS lookup cascade
@@ -880,7 +975,7 @@ class Dilemma:
                     break
 
             if pos_hit is not None:
-                results[i] = pos_hit
+                results[i] = self._apply_convention(pos_hit)
             else:
                 fallback_indices.append(i)
                 fallback_words.append(word)
@@ -1023,10 +1118,25 @@ class Dilemma:
         # Sort: non-proper before proper, then by score descending
         candidates.sort(key=lambda c: (c.proper, -c.score))
 
+        # Apply convention remapping
+        if self._convention_map:
+            seen_remapped = set()
+            remapped = []
+            for c in candidates:
+                c.lemma = self._apply_convention(c.lemma)
+                key = (c.lemma, c.lang)
+                if key not in seen_remapped:
+                    seen_remapped.add(key)
+                    remapped.append(c)
+            candidates = remapped
+
         return candidates
 
     def lemmatize_batch(self, words: list[str]) -> list[str]:
-        """Lemmatize a batch of words. Uses model only for unknowns."""
+        """Lemmatize a batch of words. Uses model only for unknowns.
+
+        If a convention is set, all output lemmas are remapped accordingly.
+        """
         results = []
         model_indices = []
         model_words = []
@@ -1078,6 +1188,10 @@ class Dilemma:
             predictions = self._predict(model_words)
             for idx, pred in zip(model_indices, predictions):
                 results[idx] = pred
+
+        # Apply convention remapping to all results
+        if self._convention_map:
+            results = [self._apply_convention(r) if r else r for r in results]
 
         return results
 
