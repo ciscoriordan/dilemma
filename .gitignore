@@ -1,6 +1,7 @@
 # Data files (large, generated - except LFS-tracked ones)
 data/*.jsonl
 data/*.db
+!data/lookup.db
 data/*.tar.gz
 data/*.xml
 data/*.xml.bz2
