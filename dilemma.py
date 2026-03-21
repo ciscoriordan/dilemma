@@ -59,7 +59,7 @@ _POLYTONIC_TO_ACUTE = {0x0300, 0x0342}
 # Elision mark: U+0313 COMBINING COMMA ABOVE (repurposed as apostrophe
 # in polytonic Greek text). Also handle right single quote U+2019 and
 # modifier letter apostrophe U+02BC.
-_ELISION_MARKS = {"\u0313", "\u2019", "\u02BC", "'", "\u1FBD"}
+_ELISION_MARKS = {"\u0313", "\u2019", "\u02BC", "'", "\u1FBD", "\u02B9"}
 
 # Vowels to try when expanding elision (ordered by frequency in AG text)
 _GREEK_VOWELS = "αεοιηυω"
@@ -916,6 +916,109 @@ class Dilemma:
         """Check if a lemma is a proper noun (capitalized headword)."""
         return bool(lemma) and lemma[0].isupper()
 
+    # ---- Compound decomposition ----
+
+    # Linking vowels at the junction of Greek compounds
+    _COMPOUND_LINK_VOWELS = set("οιυ")
+    _MIN_COMPOUND_PREFIX = 2   # e.g. εὐ-, τρι-
+    _MIN_COMPOUND_BASE = 3     # need enough for inflection
+
+    def _decompose_compound(self, word: str) -> str | None:
+        """Try to lemmatize an unknown compound by splitting at linking vowels.
+
+        Greek compounds: first-stem + linking-vowel (ο/ι/υ) + second-element.
+        The second element inflects like its standalone form. Strategy: split
+        at each linking vowel (left to right, preferring longer bases), look
+        up the base, and reconstruct prefix + base_lemma.
+
+        Returns the reconstructed compound lemma, or None.
+        """
+        lower = word.lower()
+        stripped = strip_accents(lower)
+
+        if len(stripped) < self._MIN_COMPOUND_PREFIX + self._MIN_COMPOUND_BASE + 1:
+            return None
+
+        # Try split points left to right (longest base first = most reliable)
+        for i in range(self._MIN_COMPOUND_PREFIX - 1,
+                       len(stripped) - self._MIN_COMPOUND_BASE):
+            if stripped[i] not in self._COMPOUND_LINK_VOWELS:
+                continue
+
+            prefix = stripped[:i + 1]   # includes linking vowel
+            base = stripped[i + 1:]
+
+            if len(base) < self._MIN_COMPOUND_BASE:
+                continue
+
+            # Look up the base in the lookup table
+            base_lemma = self._lookup_word(base)
+            if not base_lemma:
+                continue
+
+            base_lemma_s = strip_accents(base_lemma.lower())
+
+            # Guard: skip if lookup returned identity (no real lemmatization)
+            if base_lemma_s == base:
+                continue
+
+            # Guard: skip if base_lemma is suspiciously short (false match)
+            if len(base_lemma_s) < 2:
+                continue
+
+            # Guard: base_lemma should be shorter or equal to base
+            # (lemmatization removes inflection, doesn't add length)
+            if len(base_lemma_s) > len(base) + 2:
+                continue
+
+            # Reconstruct compound lemma
+            return prefix + base_lemma_s
+
+        return None
+
+    def _decompose_compound_all(self, word: str) -> list[tuple[str, str, str]]:
+        """Return ALL valid compound decompositions.
+
+        Returns list of (compound_lemma, base_lemma, prefix) triples,
+        ordered by base length descending (longest base = most specific).
+        Used by lemmatize_verbose for multi-candidate output.
+        """
+        lower = word.lower()
+        stripped = strip_accents(lower)
+        results = []
+        seen = set()
+
+        if len(stripped) < self._MIN_COMPOUND_PREFIX + self._MIN_COMPOUND_BASE + 1:
+            return results
+
+        for i in range(self._MIN_COMPOUND_PREFIX - 1,
+                       len(stripped) - self._MIN_COMPOUND_BASE):
+            if stripped[i] not in self._COMPOUND_LINK_VOWELS:
+                continue
+
+            prefix = stripped[:i + 1]
+            base = stripped[i + 1:]
+
+            if len(base) < self._MIN_COMPOUND_BASE:
+                continue
+
+            base_lemma = self._lookup_word(base)
+            if not base_lemma:
+                continue
+
+            base_lemma_s = strip_accents(base_lemma.lower())
+            if base_lemma_s == base or len(base_lemma_s) < 2:
+                continue
+            if len(base_lemma_s) > len(base) + 2:
+                continue
+
+            compound = prefix + base_lemma_s
+            if compound not in seen:
+                seen.add(compound)
+                results.append((compound, base_lemma, prefix))
+
+        return results
+
     def lemmatize(self, word: str) -> str:
         """Lemmatize a single Greek word.
 
@@ -924,7 +1027,9 @@ class Dilemma:
           2. Crasis table (small, hand-curated)
           3. Lookup table (instant, 5M+ forms)
           4. Elision expansion (strip mark, try vowels against lookup)
-          5. Model with beam search + headword filter
+          5. Normalizer (orthographic variants)
+          6. Compound decomposition (split at linking vowel, look up base)
+          7. Model with beam search + headword filter
 
         If a convention is set, the output lemma is remapped accordingly.
         """
@@ -960,7 +1065,17 @@ class Dilemma:
 
         # Fall back to model
         self._load_model()
-        return self._apply_convention(self._predict([word])[0])
+        pred = self._predict([word])[0]
+
+        # Compound decomposition: only when the model returns identity
+        # (model couldn't lemmatize). Uses accent-stripped comparison since
+        # the model may return slight accent variants of the input.
+        if strip_accents(pred.lower()) == strip_accents(word.lower()):
+            compound = self._decompose_compound(word)
+            if compound:
+                return self._apply_convention(compound)
+
+        return self._apply_convention(pred)
 
     def lemmatize_pos(self, word: str, upos: str) -> str:
         """Lemmatize with POS-aware disambiguation.
@@ -1161,14 +1276,23 @@ class Dilemma:
                             break
 
         # 6. Model fallback (if no candidates yet)
+        model_identity = False
         if not candidates:
             try:
                 self._load_model()
                 pred = self._predict([word])[0]
-                if pred != word:
+                if strip_accents(pred.lower()) != strip_accents(word.lower()):
                     _add(pred, source="model", score=0.5)
+                else:
+                    model_identity = True
             except (FileNotFoundError, RuntimeError):
-                pass
+                model_identity = True
+
+        # 7. Compound decomposition (only when model returned identity)
+        if model_identity:
+            for compound, base_lemma, prefix in self._decompose_compound_all(word):
+                _add(compound, source="compound",
+                     via=f"{prefix}+{base_lemma}", score=0.7)
 
         # If still nothing, return the word itself
         if not candidates:
@@ -1245,7 +1369,12 @@ class Dilemma:
         if model_words:
             self._load_model()
             predictions = self._predict(model_words)
-            for idx, pred in zip(model_indices, predictions):
+            for idx, word, pred in zip(model_indices, model_words, predictions):
+                # Compound decomposition: only when model returns identity
+                if strip_accents(pred.lower()) == strip_accents(word.lower()):
+                    compound = self._decompose_compound(word)
+                    if compound:
+                        pred = compound
                 results[idx] = pred
 
         # Apply convention remapping to all results
