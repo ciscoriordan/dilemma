@@ -583,10 +583,23 @@ Lua modules on headwords extracted from lexicon XML/TEI files.
 
 The [GLAUx corpus](https://github.com/alekkeersmaekers/glaux) provides
 the largest single source of new form-lemma pairs outside Wiktionary.
-We chose GLAUx over [Opera Graeca Adnotata](https://doi.org/10.5281/zenodo.14206061)
-(OGA, 40M tokens) because GLAUx has higher lemma accuracy (98.8% vs
-91.4%), a simpler data format (AGDT XML vs standoff PAULA XML), and
-a manageable download size. Both are CC BY-SA 4.0.
+We chose GLAUx over two larger corpora:
+
+- [Opera Graeca Adnotata](https://doi.org/10.5281/zenodo.14206061)
+  (OGA, 40M tokens): lower lemma accuracy (91.4% vs GLAUx's 98.8%),
+  standoff PAULA XML format requires complex alignment code, and at
+  91.4% accuracy would introduce ~3.4M wrong lemmas into the lookup
+  table - more noise than signal for a lookup-first system.
+- [Pedalion](https://github.com/perseids-publications/pedalion-trees)
+  (5.8M tokens): smaller than GLAUx with similar classical-period
+  coverage. Would add few forms not already covered by GLAUx + Wiktionary
+  + LSJ, since the remaining lookup gaps are mostly Byzantine compounds
+  not found in any classical corpus.
+
+All three are CC BY-SA 4.0. The remaining 4.3% no-lookup-hit errors
+(on DBBE) are primarily rare Byzantine compounds like θεόφθογγος or
+τριφεγγής, which would benefit more from compound decomposition than
+from additional classical corpus data.
 
 Each form is indexed under its original, monotonic, and accent-stripped
 variants for fuzzy matching.
