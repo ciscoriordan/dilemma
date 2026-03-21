@@ -1,0 +1,14 @@
+{
+  "pos_labels": {
+    "0": "verb",
+    "1": "noun",
+    "2": "adj",
+    "3": "adv",
+    "4": "name",
+    "5": "pron",
+    "6": "num",
+    "7": "prep",
+    "8": "article",
+    "9": "character"
+  }
+}

@@ -58,6 +58,10 @@ class OnnxLemmaModel:
     Loads encoder.onnx and decoder_step.onnx, implements beam search
     in pure Python/NumPy. No PyTorch required.
 
+    Optionally loads morphology head weights (heads.npz) for POS,
+    nominal (gender/number/case), and verbal (tense/mood/voice)
+    prediction via simple numpy matmul on pooled encoder output.
+
     The ONNX models use fixed sequence lengths to avoid MHA reshape issues:
     - Encoder: ONNX_MAX_LEN (48) for source
     - Decoder: ONNX_MAX_OUT (32) for target
@@ -76,6 +80,103 @@ class OnnxLemmaModel:
         self.decoder = ort.InferenceSession(
             str(model_dir / "decoder_step.onnx"),
             providers=["CPUExecutionProvider"])
+
+        # Load morphology heads (optional, exported by export_onnx.py)
+        self._heads = {}
+        self._head_labels = {}
+        heads_path = model_dir / "heads.npz"
+        labels_path = model_dir / "head_labels.json"
+        if heads_path.exists():
+            data = np.load(str(heads_path))
+            for name in ["pos_head", "nom_head", "verb_head"]:
+                w_key = f"{name}_weight"
+                b_key = f"{name}_bias"
+                if w_key in data:
+                    self._heads[name] = (data[w_key], data[b_key])
+        if labels_path.exists():
+            with open(labels_path, encoding="utf-8") as f:
+                self._head_labels = json.load(f)
+
+    @property
+    def has_pos_head(self):
+        return "pos_head" in self._heads
+
+    @property
+    def has_morph_heads(self):
+        return "nom_head" in self._heads or "verb_head" in self._heads
+
+    def _run_head(self, head_name: str, pooled: np.ndarray) -> np.ndarray:
+        """Run a linear head: logits = pooled @ W^T + b."""
+        weight, bias = self._heads[head_name]
+        return pooled @ weight.T + bias
+
+    def _pool_memory(self, memory: np.ndarray,
+                     src_mask: np.ndarray) -> np.ndarray:
+        """Mean-pool encoder output over non-padding positions.
+
+        Args:
+            memory: (batch, seq_len, d_model)
+            src_mask: (batch, seq_len) bool, True = padding
+
+        Returns:
+            (batch, d_model)
+        """
+        mask = (~src_mask).astype(np.float32)  # (batch, seq_len), 1=real
+        mask_3d = mask[:, :, None]  # (batch, seq_len, 1)
+        pooled = (memory * mask_3d).sum(axis=1) / mask.sum(axis=1, keepdims=True).clip(min=1)
+        return pooled
+
+    def predict_pos(self, src: np.ndarray,
+                    src_mask: np.ndarray = None) -> list[str]:
+        """Predict POS tag for each word in the batch.
+
+        Returns list of POS label strings (e.g. "verb", "noun", "adj").
+        """
+        if "pos_head" not in self._heads:
+            return ["" for _ in range(src.shape[0])]
+        if src_mask is None:
+            src_mask = (src == 0)
+        memory = self._encode(src, src_mask)
+        pooled = self._pool_memory(memory, src_mask)
+        logits = self._run_head("pos_head", pooled)
+        labels = self._head_labels.get("pos_labels", {})
+        return [labels.get(str(int(idx)), f"tag{idx}")
+                for idx in logits.argmax(axis=1)]
+
+    def predict_morph(self, src: np.ndarray,
+                      src_mask: np.ndarray = None) -> list[dict]:
+        """Predict nominal + verbal morphology for each word.
+
+        Returns list of dicts with keys "nom" and/or "verb" (label strings
+        like "m.s.n" or "pre.ind.act"), plus "nom_conf"/"verb_conf" scores.
+        """
+        if src_mask is None:
+            src_mask = (src == 0)
+        memory = self._encode(src, src_mask)
+        pooled = self._pool_memory(memory, src_mask)
+
+        results = [{} for _ in range(src.shape[0])]
+        nom_labels = self._head_labels.get("nom_labels", {})
+        verb_labels = self._head_labels.get("verb_labels", {})
+
+        if "nom_head" in self._heads:
+            logits = self._run_head("nom_head", pooled)
+            # softmax for confidence
+            exp_l = np.exp(logits - logits.max(axis=1, keepdims=True))
+            probs = exp_l / exp_l.sum(axis=1, keepdims=True)
+            for i, idx in enumerate(logits.argmax(axis=1)):
+                results[i]["nom"] = nom_labels.get(str(int(idx)), f"nom{idx}")
+                results[i]["nom_conf"] = float(probs[i, idx])
+
+        if "verb_head" in self._heads:
+            logits = self._run_head("verb_head", pooled)
+            exp_l = np.exp(logits - logits.max(axis=1, keepdims=True))
+            probs = exp_l / exp_l.sum(axis=1, keepdims=True)
+            for i, idx in enumerate(logits.argmax(axis=1)):
+                results[i]["verb"] = verb_labels.get(str(int(idx)), f"verb{idx}")
+                results[i]["verb_conf"] = float(probs[i, idx])
+
+        return results
 
     def _encode(self, src: np.ndarray, src_mask: np.ndarray) -> np.ndarray:
         return self.encoder.run(None, {
