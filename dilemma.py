@@ -26,11 +26,13 @@ Usage:
 
 import json
 import re
+import sqlite3
 import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
 
 MODEL_DIR = Path(__file__).parent / "model"
+LOOKUP_DB_PATH = Path(__file__).parent / "data" / "lookup.db"
 LOOKUP_PATH = Path(__file__).parent / "data" / "mg_lookup.json"
 AG_LOOKUP_PATH = Path(__file__).parent / "data" / "ag_lookup.json"
 MED_LOOKUP_PATH = Path(__file__).parent / "data" / "med_lookup.json"
@@ -210,6 +212,94 @@ def _strip_elision(word: str) -> str | None:
     return None
 
 
+class LookupDB:
+    """Dict-like wrapper around SQLite lookup table.
+
+    Provides .get(key) that queries SQLite instead of loading the full
+    12.5M-entry dict into memory. Supports lazy bulk-load into a dict
+    for batch operations.
+
+    The DB has two tables:
+      - lemmas(id, text): deduplicated lemma strings (~700K)
+      - lookup(form, lemma_id, lang): form->lemma mappings (~12.5M)
+        lang='c' for combined, lang='a' for AG-only overrides
+    """
+
+    def __init__(self, db_path, lang='c'):
+        self._conn = sqlite3.connect(str(db_path))
+        self._conn.execute("PRAGMA mmap_size=268435456")  # 256MB mmap
+        self._lang = lang
+        self._dict = None  # lazy-loaded for batch ops
+        self._query = (
+            "SELECT l.text FROM lookup k JOIN lemmas l ON k.lemma_id = l.id "
+            "WHERE k.form = ? AND k.lang = ? LIMIT 1"
+        )
+
+    def get(self, key, default=None):
+        """Dict-compatible .get() backed by SQLite."""
+        if self._dict is not None:
+            return self._dict.get(key, default)
+        row = self._conn.execute(self._query, (key, self._lang)).fetchone()
+        if row:
+            return row[0]
+        # AG-only table ('a') falls through to combined ('c') for entries
+        # where AG agrees with combined (not stored separately to save space)
+        if self._lang == 'a':
+            row = self._conn.execute(self._query, (key, 'c')).fetchone()
+            return row[0] if row else default
+        return default
+
+    def __contains__(self, key):
+        if self._dict is not None:
+            return key in self._dict
+        row = self._conn.execute(self._query, (key, self._lang)).fetchone()
+        if row:
+            return True
+        if self._lang == 'a':
+            return self._conn.execute(self._query, (key, 'c')).fetchone() is not None
+        return False
+
+    def __getitem__(self, key):
+        val = self.get(key)
+        if val is None:
+            raise KeyError(key)
+        return val
+
+    def __bool__(self):
+        return True
+
+    def items(self):
+        """Iterate all entries (loads nothing extra into memory)."""
+        cursor = self._conn.execute(
+            "SELECT k.form, l.text FROM lookup k JOIN lemmas l ON k.lemma_id = l.id "
+            "WHERE k.lang = ?", (self._lang,))
+        return cursor
+
+    def __iter__(self):
+        cursor = self._conn.execute(
+            "SELECT form FROM lookup WHERE lang = ?", (self._lang,))
+        for row in cursor:
+            yield row[0]
+
+    def __len__(self):
+        row = self._conn.execute(
+            "SELECT COUNT(*) FROM lookup WHERE lang = ?", (self._lang,)).fetchone()
+        return row[0]
+
+    def bulk_load(self):
+        """Load entire table into a dict for fast batch operations."""
+        if self._dict is not None:
+            return
+        self._dict = {}
+        for form, lemma in self.items():
+            self._dict[form] = lemma
+
+    def close(self):
+        if self._conn:
+            self._conn.close()
+            self._conn = None
+
+
 class Dilemma:
     def __init__(self, lang="all", device=None, scale=None,
                  resolve_articles=False, normalize=False, period=None):
@@ -250,13 +340,12 @@ class Dilemma:
             from normalize import Normalizer
             self._normalizer = Normalizer(period=period)
 
-        # Per-language lookup tables (always loaded separately for verbose mode)
-        self._mg_lookup: dict[str, str] = {}
-        self._med_lookup: dict[str, str] = {}
-        self._ag_lookup: dict[str, str] = {}
-
-        # Combined lookup (respects lang priority)
-        self._lookup: dict[str, str] = {}
+        # Lookup tables: SQLite-backed (instant startup) or dict (JSON fallback)
+        self._mg_lookup = {}
+        self._med_lookup = {}
+        self._ag_lookup = {}
+        self._lookup = {}
+        self._using_db = False
 
         # POS-indexed disambiguation table: {form: {upos: lemma}}
         self._pos_lookup: dict[str, dict[str, str]] = {}
@@ -291,7 +380,27 @@ class Dilemma:
         )
 
     def _load_lookups(self):
-        """Load lookup tables, keeping per-language copies for verbose mode."""
+        """Load lookup tables from SQLite (instant) or JSON (fallback).
+
+        SQLite path (lookup.db): pre-merged combined table with AG priority,
+        plus AG-only overrides for polytonic disambiguation. Near-instant
+        startup, 0.05ms/query, supports lazy bulk_load() for batch ops.
+
+        JSON fallback: loads all three JSON files and merges at init (~11s).
+        """
+        if LOOKUP_DB_PATH.exists() and self.lang == "all":
+            # SQLite: instant startup
+            self._lookup = LookupDB(LOOKUP_DB_PATH, lang='c')
+            self._ag_lookup = LookupDB(LOOKUP_DB_PATH, lang='a')
+            self._using_db = True
+        else:
+            # JSON fallback
+            self._load_lookups_json()
+
+        self._load_pos_lookups()
+
+    def _load_lookups_json(self):
+        """Fallback: load JSON lookup tables and merge (~11s)."""
         if LOOKUP_PATH.exists():
             with open(LOOKUP_PATH, encoding="utf-8") as f:
                 self._mg_lookup = json.load(f)
@@ -302,14 +411,6 @@ class Dilemma:
             with open(AG_LOOKUP_PATH, encoding="utf-8") as f:
                 self._ag_lookup = json.load(f)
 
-        # Build combined lookup respecting lang priority.
-        # Real mappings (form != lemma) override self-mappings (form == lemma)
-        # regardless of language priority. Self-maps just mean "this is a
-        # headword" — a weaker signal than "this is an inflected form of X".
-        # E.g. MG τούτου→τούτου (self-map) should NOT block AG τούτου→οὗτος.
-        # Also treat "polytonic -> monotonic of same word" as a notation
-        # variant (e.g. MG ἐν→εν), not a real mapping. When both languages
-        # have notation variants, prefer the one that preserves the input form.
         def _is_self_map(form, lemma):
             return (form == lemma
                     or strip_accents(form.lower()) == strip_accents(lemma.lower()))
@@ -320,14 +421,10 @@ class Dilemma:
                     if k not in self._lookup:
                         self._lookup[k] = v
                     elif _is_self_map(k, self._lookup[k]) and not _is_self_map(k, v):
-                        # Existing is a self-map, new is a real mapping - override
                         self._lookup[k] = v
                     elif (_is_self_map(k, self._lookup[k])
                           and _is_self_map(k, v) and v == k
                           and self._lookup[k] != k):
-                        # Both are notation variants, but new one preserves
-                        # the exact form (true self-map) - prefer it
-                        # E.g. MG ἐν→εν replaced by AG ἐν→ἐν
                         self._lookup[k] = v
         elif self.lang == "el":
             for data in [self._mg_lookup, self._med_lookup]:
@@ -339,6 +436,8 @@ class Dilemma:
         elif self.lang == "grc":
             self._lookup = dict(self._ag_lookup)
 
+    def _load_pos_lookups(self):
+        """Load POS disambiguation tables from JSON."""
         # Load POS disambiguation tables.
         # Priority: treebank (gold) > GLAUx (corpus) > MG Wiktionary > AG Wiktionary.
         # Lower-priority sources only fill in form+upos slots not already set.
@@ -633,6 +732,8 @@ class Dilemma:
 
     def _lang_of(self, form: str) -> str:
         """Determine which language table a form comes from."""
+        if self._using_db:
+            return self._lang_of_db(form)
         lower = form.lower()
         mono = to_monotonic(lower)
         stripped = strip_accents(lower)
@@ -643,6 +744,20 @@ class Dilemma:
                 return "med"
             if variant in self._ag_lookup:
                 return "grc"
+        return ""
+
+    def _lang_of_db(self, form: str) -> str:
+        """SQLite-backed language detection via the src column."""
+        _SRC_TO_LANG = {'a': 'grc', 'e': 'el', 'm': 'med'}
+        conn = self._lookup._conn
+        lower = form.lower()
+        mono = to_monotonic(lower)
+        stripped = strip_accents(lower)
+        query = "SELECT src FROM lookup WHERE form = ? AND lang = 'c' LIMIT 1"
+        for variant in [form, lower, mono, stripped]:
+            row = conn.execute(query, (variant,)).fetchone()
+            if row:
+                return _SRC_TO_LANG.get(row[0], "")
         return ""
 
     def _is_proper(self, lemma: str) -> bool:
