@@ -133,6 +133,22 @@ def strip_accents(s: str) -> str:
         "".join(c for c in nfd if unicodedata.category(c) != "Mn"))
 
 
+def _levenshtein(a: str, b: str) -> int:
+    """Levenshtein edit distance between two strings."""
+    if len(a) < len(b):
+        return _levenshtein(b, a)
+    if not b:
+        return len(a)
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a):
+        curr = [i + 1]
+        for j, cb in enumerate(b):
+            curr.append(min(curr[j] + 1, prev[j + 1] + 1,
+                            prev[j] + (0 if ca == cb else 1)))
+        prev = curr
+    return prev[-1]
+
+
 def _strip_elision(word: str) -> str | None:
     """Strip trailing elision mark from an elided word form.
 
@@ -890,6 +906,119 @@ class Dilemma:
                 results[idx] = pred
 
         return results
+
+    # ---- Spelling correction ----
+
+    # Greek lowercase letters for ED1 candidate generation
+    _GREEK_LETTERS = "αβγδεζηθικλμνξοπρσςτυφχψω"
+
+    def _build_spell_index(self):
+        """Build the accent-stripped index for spelling correction.
+
+        Maps each accent-stripped form to all its original polytonic
+        variants in the lookup table. This collapses the 8-11M entry
+        lookup into a ~1-3M normalized set, making ED1 candidate
+        generation fast.
+        """
+        if hasattr(self, "_spell_norm_map"):
+            return
+        norm_map: dict[str, set[str]] = {}
+        for form in self._lookup:
+            stripped = strip_accents(form.lower())
+            if stripped not in norm_map:
+                norm_map[stripped] = set()
+            norm_map[stripped].add(form)
+        self._spell_norm_map = norm_map
+        self._spell_norm_set = set(norm_map.keys())
+
+    @staticmethod
+    def _edits1(word: str) -> set[str]:
+        """Generate all strings within edit distance 1 of word.
+
+        Operations: deletes, transposes, replaces, inserts.
+        Uses Greek lowercase alphabet for replacements and insertions.
+        """
+        letters = Dilemma._GREEK_LETTERS
+        splits = [(word[:i], word[i:]) for i in range(len(word) + 1)]
+        deletes = [L + R[1:] for L, R in splits if R]
+        transposes = [L + R[1] + R[0] + R[2:] for L, R in splits if len(R) > 1]
+        replaces = [L + c + R[1:] for L, R in splits if R for c in letters]
+        inserts = [L + c + R for L, R in splits for c in letters]
+        return set(deletes + transposes + replaces + inserts)
+
+    def suggest_spelling(self, word: str, max_distance: int = 2
+                         ) -> list[tuple[str, int]]:
+        """Suggest spelling corrections for an unknown Greek word.
+
+        Returns a list of (correct_form, edit_distance) tuples, sorted
+        by edit distance then alphabetically. Uses a two-layer approach:
+
+        1. Strip diacritics from the input and the dictionary, reducing
+           8-11M entries to ~1-3M unique base forms
+        2. Find ED0/ED1/ED2 matches on the stripped forms
+        3. Return the original polytonic forms, ranked by actual
+           Levenshtein distance to the input
+
+        This means diacritic errors (wrong accent, missing breathing)
+        cost 0 in the first layer and are corrected for free, while
+        letter-level errors (θ/δ, ρ/ν) use standard edit distance.
+
+        Args:
+            word: The possibly-misspelled Greek word.
+            max_distance: Maximum edit distance (1 or 2). Default 2.
+
+        Returns:
+            List of (corrected_form, distance) tuples. Empty if no
+            suggestions found within max_distance.
+        """
+        self._build_spell_index()
+
+        query_stripped = strip_accents(word.lower())
+
+        # Collect normalized matches at each distance level
+        norm_hits: set[str] = set()
+
+        # ED0: exact match on stripped form (handles pure diacritic errors)
+        if query_stripped in self._spell_norm_set:
+            norm_hits.add(query_stripped)
+
+        # ED1 on stripped forms
+        if not norm_hits or max_distance >= 1:
+            for candidate in self._edits1(query_stripped):
+                if candidate in self._spell_norm_set:
+                    norm_hits.add(candidate)
+
+        # ED2: edits of edits (only if requested and ED0/ED1 found few results)
+        if max_distance >= 2 and len(norm_hits) < 3:
+            for e1 in self._edits1(query_stripped):
+                for candidate in self._edits1(e1):
+                    if candidate in self._spell_norm_set:
+                        norm_hits.add(candidate)
+
+        if not norm_hits:
+            return []
+
+        # Expand normalized hits back to original polytonic forms.
+        # Rank by edit distance on stripped forms (so diacritic
+        # differences don't inflate the distance), but also compute
+        # the full-form distance for the returned value.
+        results: list[tuple[str, int, int]] = []  # (form, stripped_dist, full_dist)
+        for norm in norm_hits:
+            stripped_dist = _levenshtein(query_stripped, norm)
+            for original in self._spell_norm_map[norm]:
+                full_dist = _levenshtein(word.lower(), original.lower())
+                results.append((original, stripped_dist, full_dist))
+
+        # Deduplicate preserving best stripped distance
+        best: dict[str, tuple[int, int]] = {}
+        for form, sd, fd in results:
+            if form not in best or sd < best[form][0]:
+                best[form] = (sd, fd)
+
+        return sorted(
+            [(form, sd) for form, (sd, fd) in best.items()],
+            key=lambda x: (x[1], x[0]),
+        )
 
     def _predict(self, words: list[str], num_beams=4) -> list[str]:
         """Run model inference with beam search + headword filtering.
