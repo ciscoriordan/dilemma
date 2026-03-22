@@ -1,8 +1,9 @@
 """Build POS-indexed disambiguation lookup from gold treebank data.
 
 Reads CoNLL-U files from UD_Ancient_Greek-Perseus, UD_Ancient_Greek-PROIEL,
-and DiGreC treebanks. Extracts genuinely ambiguous forms: same surface form
-maps to different lemmas depending on UPOS tag.
+DiGreC treebanks, and Gorman AGDT XML dependency trees. Extracts genuinely
+ambiguous forms: same surface form maps to different lemmas depending on
+UPOS tag.
 
 Output: data/treebank_pos_lookup.json
 Format: {form: {UPOS: lemma, ...}, ...}
@@ -13,6 +14,7 @@ are included. Monotonic and lowercase variants are added for lookup cascade.
 
 import json
 import unicodedata
+import xml.etree.ElementTree as ET
 from collections import defaultdict
 from pathlib import Path
 
@@ -24,6 +26,15 @@ TREEBANK_DIRS = [
     OPLA_DATA / "UD_Ancient_Greek-PROIEL",
     OPLA_DATA / "DiGreC",
 ]
+
+GORMAN_DIR = OPLA_DATA / "Greek-Dependency-Trees" / "xml versions"
+
+# AGDT POS code (position 1 of postag) -> UD UPOS
+_AGDT_TO_UPOS = {
+    "n": "NOUN", "v": "VERB", "a": "ADJ", "p": "PRON",
+    "d": "ADV", "c": "CCONJ", "r": "ADP", "l": "DET",
+    "g": "INTJ", "m": "NUM", "x": "X", "u": "PUNCT",
+}
 
 # Reuse Dilemma's monotonic conversion
 _POLYTONIC_STRIP = {0x0313, 0x0314, 0x0345, 0x0306, 0x0304}
@@ -73,15 +84,34 @@ def parse_conllu(path: Path):
             yield form, lemma, upos
 
 
+def parse_gorman_xml(path: Path):
+    """Yield (form, lemma, upos) from a Gorman AGDT XML treebank file."""
+    try:
+        tree = ET.parse(path)
+    except ET.ParseError:
+        return
+    for word in tree.findall(".//word"):
+        form = word.get("form", "")
+        lemma = word.get("lemma", "")
+        postag = word.get("postag", "")
+        if not form or not lemma or not postag or len(postag) < 1:
+            continue
+        upos = _AGDT_TO_UPOS.get(postag[0], "")
+        if not upos or upos == "PUNCT":
+            continue
+        yield form, lemma, upos
+
+
 def build_lookup():
     # Collect all (form, upos) -> {lemma: count} from treebanks
     # form_upos_lemmas[form][upos][lemma] = count
     form_upos_lemmas = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
     total_tokens = 0
 
+    # CoNLL-U treebanks
     for treebank_dir in TREEBANK_DIRS:
         if not treebank_dir.exists():
-            print(f"  Skipping {treebank_dir} (not found)")
+            print(f"  Skipping {treebank_dir.name} (not found)")
             continue
         conllu_files = sorted(treebank_dir.glob("*.conllu"))
         for f in conllu_files:
@@ -91,6 +121,22 @@ def build_lookup():
                 count += 1
             total_tokens += count
             print(f"  {f.name}: {count} tokens")
+
+    # Gorman AGDT XML trees
+    if GORMAN_DIR.exists():
+        gorman_tokens = 0
+        gorman_files = sorted(GORMAN_DIR.glob("*.xml"))
+        for f in gorman_files:
+            count = 0
+            for form, lemma, upos in parse_gorman_xml(f):
+                form_upos_lemmas[form][upos][lemma] += 1
+                count += 1
+            gorman_tokens += count
+        total_tokens += gorman_tokens
+        print(f"  Gorman trees: {len(gorman_files)} files, "
+              f"{gorman_tokens:,} tokens")
+    else:
+        print(f"  Skipping Gorman trees (not found)")
 
     print(f"\nTotal tokens: {total_tokens}")
     print(f"Unique forms: {len(form_upos_lemmas)}")
