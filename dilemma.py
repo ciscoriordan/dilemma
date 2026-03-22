@@ -212,6 +212,14 @@ def _build_ocr_confusions():
         # Number/letter confusions (GCV Roman numeral issue)
         ("1", "I", 0.1),
         ("1", "l", 0.1),
+
+        # GCV descender confusions: J/j for ψ/ὑ
+        ("ψ", "J", 0.2), ("ψ", "j", 0.2),
+        ("υ", "J", 0.3), ("υ", "j", 0.3),
+        ("ὑ", "J", 0.2), ("ὑ", "j", 0.2),
+        # GCV: Q/q for θ/σ
+        ("θ", "Q", 0.3), ("θ", "q", 0.3),
+        ("σ", "Q", 0.3), ("σ", "q", 0.3),
     ]
 
     for a, b, cost in pairs:
