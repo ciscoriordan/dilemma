@@ -29,6 +29,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 DATA_DIR = SCRIPT_DIR / "data"
 LSJ_DIR = Path.home() / "Documents" / "LSJLogeion"
+LSJ9_FORMS = Path.home() / "Documents" / "lsjpre" / "output" / "lsj9" / "lsj9_forms.tsv"
 KAIKKI_DIR = Path(os.environ.get(
     "KAIKKI_DIR", Path.home() / "Documents" / "Klisy" / "word_collector"))
 # Try nested layout first (en-el/), then flat layout
@@ -158,8 +159,38 @@ def build_genitive_from_itype(headword, itype):
 
 
 def parse_lsj_entries():
+    """Parse LSJ entries from lsj9 export (preferred) and/or XML files.
+
+    Priority: lsj9_forms.tsv (63K entries with explicit grammar) is loaded
+    first, then LSJLogeion XML entries fill in gaps (entries not in lsj9).
+    """
+    # Start with lsj9 data if available (explicit grammar, no XML parsing)
+    entries = parse_lsj9_entries()
+
+    # Fill in from XML for entries not covered by lsj9
+    xml_entries = _parse_lsj_xml()
+    xml_only = 0
+    for hw, entry in xml_entries.items():
+        if hw not in entries:
+            entries[hw] = entry
+            xml_only += 1
+        elif not entries[hw]["genitive"] and entry.get("genitive"):
+            # lsj9 entry exists but lacks genitive - fill from XML
+            entries[hw]["genitive"] = entry["genitive"]
+            entries[hw]["itype"] = entry.get("itype", "")
+
+    if xml_only:
+        print(f"  XML-only: {xml_only:,} additional entries")
+    print(f"  Total: {len(entries):,} entries")
+
+    return entries
+
+
+def _parse_lsj_xml():
     """Parse LSJ XML files, extract headword + gender + genitive + itype."""
     entries = {}
+    if not LSJ_DIR.exists():
+        return entries
     for xml_file in sorted(LSJ_DIR.glob("greatscott*.xml")):
         try:
             tree = ET.parse(xml_file)
@@ -219,6 +250,66 @@ def parse_lsj_entries():
                 "itype": itype,
                 "genitive": genitive,
             }
+    return entries
+
+
+def parse_lsj9_entries(forms_path: Path = LSJ9_FORMS) -> dict:
+    """Load entries from lsj9_forms.tsv (output of lsjpre export_lsj9.py).
+
+    This provides explicit grammar (ὁ/ἡ/τό/ον/ές) and pre-extracted
+    genitive endings for 63K entries, without needing LSJLogeion XML.
+
+    Returns same format as parse_lsj_entries(): {headword: {headword,
+    orth_orig, article, gender, itype, genitive}}.
+    """
+    if not forms_path.exists():
+        print(f"  lsj9_forms.tsv not found at {forms_path}")
+        return {}
+
+    # Grammar -> (article, gender) mapping
+    _grammar_to_article = {
+        "ὁ": ("ὁ", "m"),
+        "ἡ": ("ἡ", "f"),
+        "τό": ("τό", "n"),
+        "ον": ("ον", ""),    # adjective, no article/gender
+        "ές": ("ές", ""),    # adjective, no article/gender
+    }
+
+    entries = {}
+    with open(forms_path, encoding="utf-8") as f:
+        header = f.readline()  # skip header
+        for line in f:
+            parts = line.rstrip("\n").split("\t")
+            if len(parts) < 4:
+                continue
+            hw, grammar, genitive, etymology = parts
+
+            article_info = _grammar_to_article.get(grammar, ("", ""))
+            article, gender = article_info
+
+            # For adjectives (ον/ές), try to infer genitive from pattern
+            itype = ""
+            if grammar == "ον":
+                # 2-termination adjective: -ος/-ον type
+                # genitive would be -ου (same as masculine)
+                itype = "ον"
+            elif grammar == "ές":
+                # -ής/-ές type adjective
+                itype = "ές"
+            elif genitive:
+                # Use the extracted genitive as itype
+                itype = genitive
+
+            entries[hw] = {
+                "headword": hw,
+                "orth_orig": hw,
+                "article": article,
+                "gender": gender,
+                "itype": itype,
+                "genitive": genitive if grammar in ("ὁ", "ἡ", "τό") else "",
+            }
+
+    print(f"  lsj9: {len(entries):,} entries from {forms_path.name}")
     return entries
 
 
