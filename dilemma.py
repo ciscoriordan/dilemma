@@ -38,6 +38,7 @@ from pathlib import Path
 
 MODEL_DIR = Path(__file__).parent / "model"
 LOOKUP_DB_PATH = Path(__file__).parent / "data" / "lookup.db"
+LSJ9_POS_LOOKUP_PATH = Path(__file__).parent / "data" / "lsj9_pos_lookup.json"
 LSJ9_FREQUENCY_PATH = (Path(__file__).parent.parent / "lsjpre" / "output"
                        / "lsj9" / "lsj9_frequency.json")
 LOOKUP_PATH = Path(__file__).parent / "data" / "mg_lookup.json"
@@ -680,6 +681,18 @@ class Dilemma:
             with open(AG_POS_LOOKUP_PATH, encoding="utf-8") as f:
                 ag_pos = json.load(f)
             for form, upos_lemmas in ag_pos.items():
+                if form not in self._pos_lookup:
+                    self._pos_lookup[form] = {}
+                for upos, lemma in upos_lemmas.items():
+                    if upos not in self._pos_lookup[form]:
+                        self._pos_lookup[form][upos] = lemma
+
+        # 5. LSJ9 grammar-derived POS (407K forms with NOUN/ADJ from
+        #    the grammar field: ὁ/ἡ/τό -> NOUN, ον/ές -> ADJ)
+        if self.lang in ("all", "grc") and LSJ9_POS_LOOKUP_PATH.exists():
+            with open(LSJ9_POS_LOOKUP_PATH, encoding="utf-8") as f:
+                lsj9_pos = json.load(f)
+            for form, upos_lemmas in lsj9_pos.items():
                 if form not in self._pos_lookup:
                     self._pos_lookup[form] = {}
                 for upos, lemma in upos_lemmas.items():
