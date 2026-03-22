@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Build SQLite lookup database from JSON lookup tables.
+"""Build SQLite lookup database from per-language lookup tables.
 
-Combines ag_lookup.json, mg_lookup.json, and med_lookup.json into a single
-SQLite database with the priority merging logic from dilemma.py.
+Reads from raw_lookups.db (SQLite, written by build_data.py) when available,
+falling back to JSON files. Combines AG, MG, and Medieval lookups with
+AG-first priority merging.
 
-Output: data/lookup.db (~200 MB, vs ~600 MB JSON)
-Startup: near-instant (vs ~11s for JSON loading)
+Output: data/lookup.db (~1.5 GB with stripped column for spell checking)
+Startup: near-instant via mmap (vs ~11s for JSON loading)
 
 Usage:
     python build_lookup_db.py
@@ -20,10 +21,12 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 DATA_DIR = SCRIPT_DIR / "data"
 DB_PATH = DATA_DIR / "lookup.db"
+RAW_DB_PATH = DATA_DIR / "raw_lookups.db"
 
 AG_PATH = DATA_DIR / "ag_lookup.json"
 MG_PATH = DATA_DIR / "mg_lookup.json"
 MED_PATH = DATA_DIR / "med_lookup.json"
+GLAUX_PAIRS_PATH = DATA_DIR / "glaux_pairs.json"
 
 
 def strip_accents(s):
@@ -37,26 +40,74 @@ def _is_self_map(form, lemma):
             or strip_accents(form.lower()) == strip_accents(lemma.lower()))
 
 
+def _load_from_sqlite(table: str) -> dict:
+    """Load a lookup table from raw_lookups.db."""
+    if not RAW_DB_PATH.exists():
+        return {}
+    conn = sqlite3.connect(str(RAW_DB_PATH))
+    try:
+        rows = conn.execute(f"SELECT form, lemma FROM {table}").fetchall()
+        conn.close()
+        return dict(rows)
+    except sqlite3.OperationalError:
+        conn.close()
+        return {}
+
+
+def _load_from_json(path: Path) -> dict:
+    """Load a lookup table from JSON (fallback)."""
+    if not path.exists():
+        return {}
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _load_lookup(table: str, json_path: Path, label: str) -> dict:
+    """Load lookup, preferring SQLite over JSON."""
+    t0 = time.time()
+
+    data = _load_from_sqlite(table)
+    if data:
+        print(f"  {label}: {len(data):,} entries from SQLite ({time.time()-t0:.1f}s)")
+        return data
+
+    data = _load_from_json(json_path)
+    if data:
+        print(f"  {label}: {len(data):,} entries from JSON ({time.time()-t0:.1f}s)")
+    else:
+        print(f"  {label}: no data found")
+    return data
+
+
 def build():
     t0 = time.time()
 
-    # Load JSON tables
-    print("Loading JSON lookup tables...")
-    ag, mg, med = {}, {}, {}
-    if AG_PATH.exists():
-        with open(AG_PATH, encoding="utf-8") as f:
-            ag = json.load(f)
-        print(f"  AG: {len(ag):,} entries ({time.time()-t0:.1f}s)")
-    t1 = time.time()
-    if MG_PATH.exists():
-        with open(MG_PATH, encoding="utf-8") as f:
-            mg = json.load(f)
-        print(f"  MG: {len(mg):,} entries ({time.time()-t1:.1f}s)")
-    t2 = time.time()
-    if MED_PATH.exists():
-        with open(MED_PATH, encoding="utf-8") as f:
-            med = json.load(f)
-        print(f"  Med: {len(med):,} entries ({time.time()-t2:.1f}s)")
+    print("Loading lookup tables...")
+    ag = _load_lookup("ag", AG_PATH, "AG")
+    mg = _load_lookup("mg", MG_PATH, "MG")
+    med = _load_lookup("med", MED_PATH, "Med")
+
+    # Expand AG and Med with GLAUx corpus pairs (644K forms from
+    # 8th c. BC - 4th c. AD Greek texts). These are corpus-derived
+    # so lower confidence than Wiktionary, but fill coverage gaps.
+    glaux_added_ag = 0
+    glaux_added_med = 0
+    if GLAUX_PAIRS_PATH.exists():
+        t_g = time.time()
+        with open(GLAUX_PAIRS_PATH, encoding="utf-8") as f:
+            glaux_pairs = json.load(f)
+        for p in glaux_pairs:
+            form, lemma = p["form"], p["lemma"]
+            # Add to AG if not already present
+            if form not in ag:
+                ag[form] = lemma
+                glaux_added_ag += 1
+            # Add to Med (Koine/late Greek is useful for medieval)
+            if form not in med:
+                med[form] = lemma
+                glaux_added_med += 1
+        print(f"  GLAUx: +{glaux_added_ag:,} to AG, "
+              f"+{glaux_added_med:,} to Med ({time.time()-t_g:.1f}s)")
 
     # Build combined lookup (AG-first priority, same logic as dilemma.py)
     print("\nBuilding combined lookup (AG-first)...")
@@ -82,7 +133,7 @@ def build():
     conn.execute("PRAGMA journal_mode=DELETE")
     conn.execute("PRAGMA page_size=4096")
 
-    # Deduplicated lemma table - ~200K distinct lemmas vs 12.5M form entries
+    # Deduplicated lemma table
     all_lemmas = sorted(set(combined.values()) | set(ag.values()))
     lemma_to_id = {lemma: i for i, lemma in enumerate(all_lemmas)}
     conn.execute("CREATE TABLE lemmas (id INTEGER PRIMARY KEY, text TEXT NOT NULL)")
@@ -91,7 +142,6 @@ def build():
     print(f"  lemmas: {len(all_lemmas):,} distinct")
 
     # Main lookup: form -> lemma_id
-    # src: source language that won in the merge ('a'=AG, 'e'=MG, 'm'=med)
     conn.execute("""CREATE TABLE lookup (
         form TEXT NOT NULL,
         lemma_id INTEGER NOT NULL,
@@ -101,7 +151,7 @@ def build():
     )""")
 
     # Track which source provided each combined entry
-    src_map = {}  # form -> source char
+    src_map = {}
     for data, src_char in [(ag, 'a'), (med, 'm'), (mg, 'e')]:
         for k in data:
             if k not in src_map:
@@ -123,10 +173,16 @@ def build():
     print(f"  ag-only (differs from combined): {ag_extra:,} rows")
 
     conn.execute("CREATE INDEX idx_lookup_form_lang ON lookup (form, lang)")
-    # For full-text search on lemmas (occasional use)
     conn.execute("CREATE INDEX idx_lemmas_text ON lemmas (text)")
 
+    # Add stripped column for spell-checking (accent-stripped form)
+    print("Adding stripped column for spell-checking...", end=" ", flush=True)
+    conn.execute("ALTER TABLE lookup ADD COLUMN stripped TEXT")
+    conn.create_function("strip_accents", 1, strip_accents)
+    conn.execute("UPDATE lookup SET stripped = strip_accents(form)")
+    conn.execute("CREATE INDEX idx_lookup_stripped ON lookup (stripped)")
     conn.commit()
+    print("done")
 
     # Compact
     print("\nOptimizing...")

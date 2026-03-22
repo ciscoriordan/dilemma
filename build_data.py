@@ -784,6 +784,20 @@ def main():
         print(f"Lookup table: {len(flat_lookup)} entries ({size_mb:.1f} MB)")
         print(f"  -> {lookup_path}")
 
+        # Also write to SQLite for fast loading by build_lookup_db.py
+        raw_db_path = DATA_DIR / "raw_lookups.db"
+        import sqlite3 as _sql
+        rdb = _sql.connect(str(raw_db_path))
+        table = {"ag": "ag", "mg": "mg", "med": "med"}.get(prefix, prefix)
+        rdb.execute(f"DROP TABLE IF EXISTS {table}")
+        rdb.execute(f"CREATE TABLE {table} (form TEXT NOT NULL, lemma TEXT NOT NULL)")
+        rdb.executemany(f"INSERT INTO {table} (form, lemma) VALUES (?, ?)",
+                        flat_lookup.items())
+        rdb.execute(f"CREATE INDEX idx_{table}_form ON {table} (form)")
+        rdb.commit()
+        rdb.close()
+        print(f"  -> {raw_db_path} (table: {table})")
+
         # Filter POS map to only genuinely ambiguous forms (different
         # lemmas for different POS tags). Also resolve lemmas through
         # the cleaned lookup to use final headword forms.

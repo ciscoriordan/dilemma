@@ -38,6 +38,8 @@ from pathlib import Path
 
 MODEL_DIR = Path(__file__).parent / "model"
 LOOKUP_DB_PATH = Path(__file__).parent / "data" / "lookup.db"
+LSJ9_FREQUENCY_PATH = (Path(__file__).parent.parent / "lsjpre" / "output"
+                       / "lsj9" / "lsj9_frequency.json")
 LOOKUP_PATH = Path(__file__).parent / "data" / "mg_lookup.json"
 AG_LOOKUP_PATH = Path(__file__).parent / "data" / "ag_lookup.json"
 MED_LOOKUP_PATH = Path(__file__).parent / "data" / "med_lookup.json"
@@ -157,6 +159,114 @@ def _levenshtein(a: str, b: str) -> int:
         for j, cb in enumerate(b):
             curr.append(min(curr[j] + 1, prev[j + 1] + 1,
                             prev[j] + (0 if ca == cb else 1)))
+        prev = curr
+    return prev[-1]
+
+
+# OCR confusion pairs: (char_a, char_b) -> substitution cost (0.0 to 1.0).
+# Normal substitution costs 1.0. OCR-common confusions cost less.
+# Built from GCV analysis of LSJ supplement OCR output.
+_OCR_CONFUSIONS: dict[tuple[str, str], float] = {}
+
+
+def _build_ocr_confusions():
+    """Build OCR confusion cost matrix (lazy, called once)."""
+    if _OCR_CONFUSIONS:
+        return
+
+    pairs = [
+        # Greek/Latin script mixing (cost ~0, same glyph)
+        ("ο", "o", 0.1), ("Ο", "O", 0.1),
+        ("ρ", "p", 0.1), ("Ρ", "P", 0.1),
+        ("ν", "v", 0.1), ("Ν", "N", 0.1),
+        ("τ", "t", 0.1), ("Τ", "T", 0.1),
+        ("κ", "k", 0.1), ("Κ", "K", 0.1),
+        ("α", "a", 0.1), ("Α", "A", 0.1),
+        ("η", "n", 0.2), ("Η", "H", 0.1),
+        ("ε", "e", 0.1), ("Ε", "E", 0.1),
+        ("ι", "i", 0.1),
+        ("υ", "u", 0.1), ("Υ", "Y", 0.1),
+        ("χ", "x", 0.1), ("Χ", "X", 0.1),
+        ("ω", "w", 0.2),
+        ("β", "B", 0.2),
+        ("γ", "y", 0.3),  # GCV-specific
+        ("δ", "d", 0.3),  # GCV-specific
+
+        # Cyrillic contamination (GCV-specific, same glyph)
+        ("ο", "\u043e", 0.0),  # Cyrillic о
+        ("α", "\u0430", 0.0),  # Cyrillic а
+        ("ε", "\u0435", 0.0),  # Cyrillic е
+        ("υ", "\u0443", 0.0),  # Cyrillic у
+        ("κ", "\u043a", 0.0),  # Cyrillic к
+        ("ρ", "\u0440", 0.0),  # Cyrillic р
+
+        # Common OCR letter confusions (similar shapes)
+        ("ο", "σ", 0.5),  # round shapes
+        ("θ", "δ", 0.5),  # similar with crossbar
+        ("η", "π", 0.5),  # similar verticals
+        ("ν", "μ", 0.7),  # similar verticals
+        ("ρ", "β", 0.7),  # descender confusion
+        ("ι", "ΐ", 0.3),  # diaeresis confusion
+        ("υ", "ΰ", 0.3),
+
+        # Number/letter confusions (GCV Roman numeral issue)
+        ("1", "I", 0.1),
+        ("1", "l", 0.1),
+    ]
+
+    for a, b, cost in pairs:
+        _OCR_CONFUSIONS[(a, b)] = cost
+        _OCR_CONFUSIONS[(b, a)] = cost
+
+
+def _weighted_levenshtein(a: str, b: str) -> float:
+    """Weighted Levenshtein distance using OCR confusion costs.
+
+    Decomposes to NFD first so that combining diacritics are handled
+    separately from base characters:
+    - Combining diacritics: insert/delete costs 0.1 (nearly free)
+    - OCR-confused base character pairs: uses cost matrix (0.1-0.5)
+    - Normal substitutions: cost 1.0
+
+    This makes breathing/accent errors nearly free while correctly
+    penalizing real letter substitutions.
+    """
+    _build_ocr_confusions()
+
+    a_nfd = unicodedata.normalize("NFD", a)
+    b_nfd = unicodedata.normalize("NFD", b)
+
+    if len(a_nfd) < len(b_nfd):
+        return _weighted_levenshtein(b, a)
+    if not b_nfd:
+        return float(len(a_nfd))
+
+    def _char_cost(c: str) -> float:
+        """Cost to insert or delete a character."""
+        if unicodedata.combining(c):
+            return 0.1  # diacritics are nearly free
+        return 1.0
+
+    prev = [0.0]
+    for j in range(len(b_nfd)):
+        prev.append(prev[-1] + _char_cost(b_nfd[j]))
+
+    for i, ca in enumerate(a_nfd):
+        ins_cost_a = _char_cost(ca)
+        curr = [prev[0] + ins_cost_a]
+        for j, cb in enumerate(b_nfd):
+            if ca == cb:
+                sub_cost = 0.0
+            elif unicodedata.combining(ca) and unicodedata.combining(cb):
+                sub_cost = 0.1  # swapping one diacritic for another
+            else:
+                sub_cost = _OCR_CONFUSIONS.get((ca, cb), 1.0)
+            ins_cost_b = _char_cost(cb)
+            curr.append(min(
+                curr[j] + ins_cost_b,     # insert b[j]
+                prev[j + 1] + ins_cost_a,  # delete a[i]
+                prev[j] + sub_cost,        # substitute
+            ))
         prev = curr
     return prev[-1]
 
@@ -425,6 +535,9 @@ class Dilemma:
 
         # POS-indexed disambiguation table: {form: {upos: lemma}}
         self._pos_lookup: dict[str, dict[str, str]] = {}
+
+        # Headword frequency table (lazy-loaded from lsj9_frequency.json)
+        self._hw_frequency: dict[str, int] | None = None
 
         self._load_lookups()
         self._convention_map = self._build_convention_map(convention)
@@ -1528,8 +1641,9 @@ class Dilemma:
         inserts = [L + c + R for L, R in splits for c in letters]
         return set(deletes + transposes + replaces + inserts)
 
-    def suggest_spelling(self, word: str, max_distance: int = 2
-                         ) -> list[tuple[str, int]]:
+    def suggest_spelling(self, word: str, max_distance: int = 2,
+                         ocr_mode: bool = False
+                         ) -> list[tuple[str, int | float]]:
         """Suggest spelling corrections for an unknown Greek word.
 
         Returns a list of (correct_form, edit_distance) tuples, sorted
@@ -1548,6 +1662,10 @@ class Dilemma:
         Args:
             word: The possibly-misspelled Greek word.
             max_distance: Maximum edit distance (1 or 2). Default 2.
+            ocr_mode: If True, use weighted Levenshtein distance that
+                gives lower cost to OCR-common confusions (Greek/Latin
+                script mixing, Cyrillic contamination, θ/δ, ο/σ).
+                This produces better rankings for OCR post-correction.
 
         Returns:
             List of (corrected_form, distance) tuples. Empty if no
@@ -1557,11 +1675,14 @@ class Dilemma:
         query_stripped = strip_accents(word.lower())
 
         if self._using_db:
-            return self._suggest_spelling_db(word, query_stripped, max_distance)
-        return self._suggest_spelling_mem(word, query_stripped, max_distance)
+            return self._suggest_spelling_db(word, query_stripped,
+                                             max_distance, ocr_mode)
+        return self._suggest_spelling_mem(word, query_stripped,
+                                          max_distance, ocr_mode)
 
     def _suggest_spelling_db(self, word: str, query_stripped: str,
-                             max_distance: int) -> list[tuple[str, int]]:
+                             max_distance: int, ocr_mode: bool = False
+                             ) -> list[tuple[str, int | float]]:
         """SQLite-backed spelling suggestion. No in-memory index needed.
 
         Generates ED1/ED2 candidate strings, then batch-queries the
@@ -1601,10 +1722,11 @@ class Dilemma:
         if not hits:
             return []
 
-        return self._rank_spell_results(word, query_stripped, hits)
+        return self._rank_spell_results(word, query_stripped, hits, ocr_mode)
 
     def _suggest_spelling_mem(self, word: str, query_stripped: str,
-                              max_distance: int) -> list[tuple[str, int]]:
+                              max_distance: int, ocr_mode: bool = False
+                              ) -> list[tuple[str, int | float]]:
         """In-memory spelling suggestion (JSON fallback)."""
         norm_hits: set[str] = set()
 
@@ -1627,7 +1749,7 @@ class Dilemma:
 
         # Convert to {stripped: [original_forms]} format
         hits = {n: list(self._spell_norm_map[n]) for n in norm_hits}
-        return self._rank_spell_results(word, query_stripped, hits)
+        return self._rank_spell_results(word, query_stripped, hits, ocr_mode)
 
     @staticmethod
     def _has_breathing(s: str) -> bool:
@@ -1635,36 +1757,53 @@ class Dilemma:
         nfd = unicodedata.normalize("NFD", s)
         return "\u0313" in nfd or "\u0314" in nfd
 
+    def _get_frequency(self, headword: str) -> int:
+        """Get reference count for a headword from lsj9 frequency data.
+
+        Lazy-loads lsj9_frequency.json on first call. Returns 0 for
+        unknown headwords.
+        """
+        if self._hw_frequency is None:
+            self._hw_frequency = {}
+            if LSJ9_FREQUENCY_PATH.exists():
+                with open(LSJ9_FREQUENCY_PATH, encoding="utf-8") as f:
+                    self._hw_frequency = json.load(f)
+        return self._hw_frequency.get(headword, 0)
+
     def _rank_spell_results(self, word: str, query_stripped: str,
-                            hits: dict[str, list[str]]) -> list[tuple[str, int]]:
+                            hits: dict[str, list[str]],
+                            ocr_mode: bool = False
+                            ) -> list[tuple[str, int | float]]:
         """Rank spelling suggestions by edit distance.
 
-        Sorts by (stripped_dist, full_dist, form) so that at the same
-        stripped distance, forms closer to the original polytonic input
-        are preferred. Polytonic forms (with breathing marks) are
-        preferred over monotonic when the input is polytonic or when
-        using AG mode.
-        """
-        # For AG mode or polytonic input, prefer polytonic suggestions
-        prefer_polytonic = self.lang == "grc" or self._has_breathing(word)
+        Sorts by (stripped_dist, full_dist, -frequency, form) so that
+        at the same stripped distance, forms closer to the original
+        polytonic input are preferred, then more common headwords win.
+        Polytonic forms (with breathing marks) are preferred over
+        monotonic when the input is polytonic or when using AG mode.
 
-        results: list[tuple[str, int, int]] = []
+        In ocr_mode, uses weighted Levenshtein that gives lower cost
+        to OCR-common character confusions (Greek/Latin script mixing,
+        Cyrillic contamination, theta/delta, omicron/sigma).
+        """
+        prefer_polytonic = self.lang == "grc" or self._has_breathing(word)
+        dist_fn = _weighted_levenshtein if ocr_mode else _levenshtein
+
+        results: list[tuple[str, float, float]] = []
         for norm, originals in hits.items():
             stripped_dist = _levenshtein(query_stripped, norm)
             for original in originals:
-                full_dist = _levenshtein(word.lower(), original.lower())
+                full_dist = dist_fn(word.lower(), original.lower())
                 results.append((original, stripped_dist, full_dist))
 
         # Deduplicate: keep best (lowest stripped_dist, then full_dist)
-        best: dict[str, tuple[int, int]] = {}
+        best: dict[str, tuple[float, float]] = {}
         for form, sd, fd in results:
             if form not in best or (sd, fd) < best[form]:
                 best[form] = (sd, fd)
 
         if prefer_polytonic:
-            # Filter: if polytonic forms exist at a given stripped_dist,
-            # remove monotonic forms at that same distance
-            by_sd: dict[int, list[str]] = {}
+            by_sd: dict[float, list[str]] = {}
             for form, (sd, fd) in best.items():
                 by_sd.setdefault(sd, []).append(form)
             for sd, forms in by_sd.items():
@@ -1674,9 +1813,11 @@ class Dilemma:
                         if not self._has_breathing(f):
                             del best[f]
 
+        # Sort by: stripped_dist, full_dist, then prefer common headwords
         return sorted(
             [(form, sd) for form, (sd, fd) in best.items()],
-            key=lambda x: (x[1], best[x[0]][1], x[0]),
+            key=lambda x: (x[1], best[x[0]][1],
+                           -self._get_frequency(x[0]), x[0]),
         )
 
     def _predict(self, words: list[str], num_beams=4) -> list[str]:
