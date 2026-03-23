@@ -91,11 +91,12 @@ punctuation excluded). All tools evaluated with the same normalization
 | **Dilemma** | **91.5%** | **no** | **3.4M pairs + 12.3M lookup** |
 | **Dilemma** (with gold POS) | **92.0%** | **yes** (gold tags) | **3.4M pairs + 12.3M lookup** |
 
-The remaining ~8.5% errors break down as 3.1% no lookup hit and 5.4%
-wrong lemma or convention difference. The eval scripts (`eval/eval_dbbe.py`,
-`eval/eval_digrec.py`, `eval/bench_dbbe.py`) provide per-POS breakdowns and error
-categorization. `eval/eval_dbbe.py --use-pos` evaluates with POS-aware
-disambiguation enabled.
+Dilemma's remaining ~8.5% errors on DBBE break down as 3.1% no
+lookup hit and 5.4% wrong lemma or convention difference. The eval
+scripts (`eval/eval_dbbe.py`, `eval/eval_digrec.py`,
+`eval/bench_dbbe.py`) provide per-POS breakdowns and error
+categorization. `eval/eval_dbbe.py --use-pos gold` evaluates with
+POS-aware disambiguation.
 
 On the [DiGreC treebank](https://github.com/mdm33/digrec) (119K tokens,
 Homer through 15th century Byzantine Greek):
