@@ -82,7 +82,7 @@ DBBE gold standard (10K tokens of unedited Byzantine Greek epigrams):
 | Swaelens et al. best (2025, multi-task) | ~74-75% |
 | **Dilemma** | **91.4%** |
 
-The remaining 8.6% errors break down as 3.0% no lookup hit and 5.6%
+The remaining 8.6% errors break down as 3.2% no lookup hit and 5.4%
 wrong lemma or convention difference. Compound decomposition (splitting
 Byzantine compounds at linking vowels, e.g. θεοφθόγγοις -> θεο+φθόγγος)
 reduced the no-lookup rate from 4.4% to 3.0%. The dedicated eval scripts
@@ -725,7 +725,7 @@ tested lemmatization on unedited Byzantine Greek epigrams and found
 that classical accuracy (~95%) dropped 30+ points on Byzantine text
 due to itacism, crasis, and non-standard orthography. Their best hybrid
 method (transformer embeddings + dictionary lookup) reached 65.8%.
-Dilemma achieves 90.8% on the same dataset.
+Dilemma achieves 91.4% on the same dataset.
 
 [Swaelens et al. (2025)](https://aclanthology.org/2025.acl-long.430/)
 showed that multi-task learning (joint POS + morphology + lemma
