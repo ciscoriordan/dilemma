@@ -50,10 +50,23 @@ TREEBANK_POS_LOOKUP_PATH = Path(__file__).parent / "data" / "treebank_pos_lookup
 GLAUX_POS_LOOKUP_PATH = Path(__file__).parent / "data" / "glaux_pos_lookup.json"
 LSJ_HEADWORDS_PATH = Path(__file__).parent / "data" / "lsj_headwords.json"
 CUNLIFFE_HEADWORDS_PATH = Path(__file__).parent / "data" / "cunliffe_headwords.json"
+MG_HEADWORDS_PATH = Path(__file__).parent / "data" / "mg_headwords.json"
+AG_HEADWORDS_PATH = Path(__file__).parent / "data" / "ag_headwords.json"
 LEMMA_EQUIVALENCES_PATH = Path(__file__).parent / "data" / "lemma_equivalences.json"
 CONVENTION_DIR = Path(__file__).parent / "data"
 
-_VALID_CONVENTIONS = {None, "lsj", "wiktionary"}
+_VALID_CONVENTIONS = {None, "lsj", "cunliffe", "triantafyllidis", "wiktionary"}
+
+# Map convention name -> headword file path for auto-derivation.
+# Conventions not listed here use LSJ headwords as fallback.
+_CONVENTION_HEADWORDS = {
+    "lsj": LSJ_HEADWORDS_PATH,
+    "cunliffe": CUNLIFFE_HEADWORDS_PATH,
+    "triantafyllidis": MG_HEADWORDS_PATH,
+}
+
+# Conventions that output monotonic Greek (apply to_monotonic to all results).
+_MONOTONIC_CONVENTIONS = {"triantafyllidis"}
 
 
 _POLYTONIC_STRIP = {0x0313, 0x0314, 0x0345, 0x0306, 0x0304}
@@ -516,8 +529,11 @@ class Dilemma:
                   which citation form is returned when multiple conventions
                   exist for the same word (e.g. LSJ vs Wiktionary headwords).
                   One of: None (default, no remapping), "wiktionary" (same
-                  as None), "lsj" (remap to LSJ dictionary headwords using
-                  lemma equivalence groups).
+                  as None), "lsj" (remap to LSJ dictionary headwords),
+                  "cunliffe" (remap to Cunliffe Homeric Lexicon headwords),
+                  "triantafyllidis" (remap to Modern Greek monotonic
+                  dictionary forms, using MG Wiktionary headwords as
+                  reference).
         """
         if convention not in _VALID_CONVENTIONS:
             raise ValueError(
@@ -554,6 +570,7 @@ class Dilemma:
 
         self._load_lookups()
         self._convention_map = self._build_convention_map(convention)
+        self._convention_monotonic = convention in _MONOTONIC_CONVENTIONS
         self._check_backend()
 
     def _check_backend(self):
@@ -711,8 +728,15 @@ class Dilemma:
     def _build_convention_map(self, convention: str | None) -> dict[str, str]:
         """Build a lemma remapping dict for the given convention.
 
-        For "lsj", each equivalence group is resolved to the first member
-        that appears in the LSJ headword list. All other members map to it.
+        For "lsj"/"cunliffe", each equivalence group is resolved to the
+        first member that appears in the convention's headword list. All
+        other members map to it.
+
+        For "triantafyllidis", the headword set is the MG lookup lemmas
+        (Modern Greek Wiktionary forms). Members are also checked after
+        to_monotonic() conversion. The _convention_monotonic flag ensures
+        all output is converted to monotonic in _apply_convention().
+
         For None or "wiktionary", returns an empty dict (no remapping).
 
         After auto-deriving from equivalences, explicit overrides from
@@ -724,44 +748,101 @@ class Dilemma:
 
         remap = {}
 
-        # Auto-derive from equivalence groups + LSJ headwords
+        # Load the headword set for this convention.
+        # For triantafyllidis, derive from MG lookup lemmas.
+        # For lsj/cunliffe, load from the dedicated headword file.
+        headwords = set()
+        hw_path = _CONVENTION_HEADWORDS.get(convention)
+        if hw_path and hw_path.exists():
+            with open(hw_path, encoding="utf-8") as f:
+                raw = json.load(f)
+            headwords = set(raw)
+            # LSJ/Cunliffe headwords may include vowel-length marks
+            # (macron U+0304, breve U+0306) like βᾰρύς. Strip these
+            # so they match our plain equivalence group members.
+            for h in raw:
+                nfd = unicodedata.normalize("NFD", h)
+                stripped = "".join(
+                    c for c in nfd if ord(c) not in (0x0304, 0x0306))
+                stripped = unicodedata.normalize("NFC", stripped)
+                if stripped != h:
+                    headwords.add(stripped)
+        elif convention == "triantafyllidis" and not headwords:
+            # Fallback: derive from MG lookup JSON if no headword file.
+            if LOOKUP_PATH.exists():
+                with open(LOOKUP_PATH, encoding="utf-8") as f:
+                    headwords = set(json.load(f).values())
+
+        # Auto-derive from equivalence groups
         if LEMMA_EQUIVALENCES_PATH.exists():
             with open(LEMMA_EQUIVALENCES_PATH, encoding="utf-8") as f:
                 equiv_data = json.load(f)
 
-            # Load LSJ headwords for cross-referencing.
-            # LSJ headwords often include vowel-length marks (macron U+0304,
-            # breve U+0306) like βᾰρύς. Strip these so they match our
-            # plain equivalence group members.
-            lsj_headwords = set()
-            if LSJ_HEADWORDS_PATH.exists():
-                with open(LSJ_HEADWORDS_PATH, encoding="utf-8") as f:
-                    raw = json.load(f)
-                lsj_headwords = set(raw)
-                for h in raw:
-                    nfd = unicodedata.normalize("NFD", h)
-                    stripped = "".join(
-                        c for c in nfd if ord(c) not in (0x0304, 0x0306))
-                    stripped = unicodedata.normalize("NFC", stripped)
-                    if stripped != h:
-                        lsj_headwords.add(stripped)
+            is_monotonic = convention in _MONOTONIC_CONVENTIONS
 
             for group in equiv_data.get("groups", []):
                 if len(group) < 2:
                     continue
 
                 # Find the canonical for this convention: first member
-                # in the LSJ headword list. Fall back to the first
-                # member of the group if none are LSJ headwords.
+                # in the headword list. Fall back to the first member
+                # of the group if none match.
                 canonical = group[0]
+                found = False
                 for member in group:
-                    if member in lsj_headwords:
+                    if member in headwords:
                         canonical = member
+                        found = True
                         break
+
+                # For monotonic conventions, also try to_monotonic()
+                # on each member and check against the headword set.
+                if not found and is_monotonic:
+                    for member in group:
+                        mono = to_monotonic(member)
+                        if mono in headwords:
+                            canonical = mono
+                            found = True
+                            break
 
                 for member in group:
                     if member != canonical:
                         remap[member] = canonical
+
+        # For monotonic conventions, add systematic morphological remappings
+        # from AG lemma forms to their MG equivalents. These cover productive
+        # patterns like neuter -ον -> -ο, abstract -σις -> -ση, and
+        # contracted verbs -έω -> -ώ / -άω -> -ώ.
+        if convention in _MONOTONIC_CONVENTIONS and headwords:
+            # Load AG lemmas from pre-extracted headword file (fast) or
+            # fall back to loading the full AG lookup JSON (slow).
+            ag_lemmas = set()
+            if AG_HEADWORDS_PATH.exists():
+                with open(AG_HEADWORDS_PATH, encoding="utf-8") as f:
+                    ag_lemmas = set(json.load(f))
+            elif AG_LOOKUP_PATH.exists():
+                with open(AG_LOOKUP_PATH, encoding="utf-8") as f:
+                    ag_lemmas = set(json.load(f).values())
+            patterns = [
+                # (AG suffix, replacement, description)
+                ("ον", "ο", "neuter -ον -> -ο"),
+                ("σις", "ση", "abstract -σις -> -ση"),
+                ("ξις", "ξη", "abstract -ξις -> -ξη"),
+                ("ψις", "ψη", "abstract -ψις -> -ψη"),
+                ("έω", "ώ", "contracted -έω -> -ώ"),
+                ("άω", "ώ", "contracted -άω -> -ώ"),
+                ("όω", "ώ", "contracted -όω -> -ώ"),
+            ]
+            for al in ag_lemmas:
+                if al in remap:
+                    continue  # already mapped by equivalence group
+                mono = to_monotonic(al)
+                for suffix, replacement, _desc in patterns:
+                    if mono.endswith(suffix):
+                        candidate = mono[:-len(suffix)] + replacement
+                        if candidate in headwords and candidate != mono:
+                            remap[al] = candidate
+                            break
 
         # Apply explicit overrides from convention file
         override_path = CONVENTION_DIR / f"convention_{convention}.json"
@@ -774,9 +855,16 @@ class Dilemma:
         return remap
 
     def _apply_convention(self, lemma: str) -> str:
-        """Remap a lemma according to the active convention."""
+        """Remap a lemma according to the active convention.
+
+        For monotonic conventions (e.g. triantafyllidis), the result is
+        converted to monotonic Greek after any explicit remapping, so
+        polytonic lemmas like ὁ become ο automatically.
+        """
         if self._convention_map:
-            return self._convention_map.get(lemma, lemma)
+            lemma = self._convention_map.get(lemma, lemma)
+        if self._convention_monotonic:
+            lemma = to_monotonic(lemma)
         return lemma
 
     def _find_model_dir(self):
