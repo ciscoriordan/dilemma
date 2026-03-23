@@ -5,7 +5,7 @@ Uses wikitextprocessor to run Wiktionary's grc-decl and grc-conj templates
 on LSJ headwords that don't have Wiktionary articles. The 14K+ overlap
 between LSJ and Wiktionary serves as validation.
 
-Phase 1: nouns (43K LSJ entries have gender from <gen> element)
+Phase 1: nouns (40K+ LSJ entries have gender from article in entry text)
 Phase 2: adjectives
 Phase 3: verbs
 
