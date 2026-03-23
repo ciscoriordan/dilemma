@@ -19,7 +19,7 @@ import xml.etree.ElementTree as ET
 from collections import Counter, defaultdict
 from pathlib import Path
 
-SCRIPT_DIR = Path(__file__).resolve().parent
+SCRIPT_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_DIGREC = Path.home() / "Documents" / "digrec" / "data" / "digrec.xml"
 EQUIV_PATH = SCRIPT_DIR / "data" / "lemma_equivalences.json"
 

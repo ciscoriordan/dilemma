@@ -36,10 +36,10 @@ import xml.etree.ElementTree as ET
 from collections import Counter
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from expand_lsj import strip_diacritics, strip_length_marks, LSJ_DIR
 
-DATA_DIR = Path(__file__).resolve().parent / "data"
+DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
 ADJ_ITYPE_SET = {"ον", "ή", "η", "ές", "εῖα", "ύ", "εια", "ά", "όν", "ός"}
 

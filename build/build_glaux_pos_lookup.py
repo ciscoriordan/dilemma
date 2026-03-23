@@ -16,7 +16,7 @@ import unicodedata
 from collections import defaultdict
 from pathlib import Path
 
-SCRIPT_DIR = Path(__file__).resolve().parent
+SCRIPT_DIR = Path(__file__).resolve().parent.parent
 GLAUX_PAIRS = SCRIPT_DIR / "data" / "glaux_pairs.json"
 OUTPUT_PATH = SCRIPT_DIR / "data" / "glaux_pos_lookup.json"
 

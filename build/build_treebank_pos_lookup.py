@@ -19,7 +19,7 @@ from collections import defaultdict
 from pathlib import Path
 
 OPLA_DATA = Path.home() / "Documents" / "opla" / "data"
-OUTPUT_PATH = Path(__file__).parent / "data" / "treebank_pos_lookup.json"
+OUTPUT_PATH = Path(__file__).parent.parent / "data" / "treebank_pos_lookup.json"
 
 TREEBANK_DIRS = [
     OPLA_DATA / "UD_Ancient_Greek-Perseus",

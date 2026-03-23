@@ -92,9 +92,9 @@ punctuation excluded). All tools evaluated with the same normalization
 | **Dilemma** (with gold POS) | **92.0%** | **yes** (gold tags) | **3.4M pairs + 12.3M lookup** |
 
 The remaining ~8.5% errors break down as 3.1% no lookup hit and 5.4%
-wrong lemma or convention difference. The eval scripts (`eval_dbbe.py`,
-`eval_digrec.py`, `bench_dbbe.py`) provide per-POS breakdowns and error
-categorization. `eval_dbbe.py --use-pos` evaluates with POS-aware
+wrong lemma or convention difference. The eval scripts (`eval/eval_dbbe.py`,
+`eval/eval_digrec.py`, `eval/bench_dbbe.py`) provide per-POS breakdowns and error
+categorization. `eval/eval_dbbe.py --use-pos` evaluates with POS-aware
 disambiguation enabled.
 
 On the [DiGreC treebank](https://github.com/mdm33/digrec) (119K tokens,
@@ -118,7 +118,7 @@ the [Swaelens et al. (2024)](https://aclanthology.org/2024.lrec-main.899/)
 DBBE gold standard (8,342 tokens). The other three use uncontaminated
 test sets not in any tool's training data (see `data/benchmarks/`).
 All tools evaluated with the same normalization and lemma equivalence
-groups (see `bench_all.py`).
+groups (see `data/benchmarks/bench_all.py`).
 
 | Tool | AG Classical | Byzantine | Katharevousa | Demotic MG |
 |------|:--------:|:--------:|:--------:|:--------:|
@@ -442,14 +442,14 @@ falls back to PyTorch. Both produce identical output.
 ### Testing
 
 ```bash
-python test_integrity.py              # data integrity + model inference checks
-python test_dilemma.py                # lookup table + end-to-end lemmatization tests
-python test_dilemma.py --lookup-only  # skip model tests
+python tests/test_integrity.py              # data integrity + model inference checks
+python tests/test_dilemma.py                # lookup table + end-to-end lemmatization tests
+python tests/test_dilemma.py --lookup-only  # skip model tests
 ```
 
-`test_integrity.py` runs 7 structural checks: ONNX/vocab dimension
+`tests/test_integrity.py` runs 7 structural checks: ONNX/vocab dimension
 match, DB table presence, model load, inference, and ONNX/PyTorch
-parity. `test_dilemma.py` validates lookup correctness and known
+parity. `tests/test_dilemma.py` validates lookup correctness and known
 form-lemma pairs across Greek varieties.
 
 ### LSJ/Sophocles expansion (optional, requires wikitextprocessor)
@@ -458,11 +458,11 @@ To regenerate the expanded lookup table from LSJ and Sophocles sources:
 
 ```bash
 pip install --force-reinstall --no-deps git+https://github.com/tatuylonen/wikitextprocessor.git
-python expand_lsj.py --setup           # build Wiktionary Lua module database
-python expand_lsj.py --expand          # expand LSJ nouns
-python expand_lsj.py --expand-verbs    # expand LSJ verbs
-python expand_sophocles.py --expand    # expand Sophocles nouns
-python expand_sophocles.py --expand-verbs  # expand Sophocles verbs
+python build/expand_lsj.py --setup           # build Wiktionary Lua module database
+python build/expand_lsj.py --expand          # expand LSJ nouns
+python build/expand_lsj.py --expand-verbs    # expand LSJ verbs
+python build/expand_sophocles.py --expand    # expand Sophocles nouns
+python build/expand_sophocles.py --expand-verbs  # expand Sophocles verbs
 ```
 
 This requires the LSJ XML files from [LSJLogeion](https://github.com/helmadik/LSJLogeion)

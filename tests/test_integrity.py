@@ -24,7 +24,7 @@ import sys
 import time
 from pathlib import Path
 
-DILEMMA_DIR = Path(__file__).parent
+DILEMMA_DIR = Path(__file__).parent.parent
 DATA_DIR = DILEMMA_DIR / "data"
 MODEL_DIR = DILEMMA_DIR / "model"
 LOOKUP_DB = DATA_DIR / "lookup.db"
@@ -187,7 +187,7 @@ def test_onnx_produces_valid_output():
 
 
 def test_lookup_db_tables():
-    """lookup.db must have the 'lookup' and 'lemmas' tables with lang='a' rows."""
+    """lookup.db must have the 'lookup' and 'lemmas' tables with lang='grc' rows."""
     if not LOOKUP_DB.exists():
         return TestResult("lookup.db tables", False,
                           f"lookup.db not found at {LOOKUP_DB}")
@@ -205,16 +205,16 @@ def test_lookup_db_tables():
         conn.close()
         return TestResult("lookup.db tables", False, "missing 'lemmas' table")
 
-    # Check lang='a' rows exist (AG-only overrides for polytonic disambiguation)
+    # Check lang='grc' rows exist (AG-only overrides for polytonic disambiguation)
     ag_count = conn.execute(
-        "SELECT COUNT(*) FROM lookup WHERE lang='a'").fetchone()[0]
+        "SELECT COUNT(*) FROM lookup WHERE lang='grc'").fetchone()[0]
     conn.close()
 
     if ag_count == 0:
         return TestResult("lookup.db tables", False,
-                          "no lang='a' (AG-only) rows in lookup table")
+                          "no lang='grc' (AG-only) rows in lookup table")
 
-    return TestResult("lookup.db tables", True, f"lang='a' rows: {ag_count:,}")
+    return TestResult("lookup.db tables", True, f"lang='grc' rows: {ag_count:,}")
 
 
 def test_lookup_db_row_counts():
@@ -224,18 +224,18 @@ def test_lookup_db_row_counts():
 
     conn = sqlite3.connect(str(LOOKUP_DB))
     combined_count = conn.execute(
-        "SELECT COUNT(*) FROM lookup WHERE lang='c'").fetchone()[0]
+        "SELECT COUNT(*) FROM lookup WHERE lang='all'").fetchone()[0]
     ag_count = conn.execute(
-        "SELECT COUNT(*) FROM lookup WHERE lang='a'").fetchone()[0]
+        "SELECT COUNT(*) FROM lookup WHERE lang='grc'").fetchone()[0]
     conn.close()
 
     errors = []
     if combined_count < MIN_COMBINED_ROWS:
         errors.append(
-            f"combined (lang='c'): {combined_count:,} < {MIN_COMBINED_ROWS:,}")
+            f"combined (lang='all'): {combined_count:,} < {MIN_COMBINED_ROWS:,}")
     if ag_count < MIN_AG_ONLY_ROWS:
         errors.append(
-            f"AG-only (lang='a'): {ag_count:,} < {MIN_AG_ONLY_ROWS:,}")
+            f"AG-only (lang='grc'): {ag_count:,} < {MIN_AG_ONLY_ROWS:,}")
 
     if errors:
         return TestResult("lookup.db row counts", False, "; ".join(errors))
