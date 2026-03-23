@@ -1,13 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 420" font-family="'Inter','Helvetica Neue',Arial,sans-serif">
   <defs>
-    <marker id="arr-lookup" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-      <path d="M0,0 L8,3 L0,6" fill="#4a7a9c"/>
+    <marker id="arr-lookup" markerWidth="10" markerHeight="8" refX="10" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 Z" fill="#4a7a9c"/>
     </marker>
-    <marker id="arr-transformer" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-      <path d="M0,0 L8,3 L0,6" fill="#2d5a7a"/>
+    <marker id="arr-transformer" markerWidth="10" markerHeight="8" refX="10" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 Z" fill="#2d5a7a"/>
     </marker>
-    <marker id="arr-output" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-      <path d="M0,0 L8,3 L0,6" fill="#1a3050"/>
+    <marker id="arr-output" markerWidth="10" markerHeight="8" refX="10" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 Z" fill="#1a3050"/>
     </marker>
   </defs>
 
