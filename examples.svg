@@ -103,7 +103,7 @@
   <text x="386" y="232" fill="#2d5a7a" font-size="12" font-weight="600">&#x2192; διαπραγματεύομαι</text>
   <text x="630" y="224" fill="#6b6560" font-size="9">Kath. aor. pass.</text>
 
-  <text x="537" y="264" text-anchor="middle" fill="#2d5a7a" font-size="9.5" font-style="italic">4M params, &lt;1ms &#xB7; PyTorch or ONNX</text>
+  <text x="537" y="264" text-anchor="middle" fill="#2d5a7a" font-size="9.5" font-style="italic">4M params, ~1s (CPU) &#xB7; PyTorch or ONNX</text>
 
   <!-- Footer -->
   <line x1="28" y1="288" x2="694" y2="288" stroke="#c4b99a" stroke-width="0.5"/>
