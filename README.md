@@ -122,12 +122,12 @@ groups (see `bench_all.py`).
 
 | Tool | AG Classical | Byzantine | Katharevousa | Demotic MG |
 |------|:--------:|:--------:|:--------:|:--------:|
-| *spaCy* `el` | -- | 31.7% | 44.6% | 79.9% |
-| *stanza* `el` | -- | 37.4% | 48.4% | 87.0% |
-| CLTK | 81.2% | 66.6% | 74.8% | -- |
-| Morpheus (oracle) | -- | 71.1% | -- | -- |
-| *stanza* `grc` | 92.2% | 71.3% | 85.2% | -- |
-| Swaelens et al. (2025) | -- | ~74-75% | -- | -- |
+| [spaCy](https://spacy.io/) `el` | -- | 31.7% | 44.6% | 79.9% |
+| [stanza](https://stanfordnlp.github.io/stanza/) `el` | -- | 37.4% | 48.4% | 87.0% |
+| [CLTK](https://github.com/cltk/cltk) | 81.2% | 66.6% | 74.8% | -- |
+| [Morpheus](https://github.com/perseids-tools/morpheus-perseids-api) (oracle) | -- | 71.1% | -- | -- |
+| [stanza](https://stanfordnlp.github.io/stanza/) `grc` | 92.2% | 71.3% | 85.2% | -- |
+| [Swaelens et al. (2025)](https://aclanthology.org/2025.acl-long.430/) | -- | ~74-75% | -- | -- |
 | **Dilemma** | **96.1%** | **91.5%** | **93.1%** | 77.3% |
 | **Dilemma** (gold POS) | -- | **92.0%** | -- | -- |
 
