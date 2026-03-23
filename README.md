@@ -87,13 +87,14 @@ punctuation excluded). All tools evaluated with the same normalization
 | CLTK `BackoffGreekLemmatizer` | 66.9% | no | Perseus treebank (~310K tokens) |
 | *stanza* `grc` | 71.3% | yes (own tagger) | AG treebanks (AGLDT + Perseus, ~310K tokens) |
 | Swaelens et al. best (2025, multi-task) | ~74-75% | yes | AG treebanks + multi-task transformer |
-| **Dilemma** | **91.5%** | **no** | **3.4M pairs + 9.7M lookup** |
-| **Dilemma** (with gold POS) | **91.3%** | **yes** (gold tags) | **3.4M pairs + 9.7M lookup** |
+| **Dilemma** | **91.5%** | **no** | **3.4M pairs + 12.3M lookup** |
+| **Dilemma** (with gold POS) | **91.3%** | **yes** (gold tags) | **3.4M pairs + 12.3M lookup** |
 
-The remaining ~9.7% errors break down as 4.6% no lookup hit and 6.3%
-wrong lemma or convention difference. The dedicated eval scripts
-(`eval_dbbe.py`, `eval_digrec.py`, `bench_dbbe.py`) provide per-POS
-breakdowns and error categorization.
+The remaining ~8.5% errors break down as 3.1% no lookup hit and 5.4%
+wrong lemma or convention difference. The eval scripts (`eval_dbbe.py`,
+`eval_digrec.py`, `bench_dbbe.py`) provide per-POS breakdowns and error
+categorization. `eval_dbbe.py --use-pos` evaluates with POS-aware
+disambiguation enabled.
 
 On the [DiGreC treebank](https://github.com/mdm33/digrec) (119K tokens,
 Homer through 15th century Byzantine Greek):
@@ -108,6 +109,27 @@ Homer through 15th century Byzantine Greek):
 The equivalence-adjusted score accounts for legitimate convention
 differences between annotation schemes (e.g. `εἶπον`/`λέγω`,
 `ἐγώ`/`ἡμεῖς`, `πρότερος`/`πρῶτος`).
+
+### Cross-tool benchmarks
+
+Equiv-adjusted accuracy on uncontaminated test sets across four periods
+of Greek (see `bench_all.py` for methodology):
+
+| Tool | AG Classical | Byzantine | Katharevousa | Demotic MG |
+|------|:--------:|:--------:|:--------:|:--------:|
+| **Dilemma** | **96.1%** | **91.5%** | **93.1%** | **77.3%** |
+| stanza `grc` | 92.2% | 70.9% | 85.2% | -- |
+| stanza `el` | -- | -- | 48.4% | 87.0% |
+| CLTK | 81.2% | 66.6% | 74.8% | -- |
+| Morpheus (oracle) | -- | 71.1% | -- | -- |
+
+Dilemma is the only tool that covers all four periods in a single model.
+Stanza `grc` handles classical and Katharevousa reasonably but drops
+sharply on Byzantine text. Stanza `el` outperforms Dilemma on Demotic
+MG (its training domain) but fails on Katharevousa and has no AG
+coverage. Morpheus "oracle" selects the best candidate from its full
+analysis output, representing an upper bound for rule-based AG
+morphology.
 
 ### Modern Greek varieties
 
@@ -176,11 +198,11 @@ d.lemmatize("δ̓")                              # "δέ"
 d.lemmatize("ἐπ̓")                             # "ἐπί"
 
 # Single period
-d_mg = Dilemma(lang="el")                     # MG only
+d_mg = Dilemma(lang="el")                     # MG only (falls back to combined model if no el-specific model exists)
 d_grc = Dilemma(lang="grc")                   # AG only
 
 # Specific model scale
-d = Dilemma(scale=1)                          # use scale 1 model
+d = Dilemma(scale="test")                     # use test-scale model
 
 # Treebank evaluation mode: resolve articles to ὁ, pronouns to ἐγώ/σύ
 d_eval = Dilemma(resolve_articles=True)
@@ -276,11 +298,12 @@ are multiple options. When a form has just one candidate, POS is ignored,
 ensuring POS-aware lemmatization never produces worse results than the
 baseline.
 
-The POS lookup is built from five sources in priority order: UD treebanks
-(gold), GLAUx corpus (8.7K entries), MG Wiktionary, AG Wiktionary, LSJ9
-grammar. For polytonic input (breathing marks, circumflex), the AG-only
-POS entries are checked first to avoid MG lemma overrides on Ancient Greek
-text, mirroring the main lookup's AG-first logic.
+The POS lookup tables (435K AG-only entries, 482K combined) are built
+from five sources in priority order: UD treebanks (gold), GLAUx corpus
+(8.7K entries), MG Wiktionary, AG Wiktionary, LSJ9 grammar. For
+polytonic input (breathing marks, circumflex), the AG-only POS entries
+are checked first to avoid MG lemma overrides on Ancient Greek text,
+mirroring the main lookup's AG-first logic.
 
 ### Spelling correction
 
@@ -295,7 +318,7 @@ d.suggest_spelling("θδός")       # [("θεός", 1), ...]  (letter-level ED1
 ```
 
 The approach works in two layers. First, diacritics are stripped from both
-the input and the dictionary, collapsing the 9.7M-entry lookup into ~1-3M
+the input and the dictionary, collapsing the 12.3M-entry lookup into ~1-3M
 unique base forms. ED0/ED1/ED2 matches are found on these stripped forms,
 then expanded back to their original polytonic variants and ranked by true
 Levenshtein distance. This means accent and breathing errors (wrong accent,
@@ -350,13 +373,16 @@ with grave), `θεοί` (monotonic with acute), and `θεοι` (stripped) all
 resolve to `θεός`. Input can be polytonic, monotonic, or unaccented. AG
 forms take priority, then Medieval, then MG - this ensures classical lemma
 forms (βιβλίον, φύσις, θεῖος) are preferred over their MG equivalents
-(βιβλίο, φύση, θείο). For polytonic input (breathings/circumflex), an
+(βιβλίο, φύση, θείο). The Medieval lookup (6,735 entries from EL
+Wiktionary) has minimal practical impact: on DBBE's 8,342 Byzantine
+tokens, only 2 resolved via the Medieval table while 92.8% came from
+the AG lookup. For polytonic input (breathings/circumflex), an
 additional AG-only lookup pass runs first.
 
 When the transformer handles an unseen form, beam search generates
 multiple candidates and picks the first that matches a known headword
-from Wiktionary, [LSJ](https://github.com/helmadik/LSJLogeion) (116K
-headwords), or [Cunliffe's Homeric Lexicon](https://archive.org/details/lexiconofhomeric0000cunn) (12K headwords). If nothing
+from Wiktionary, [LSJ](https://github.com/helmadik/LSJLogeion) (246K
+headwords, including vowel-length variants), or [Cunliffe's Homeric Lexicon](https://archive.org/details/lexiconofhomeric0000cunn) (12K headwords). If nothing
 matches, the input is returned unchanged.
 
 **Wiktionary as upstream:** Because Dilemma's lookup tables are built
@@ -373,7 +399,7 @@ the standard architecture from
 shared tasks. It learns character-level patterns and generalizes to forms
 not in Wiktionary. Training on MG + AG + Medieval data means the model
 sees AG augment patterns (`ἔλυσε` → `λύω`) alongside MG stem
-transformations (`σκότωσε` → `σκοτώνω`). For katharevousa forms like
+transformations (`σκότωσε` → `σκοτώνω`). For Katharevousa forms like
 `εσκότωσε`, it has both signals to draw from.
 
 ## Installation
@@ -391,7 +417,7 @@ The lookup table handles 95%+ of words with no model at all. The SQLite
 step is optional but recommended - it reduces startup time from ~11s to
 ~0.3s. Without it, Dilemma falls back to loading JSON files. For the
 remaining ~5% (unseen forms), the ONNX model files (`encoder.onnx`,
-`decoder_step.onnx`) in `model/combined-s3/` provide transformer
+`decoder_step.onnx`) in the model directory provide transformer
 inference without PyTorch. If these files aren't present, install
 PyTorch and run `python export_onnx.py` to generate them from the
 `.pt` checkpoint.
@@ -414,8 +440,8 @@ python test_dilemma.py                # lookup table + end-to-end lemmatization 
 python test_dilemma.py --lookup-only  # skip model tests
 ```
 
-`test_integrity.py` catches structural issues: ONNX/vocab dimension
-mismatches, missing DB tables, model load failures, and ONNX/PyTorch
+`test_integrity.py` runs 7 structural checks: ONNX/vocab dimension
+match, DB table presence, model load, inference, and ONNX/PyTorch
 parity. `test_dilemma.py` validates lookup correctness and known
 form-lemma pairs across Greek varieties.
 
@@ -452,13 +478,15 @@ python build_data.py --download             # downloads + extracts (~1.5GB total
 ### 2. Train
 
 Trains the character-level transformer on the extracted pairs. Use
-`--scale` to match your GPU and time budget.
+`--scale` to control the training size.
 
 ```bash
-python train.py --scale 1                   # default (15 sec)
-python train.py --scale 2                   # recommended (13 min on 2080 Ti)
-python train.py --scale 3                   # full data (~45 min)
+python train.py --scale test                # quick sanity check (20K pairs, ~15 sec)
+python train.py --scale full                # all data (~45 min on RTX 2080, default)
+python train.py                             # same as --scale full
 ```
+
+Legacy `--scale 1/2/3` flags are still accepted for compatibility.
 
 ### Training scales
 
@@ -470,11 +498,13 @@ Perfect tense verb forms are oversampled 3x, following
 finding that perfects are underrepresented in training data (2%) relative
 to Byzantine text (11.4%).
 
-| Scale | Training pairs | Varieties | AG | SMG | Time (2080 Ti) | Eval | Tests |
-|:-----:|---------------:|----------:|-------:|-------:|:--------------:|:----:|:-----:|
-| 1 | 20K | 9K (100%) | 5.5K | 5.5K | 16 sec | 2.6% | 53/55 |
-| 2 | 1M | 9K (100%) | 496K | 496K | 13 min | 62% | 54/55 |
-| 3 | 3.4M (all) | 9K (100%) | 1.5M (100%) | 1.7M (100%) | 95 min | 71.5% | 55/55 |
+| Scale | Training pairs | Varieties | AG | SMG | Time (RTX 2080) |
+|:-----:|---------------:|----------:|-------:|-------:|:--------------:|
+| test | 20K | 9K (100%) | 5.5K | 5.5K | ~15 sec |
+| full | 3.4M (all) | 9K (100%) | 1.5M (100%) | 1.7M (100%) | ~45 min |
+
+Models save to `model/{lang}-test/` (test scale) or `model/{lang}/`
+(full scale).
 
 Eval accuracy is the model's score on held-out pairs *without* the
 lookup table. In practice, the lookup resolves most forms instantly
@@ -494,7 +524,7 @@ encoder output. This follows
 finding that multi-task learning (joint POS + morphology + lemma)
 improved Byzantine Greek lemmatization by ~9 percentage points. Each
 auxiliary loss is weighted at 0.1x relative to the lemmatization loss.
-At scale 3, the heads reach 90.4% POS, 81.5% nominal, and 91.2% verbal
+At full scale, the heads reach 90.4% POS, 81.5% nominal, and 91.2% verbal
 accuracy on the held-out set.
 
 Training uses a linear warmup LR scheduler (500 steps warmup, then linear
@@ -503,12 +533,10 @@ decay) and gradient clipping (max norm 1.0) for stable convergence.
 Tests are a 55-case suite covering SMG, Epic, Attic, Koine, Byzantine,
 Katharevousa, crasis, and model fallback across all resolution paths.
 
-Models are saved to `model/combined-s0/`, `model/combined-s1/`, etc.
-`Dilemma()` auto-detects the best available scale, or you can specify one:
+`Dilemma()` auto-detects the best available model:
 
 ```python
-d = Dilemma(scale=0)                  # use scale 0 model explicitly
-d = Dilemma()                         # auto-detect highest available
+d = Dilemma()                         # auto-detect best available
 ```
 
 Medieval/Byzantine Greek is treated as part of Modern Greek, not a
@@ -553,7 +581,7 @@ git clone https://github.com/ciscoriordan/dilemma.git && cd dilemma
 pip install -r requirements.txt
 python build_data.py --download
 python build_lookup_db.py              # SQLite for instant startup
-python train.py --scale 2
+python train.py                        # full scale (~45 min on RTX 2080)
 python export_onnx.py                  # optional: enable PyTorch-free inference
 ```
 
@@ -595,11 +623,11 @@ vocabulary (~160 tokens), so the same word is ~10 steps. Combined with
 |--|:----------:|:-------:|
 | Parameters | 300M | 4M |
 | Training (500K pairs, 3 epochs) | ~4 hours | ~10 min |
-| Training (3.4M pairs, 3 epochs) | ~20 hours | ~95 min |
+| Training (3.4M pairs, 3 epochs) | ~20 hours | ~45 min |
 | Inference | ~10ms/word | <1ms/word |
 | Dependencies | torch + transformers | torch only |
 
-The custom model trains **10-20x faster** and runs **10x faster** at
+The custom model trains **20-25x faster** and runs **10x faster** at
 inference, with no loss in accuracy for this task. Greek lemmatization
 is highly pattern-based - a small specialized model matches a large
 general-purpose one.
@@ -638,9 +666,9 @@ We chose GLAUx over two larger corpora:
   not found in any classical corpus.
 
 All three are CC BY-SA 4.0. Compound decomposition (added in v1.5)
-reduced the no-lookup-hit rate on DBBE from 4.4% to 3.0% by splitting
+reduced the no-lookup-hit rate on DBBE from 4.4% to 3.1% by splitting
 compound words at linking vowels (ο/ι/υ) and looking up the base
-element. The remaining 3.0% are forms where neither lookup, compound
+element. The remaining 3.1% are forms where neither lookup, compound
 decomposition, nor the seq2seq model can recover the correct lemma.
 
 Each form is indexed under its original, monotonic, and accent-stripped
@@ -725,7 +753,7 @@ present"). These are propagated to every form in that table section:
 | *stanza* `grc` | 71.3% | AG only | ~310K tokens (AGLDT + Perseus) | no | static |
 | CLTK `BackoffGreekLemmatizer` | 66.9% | AG only | ~310K tokens (Perseus) | no | static |
 | Perseus *Morpheus* | - | AG only | hand-crafted rules | no | not actively developed |
-| **Dilemma** | **91.5%** | **MG + AG + Medieval + dialects** | **3.4M pairs + 9.7M lookup** | **yes** | **monthly from Wiktionary** |
+| **Dilemma** | **91.5%** | **MG + AG + Medieval + dialects** | **3.4M pairs + 12.3M lookup** | **yes** | **monthly from Wiktionary** |
 
 DBBE accuracy is equiv-adjusted on 8,342 Byzantine Greek tokens
 (see `bench_dbbe.py` for methodology). All tools evaluated with the
@@ -745,7 +773,7 @@ blinded evaluation by expert readers. They found that methods using
 large lexica combined with POS tagging (CLTK backoff lemmatizer,
 Diorisis corpus) consistently outperformed pure ML approaches with
 smaller lexica. Dilemma follows the same principle: a large lookup
-table (9.7M forms) handles the vast majority of words, with a small
+table (12.3M forms) handles the vast majority of words, with a small
 model as fallback.
 
 [Celano (2025)](https://aclanthology.org/2025.lm4dh-1.5/) presented

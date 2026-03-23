@@ -84,8 +84,18 @@ def build():
 
     print("Loading lookup tables...")
     ag = _load_lookup("ag", AG_PATH, "AG")
-    mg = _load_lookup("mg", MG_PATH, "MG")
+    el = _load_lookup("mg", MG_PATH, "MG")
     med = _load_lookup("med", MED_PATH, "Med")
+
+    # Merge med into el: vernacular medieval Greek is the ancestor of
+    # Modern Greek, and EL Wiktionary's "Medieval Greek" category contains
+    # early MG vocabulary, not Byzantine literary Greek.
+    med_merged = 0
+    for k, v in med.items():
+        if k not in el:
+            el[k] = v
+            med_merged += 1
+    print(f"  Merged {med_merged:,} med entries into el ({len(el):,} total)")
 
     # Expand AG and Med with GLAUx corpus pairs (644K forms from
     # 8th c. BC - 4th c. AD Greek texts). These are corpus-derived
@@ -106,32 +116,26 @@ def build():
             if form not in ag:
                 ag[form] = lemma
                 glaux_added_ag += 1
-            # Selectively add to Med: only when the pair won't cause
+            # Selectively add to el: only when the pair won't cause
             # a priority override conflict in the combined merge.
-            # Skip if the form exists in original AG with a different
-            # lemma (the conflict case, e.g. AG has a self-map like
-            # μᾶλλον->μᾶλλον that would be overridden by μᾶλλον->μάλα).
-            if form not in med:
+            if form not in el:
                 if form not in ag_original:
-                    # New coverage: form not in original AG at all
-                    med[form] = lemma
+                    el[form] = lemma
                     glaux_added_med += 1
                 elif ag_original[form] == lemma:
-                    # Reinforcing: same lemma as AG
-                    med[form] = lemma
+                    el[form] = lemma
                     glaux_added_med += 1
                 else:
-                    # Conflict: AG has a different lemma, skip
                     glaux_skipped_med += 1
         print(f"  GLAUx: +{glaux_added_ag:,} to AG, "
-              f"+{glaux_added_med:,} to Med, "
-              f"{glaux_skipped_med:,} Med conflicts skipped "
+              f"+{glaux_added_med:,} to el, "
+              f"{glaux_skipped_med:,} el conflicts skipped "
               f"({time.time()-t_g:.1f}s)")
 
-    # Build combined lookup (AG-first priority, same logic as dilemma.py)
+    # Build combined lookup (AG-first priority)
     print("\nBuilding combined lookup (AG-first)...")
     combined = {}
-    for data in [ag, med, mg]:
+    for data in [ag, el]:
         for k, v in data.items():
             if k not in combined:
                 combined[k] = v
@@ -153,7 +157,7 @@ def build():
     conn.execute("PRAGMA page_size=4096")
 
     # Deduplicated lemma table
-    all_lemmas = sorted(set(combined.values()) | set(ag.values()))
+    all_lemmas = sorted(set(combined.values()) | set(ag.values()) | set(el.values()))
     lemma_to_id = {lemma: i for i, lemma in enumerate(all_lemmas)}
     conn.execute("CREATE TABLE lemmas (id INTEGER PRIMARY KEY, text TEXT NOT NULL)")
     conn.executemany("INSERT INTO lemmas (id, text) VALUES (?, ?)",
@@ -164,32 +168,41 @@ def build():
     conn.execute("""CREATE TABLE lookup (
         form TEXT NOT NULL,
         lemma_id INTEGER NOT NULL,
-        src CHAR(1) NOT NULL,
-        lang CHAR(1) NOT NULL DEFAULT 'c',
+        src TEXT NOT NULL,
+        lang TEXT NOT NULL DEFAULT 'all',
         FOREIGN KEY (lemma_id) REFERENCES lemmas(id)
     )""")
 
     # Track which source provided each combined entry
     src_map = {}
-    for data, src_char in [(ag, 'a'), (med, 'm'), (mg, 'e')]:
+    for data, src_label in [(ag, 'grc'), (el, 'el')]:
         for k in data:
             if k not in src_map:
-                src_map[k] = src_char
+                src_map[k] = src_label
             elif _is_self_map(k, combined.get(k, '')) and not _is_self_map(k, data[k]):
-                src_map[k] = src_char
+                src_map[k] = src_label
 
-    conn.executemany("INSERT INTO lookup (form, lemma_id, src, lang) VALUES (?, ?, ?, 'c')",
-                     ((k, lemma_to_id[v], src_map.get(k, 'a')) for k, v in combined.items()))
+    conn.executemany("INSERT INTO lookup (form, lemma_id, src, lang) VALUES (?, ?, ?, 'all')",
+                     ((k, lemma_to_id[v], src_map.get(k, 'grc')) for k, v in combined.items()))
     print(f"  combined: {len(combined):,} rows")
 
-    # AG-only entries where AG differs from combined
+    # AG-only entries where AG differs from combined (for polytonic-first lookup)
     ag_extra = 0
     for k, v in ag.items():
         if combined.get(k) != v:
-            conn.execute("INSERT INTO lookup (form, lemma_id, src, lang) VALUES (?, ?, 'a', 'a')",
+            conn.execute("INSERT INTO lookup (form, lemma_id, src, lang) VALUES (?, ?, 'grc', 'grc')",
                          (k, lemma_to_id[v]))
             ag_extra += 1
-    print(f"  ag-only (differs from combined): {ag_extra:,} rows")
+    print(f"  grc-only (differs from combined): {ag_extra:,} rows")
+
+    # MG-only entries where MG differs from combined (for lang="el" mode)
+    mg_extra = 0
+    for k, v in el.items():
+        if combined.get(k) != v:
+            conn.execute("INSERT INTO lookup (form, lemma_id, src, lang) VALUES (?, ?, 'el', 'el')",
+                         (k, lemma_to_id[v]))
+            mg_extra += 1
+    print(f"  el-only (differs from combined): {mg_extra:,} rows")
 
     conn.execute("CREATE INDEX idx_lookup_form_lang ON lookup (form, lang)")
     conn.execute("CREATE INDEX idx_lemmas_text ON lemmas (text)")

@@ -350,10 +350,11 @@ class LookupDB:
     The DB has two tables:
       - lemmas(id, text): deduplicated lemma strings (~700K)
       - lookup(form, lemma_id, lang): form->lemma mappings (~12.5M)
-        lang='c' for combined, lang='a' for AG-only overrides
+        lang='all' for combined, lang='grc' for AG-only overrides,
+        lang='el' for MG-only overrides
     """
 
-    def __init__(self, db_path, lang='c'):
+    def __init__(self, db_path, lang='all'):
         self._conn = sqlite3.connect(str(db_path))
         self._conn.execute("PRAGMA mmap_size=268435456")  # 256MB mmap
         self._lang = lang
@@ -370,10 +371,11 @@ class LookupDB:
         row = self._conn.execute(self._query, (key, self._lang)).fetchone()
         if row:
             return row[0]
-        # AG-only table ('a') falls through to combined ('c') for entries
-        # where AG agrees with combined (not stored separately to save space)
-        if self._lang == 'a':
-            row = self._conn.execute(self._query, (key, 'c')).fetchone()
+        # AG-only table ('grc') falls through to combined ('all') for entries
+        # where AG agrees with combined (not stored separately to save space).
+        # Same logic for MG-only ('el').
+        if self._lang in ('grc', 'el'):
+            row = self._conn.execute(self._query, (key, 'all')).fetchone()
             return row[0] if row else default
         return default
 
@@ -383,8 +385,8 @@ class LookupDB:
         row = self._conn.execute(self._query, (key, self._lang)).fetchone()
         if row:
             return True
-        if self._lang == 'a':
-            return self._conn.execute(self._query, (key, 'c')).fetchone() is not None
+        if self._lang in ('grc', 'el'):
+            return self._conn.execute(self._query, (key, 'all')).fetchone() is not None
         return False
 
     def __getitem__(self, key):
@@ -432,7 +434,7 @@ class LookupDB:
         Args:
             candidates: Set of accent-stripped forms to look up.
             src_filter: If set, only return forms from this source
-                (e.g., 'a' for AG-sourced forms only).
+                (e.g., 'grc' for AG-sourced forms only).
         """
         if not candidates:
             return {}
@@ -447,11 +449,11 @@ class LookupDB:
                     f"WHERE stripped IN ({placeholders}) AND src = ?"
                 )
                 batch = batch + [src_filter]
-            elif self._lang == 'a':
+            elif self._lang in ('grc', 'el'):
                 query = (
                     f"SELECT DISTINCT stripped, form FROM lookup "
                     f"WHERE stripped IN ({placeholders}) "
-                    f"AND lang IN ('a', 'c')"
+                    f"AND lang IN ('{self._lang}', 'all')"
                 )
             else:
                 query = (
@@ -467,10 +469,10 @@ class LookupDB:
 
     def has_stripped(self, stripped: str) -> bool:
         """Check if a stripped form exists in the DB."""
-        if self._lang == 'a':
+        if self._lang in ('grc', 'el'):
             row = self._conn.execute(
-                "SELECT 1 FROM lookup WHERE stripped = ? AND lang IN ('a', 'c') LIMIT 1",
-                (stripped,)).fetchone()
+                "SELECT 1 FROM lookup WHERE stripped = ? AND lang IN (?, 'all') LIMIT 1",
+                (stripped, self._lang)).fetchone()
         else:
             row = self._conn.execute(
                 "SELECT 1 FROM lookup WHERE stripped = ? AND lang = ? LIMIT 1",
@@ -592,11 +594,15 @@ class Dilemma:
         if LOOKUP_DB_PATH.exists():
             # SQLite: instant startup for all language modes
             if self.lang == "grc":
-                self._lookup = LookupDB(LOOKUP_DB_PATH, lang='a')
+                self._lookup = LookupDB(LOOKUP_DB_PATH, lang='grc')
                 self._ag_lookup = self._lookup
+            elif self.lang == "el":
+                self._lookup = LookupDB(LOOKUP_DB_PATH, lang='all')
+                self._ag_lookup = LookupDB(LOOKUP_DB_PATH, lang='grc')
+                self._mg_lookup = LookupDB(LOOKUP_DB_PATH, lang='el')
             else:
-                self._lookup = LookupDB(LOOKUP_DB_PATH, lang='c')
-                self._ag_lookup = LookupDB(LOOKUP_DB_PATH, lang='a')
+                self._lookup = LookupDB(LOOKUP_DB_PATH, lang='all')
+                self._ag_lookup = LookupDB(LOOKUP_DB_PATH, lang='grc')
             self._using_db = True
         else:
             # JSON fallback
@@ -774,15 +780,38 @@ class Dilemma:
         return lemma
 
     def _find_model_dir(self):
-        """Find the best available model directory."""
+        """Find the best available model directory.
+
+        Search order: {lang}/ (full model), then {lang}-s3/-s2/-s1 (legacy),
+        then combined/ as fallback if no language-specific model exists.
+        """
         lang_dir = {"el": "el", "grc": "grc", "all": "combined"}[self.lang]
+
+        # Explicit scale requested
         if self._scale is not None:
-            return MODEL_DIR / f"{lang_dir}-s{self._scale}"
-        for s in [3, 2, 1]:
-            candidate = MODEL_DIR / f"{lang_dir}-s{s}"
-            if ((candidate / "encoder.onnx").exists()
-                    or (candidate / "model.pt").exists()):
+            for prefix in [lang_dir, "combined"]:
+                # New naming: {lang}-test or {lang} (full)
+                if str(self._scale) == "test":
+                    candidate = MODEL_DIR / f"{prefix}-test"
+                else:
+                    candidate = MODEL_DIR / prefix
+                if (candidate / "encoder.onnx").exists() or (candidate / "model.pt").exists():
+                    return candidate
+                # Legacy naming: -s1, -s2, -s3
+                candidate = MODEL_DIR / f"{prefix}-s{self._scale}"
+                if (candidate / "encoder.onnx").exists() or (candidate / "model.pt").exists():
+                    return candidate
+
+        # Auto-detect: prefer {lang}/ (full), then legacy -s3/-s2/-s1
+        for prefix in [lang_dir, "combined"]:
+            candidate = MODEL_DIR / prefix
+            if (candidate / "encoder.onnx").exists() or (candidate / "model.pt").exists():
                 return candidate
+            for s in [3, 2, 1]:
+                candidate = MODEL_DIR / f"{prefix}-s{s}"
+                if (candidate / "encoder.onnx").exists() or (candidate / "model.pt").exists():
+                    return candidate
+
         return MODEL_DIR / lang_dir
 
     def _load_model(self):
@@ -909,12 +938,32 @@ class Dilemma:
         here without losing the breathing that monotonic would strip.
 
         For polytonic input (breathings/circumflex present), AG lookup is
-        tried first to avoid MG lemma forms (βιβλίο vs βιβλίον).
+        tried first to avoid MG lemma forms (biblion vs biblion).
+
+        For lang="el" (MG mode), MG-specific entries are checked first
+        (monotonic input -> el lookup), then falls back to combined.
 
         Skips mono/stripped matches that are trivially short (1-2 chars)
-        and map to themselves — these are usually false positives from
+        and map to themselves - these are usually false positives from
         accent stripping on elided or particle forms.
         """
+        # For MG mode, try MG-specific lookup first. MG entries take
+        # priority over AG when there's a conflict (e.g. MG lemma
+        # forms preferred over AG lemma forms for the same surface form).
+        if self.lang == "el" and self._mg_lookup:
+            tbl = self._mg_lookup
+            hit = tbl.get(word) or tbl.get(word.lower())
+            if not hit:
+                mono = to_monotonic(word.lower())
+                stripped = strip_accents(word.lower())
+                for variant in [mono, stripped]:
+                    hit = tbl.get(variant)
+                    if hit and not (len(variant) <= 2 and hit == variant):
+                        break
+                    hit = None
+            if hit:
+                return hit
+
         # For polytonic input (breathings/circumflex), try AG-only lookup
         # first. Even though AG has priority in the combined table, the
         # normalization cascade (mono/stripped) can still land on MG entries.
@@ -1081,12 +1130,12 @@ class Dilemma:
 
     def _lang_of_db(self, form: str) -> str:
         """SQLite-backed language detection via the src column."""
-        _SRC_TO_LANG = {'a': 'grc', 'e': 'el', 'm': 'med'}
+        _SRC_TO_LANG = {'grc': 'grc', 'el': 'el', 'med': 'med'}
         conn = self._lookup._conn
         lower = form.lower()
         mono = to_monotonic(lower)
         stripped = strip_accents(lower)
-        query = "SELECT src FROM lookup WHERE form = ? AND lang = 'c' LIMIT 1"
+        query = "SELECT src FROM lookup WHERE form = ? AND lang = 'all' LIMIT 1"
         for variant in [form, lower, mono, stripped]:
             row = conn.execute(query, (variant,)).fetchone()
             if row:
@@ -1780,9 +1829,9 @@ class Dilemma:
         indexed 'stripped' column. ~1000 candidates for ED1, checked
         in one SQL query.
         """
-        # For AG mode, filter to AG-sourced forms only (src='a')
+        # For AG mode, filter to AG-sourced forms only (src='grc')
         # to avoid suggesting monotonic MG forms
-        src_filter = 'a' if self.lang == 'grc' else None
+        src_filter = 'grc' if self.lang == 'grc' else None
 
         # Collect candidate stripped forms at each distance level
         candidates: set[str] = set()
