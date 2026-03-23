@@ -152,7 +152,7 @@ representing the ceiling for rule-based AG morphology. Cells marked
 | **Cypriot** | 199 |
 | **Heptanesian (Ionian)** | 18 |
 | **Maniot** | 3 |
-| **Medieval/Byzantine** | 3K (merged into MG) |
+| **Medieval/Byzantine** | 3K ([merged into MG](#why-medieval-is-mg) - vernacular medieval is the ancestor of MG; Byzantine literary Greek is Atticist and handled by the AG lookup) |
 
 ### Ancient Greek varieties
 
@@ -568,6 +568,7 @@ Katharevousa, crasis, and model fallback across all resolution paths.
 d = Dilemma()                         # auto-detect best available
 ```
 
+<a id="why-medieval-is-mg"></a>
 Medieval/Byzantine Greek forms are merged into Modern Greek (`el`),
 not treated as a separate language. EL Wiktionary's "Medieval Greek"
 category (6,735 entries) contains early Modern Greek vocabulary, not
