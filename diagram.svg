@@ -1,80 +1,80 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 420" font-family="'Inter','Helvetica Neue',Arial,sans-serif">
   <rect width="720" height="420" fill="#f5f3ee"/>
 
-  <!-- ── SOURCES (dark blue) ── -->
-  <rect x="16" y="12" width="310" height="250" rx="4" fill="#2d3b55"/>
-  <text x="171" y="34" text-anchor="middle" fill="#e8e4da" font-size="12" font-weight="700" letter-spacing="0.5">SOURCES</text>
+  <!-- ── SOURCES (lightest blue) ── -->
+  <rect x="16" y="12" width="310" height="258" rx="4" fill="#8aaec8"/>
+  <text x="171" y="34" text-anchor="middle" fill="#fff" font-size="12" font-weight="700" letter-spacing="0.5">SOURCES</text>
 
   <!-- Wiktionary -->
-  <rect x="26" y="44" width="290" height="52" rx="3" fill="#3d5175"/>
-  <text x="36" y="62" fill="#e8e4da" font-size="11" font-weight="600">Wiktionary (EN + EL)</text>
-  <text x="36" y="80" fill="#c8d4e4" font-size="10">AG 2.4M &#xB7; MG 2.8M &#xB7; Medieval 6.7K forms</text>
-  <text x="296" y="72" text-anchor="end" fill="#c8d4e4" font-size="18">&#x2192;</text>
+  <rect x="26" y="44" width="290" height="52" rx="3" fill="#7aa0bc"/>
+  <text x="36" y="62" fill="#fff" font-size="11" font-weight="600">Wiktionary (EN + EL)</text>
+  <text x="36" y="80" fill="#e0ecf4" font-size="10">AG 2.4M &#xB7; MG 2.8M &#xB7; Medieval 6.7K forms</text>
+  <text x="296" y="72" text-anchor="end" fill="#e0ecf4" font-size="18">&#x2192;</text>
 
   <!-- Lexicon headwords + Lua -->
-  <rect x="26" y="104" width="180" height="68" rx="3" fill="#3d5175"/>
-  <text x="36" y="122" fill="#e8e4da" font-size="11" font-weight="600">Lexicon headwords</text>
-  <text x="36" y="138" fill="#c8d4e4" font-size="10">LSJ 119K &#xB7; Sophocles 20K</text>
-  <text x="36" y="154" fill="#c8d4e4" font-size="10">Cunliffe 12K</text>
+  <rect x="26" y="104" width="180" height="68" rx="3" fill="#7aa0bc"/>
+  <text x="36" y="122" fill="#fff" font-size="11" font-weight="600">Lexicon headwords</text>
+  <text x="36" y="138" fill="#e0ecf4" font-size="10">LSJ 119K &#xB7; Sophocles 20K</text>
+  <text x="36" y="154" fill="#e0ecf4" font-size="10">Cunliffe 12K</text>
 
   <!-- Lua expansion box -->
-  <rect x="216" y="104" width="100" height="68" rx="3" fill="#4a6a3d"/>
-  <text x="256" y="126" text-anchor="middle" fill="#e8e4da" font-size="10" font-weight="600">Wiktionary</text>
-  <text x="256" y="140" text-anchor="middle" fill="#d0e4c8" font-size="9">Lua modules</text>
-  <text x="256" y="154" text-anchor="middle" fill="#d0e4c8" font-size="9">grc-decl/conj</text>
-  <text x="208" y="142" fill="#c8d4e4" font-size="14">&#x2192;</text>
-  <text x="316" y="142" fill="#d0e4c8" font-size="18">&#x2192;</text>
+  <rect x="216" y="104" width="100" height="68" rx="3" fill="#6a94b0"/>
+  <text x="256" y="126" text-anchor="middle" fill="#fff" font-size="10" font-weight="600">Wiktionary</text>
+  <text x="256" y="140" text-anchor="middle" fill="#e0ecf4" font-size="9">Lua modules</text>
+  <text x="256" y="154" text-anchor="middle" fill="#e0ecf4" font-size="9">grc-decl/conj</text>
+  <text x="208" y="142" fill="#e0ecf4" font-size="14">&#x2192;</text>
+  <text x="316" y="142" fill="#e0ecf4" font-size="18">&#x2192;</text>
 
   <!-- Corpus pairs -->
-  <rect x="26" y="180" width="290" height="44" rx="3" fill="#3d5175"/>
-  <text x="36" y="196" fill="#e8e4da" font-size="11" font-weight="600">Corpus pairs</text>
-  <text x="36" y="212" fill="#c8d4e4" font-size="10">GLAUx 557K &#xB7; UD Treebanks 27K</text>
-  <text x="296" y="204" text-anchor="end" fill="#c8d4e4" font-size="18">&#x2192;</text>
+  <rect x="26" y="180" width="290" height="44" rx="3" fill="#7aa0bc"/>
+  <text x="36" y="196" fill="#fff" font-size="11" font-weight="600">Corpus pairs</text>
+  <text x="36" y="212" fill="#e0ecf4" font-size="10">GLAUx 557K &#xB7; UD Treebanks 27K</text>
+  <text x="296" y="204" text-anchor="end" fill="#e0ecf4" font-size="18">&#x2192;</text>
 
   <!-- Notes under sources -->
-  <text x="171" y="238" text-anchor="middle" fill="#8898b0" font-size="9">3.4M training pairs (model) &#xB7; 12.3M lookup forms</text>
-  <text x="171" y="254" text-anchor="middle" fill="#7888a0" font-size="8">*Medieval = Wiktionary category (vernacular, not Byzantine literary)</text>
+  <text x="171" y="246" text-anchor="middle" fill="#4a6a84" font-size="9">3.4M training pairs (model) &#xB7; 12.3M lookup forms</text>
+  <text x="171" y="262" text-anchor="middle" fill="#4a6a84" font-size="8">*Medieval = Wiktionary category (vernacular, not Byzantine literary)</text>
 
-  <!-- ── LOOKUP TABLE (gold) ── -->
-  <rect x="340" y="12" width="364" height="130" rx="4" fill="#c49a3c"/>
+  <!-- ── LOOKUP TABLE (medium blue) ── -->
+  <rect x="340" y="12" width="364" height="130" rx="4" fill="#4a7a9c"/>
   <text x="522" y="34" text-anchor="middle" fill="#fff" font-size="13" font-weight="700" letter-spacing="0.5">LOOKUP TABLE</text>
 
-  <rect x="350" y="44" width="344" height="88" rx="3" fill="#d4ad54"/>
-  <text x="522" y="66" text-anchor="middle" fill="#3d2d10" font-size="12" font-weight="600">12.3M indexed forms</text>
-  <text x="522" y="84" text-anchor="middle" fill="#5a4420" font-size="10">polytonic &#xB7; monotonic &#xB7; accent-stripped</text>
-  <text x="522" y="102" text-anchor="middle" fill="#5a4420" font-size="10">AG-first priority &#xB7; el-only overrides for MG</text>
-  <text x="522" y="122" text-anchor="middle" fill="#3d2d10" font-size="11" font-weight="600" font-style="italic">resolves 95%+ of words instantly</text>
+  <rect x="350" y="44" width="344" height="88" rx="3" fill="#5a8aac"/>
+  <text x="522" y="66" text-anchor="middle" fill="#fff" font-size="12" font-weight="600">12.3M indexed forms</text>
+  <text x="522" y="84" text-anchor="middle" fill="#d8e8f0" font-size="10">polytonic &#xB7; monotonic &#xB7; accent-stripped</text>
+  <text x="522" y="102" text-anchor="middle" fill="#d8e8f0" font-size="10">AG-first priority &#xB7; el-only overrides for MG</text>
+  <text x="522" y="122" text-anchor="middle" fill="#fff" font-size="11" font-weight="600" font-style="italic">resolves 95%+ of words instantly</text>
 
   <!-- Miss arrow -->
   <text x="522" y="162" text-anchor="middle" fill="#8a8279" font-size="11">miss &#x2193;</text>
 
-  <!-- ── TRANSFORMER (blue) ── -->
-  <rect x="340" y="174" width="364" height="140" rx="4" fill="#4a6fa5"/>
+  <!-- ── TRANSFORMER (darker blue) ── -->
+  <rect x="340" y="174" width="364" height="140" rx="4" fill="#2d5a7a"/>
   <text x="522" y="196" text-anchor="middle" fill="#fff" font-size="13" font-weight="700" letter-spacing="0.5">TRANSFORMER (unseen forms)</text>
 
-  <rect x="350" y="204" width="344" height="100" rx="3" fill="#5a80b8"/>
+  <rect x="350" y="204" width="344" height="100" rx="3" fill="#3a6a8c"/>
   <text x="522" y="222" text-anchor="middle" fill="#fff" font-size="11">3-layer encoder-decoder &#xB7; 381 chars &#xB7; 4M params</text>
-  <text x="522" y="240" text-anchor="middle" fill="#fff" font-size="10">PyTorch or ONNX Runtime (no PyTorch needed)</text>
+  <text x="522" y="240" text-anchor="middle" fill="#d0e4f0" font-size="10">PyTorch or ONNX Runtime (no PyTorch needed)</text>
 
   <!-- Candidate flow -->
-  <text x="360" y="264" fill="#fff" font-size="10">candidates:</text>
+  <text x="360" y="264" fill="#d0e4f0" font-size="10">candidates:</text>
   <text x="440" y="264" fill="#fff" font-size="10" font-weight="600">&#x03BB;&#x03B1;&#x03BC;&#x03C0;&#x03C1;&#x03CD;&#x03BD;&#x03C9; &#x2713;</text>
-  <text x="540" y="264" fill="#c8dce8" font-size="10" text-decoration="line-through">&#x03BB;&#x03B1;&#x03BC;&#x03C0;&#x03C1;&#x03CD;&#x03C9;&#x03BD;</text>
-  <text x="630" y="264" fill="#c8dce8" font-size="9" text-decoration="line-through">&#x03BB;&#x03B5;&#x03BB;&#x03B1;&#x03BC;</text>
+  <text x="540" y="264" fill="#90b0c8" font-size="10" text-decoration="line-through">&#x03BB;&#x03B1;&#x03BC;&#x03C0;&#x03C1;&#x03CD;&#x03C9;&#x03BD;</text>
+  <text x="630" y="264" fill="#90b0c8" font-size="9" text-decoration="line-through">&#x03BB;&#x03B5;&#x03BB;&#x03B1;&#x03BC;</text>
 
   <text x="522" y="286" text-anchor="middle" fill="#fff" font-size="9">first match in ~820K headwords wins</text>
-  <text x="522" y="298" text-anchor="middle" fill="#c8dce8" font-size="8">(Wiktionary + LSJ + Cunliffe)</text>
+  <text x="522" y="298" text-anchor="middle" fill="#d0e4f0" font-size="8">(Wiktionary + LSJ + Cunliffe)</text>
 
-  <!-- Output -->
+  <!-- Output (darkest blue) -->
   <text x="522" y="332" text-anchor="middle" fill="#8a8279" font-size="11">&#x2193;</text>
-  <rect x="462" y="338" width="120" height="28" rx="3" fill="#1a2744"/>
-  <text x="522" y="357" text-anchor="middle" fill="#e8e4da" font-size="13" font-weight="700">lemma</text>
+  <rect x="462" y="338" width="120" height="28" rx="3" fill="#1a3050"/>
+  <text x="522" y="357" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">lemma</text>
 
   <!-- Convention note -->
   <text x="522" y="382" text-anchor="middle" fill="#8a8279" font-size="9">optionally remapped by convention (lsj, cunliffe, triantafyllidis)</text>
 
   <!-- Arrows from sources to lookup -->
-  <line x1="326" y1="70" x2="340" y2="70" stroke="#c49a3c" stroke-width="2"/>
-  <line x1="326" y1="138" x2="340" y2="90" stroke="#c49a3c" stroke-width="2"/>
-  <line x1="326" y1="198" x2="340" y2="110" stroke="#c49a3c" stroke-width="2"/>
+  <line x1="326" y1="70" x2="340" y2="70" stroke="#4a7a9c" stroke-width="2"/>
+  <line x1="326" y1="138" x2="340" y2="90" stroke="#4a7a9c" stroke-width="2"/>
+  <line x1="326" y1="204" x2="340" y2="110" stroke="#4a7a9c" stroke-width="2"/>
 </svg>
