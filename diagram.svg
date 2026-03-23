@@ -1,75 +1,82 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 450" font-family="'Inter','Helvetica Neue',Arial,sans-serif">
-  <rect width="700" height="450" fill="#e8e4da"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 420" font-family="'Inter','Helvetica Neue',Arial,sans-serif">
+  <rect width="720" height="420" fill="#f5f3ee"/>
 
-  <!-- thin border -->
-  <rect x="1" y="1" width="698" height="448" rx="3" fill="none" stroke="#c4b99a" stroke-width="0.5"/>
+  <!-- ── SOURCES (dark blue) ── -->
+  <rect x="16" y="12" width="310" height="250" rx="4" fill="#2d3b55"/>
+  <text x="171" y="34" text-anchor="middle" fill="#e8e4da" font-size="12" font-weight="700" letter-spacing="0.5">SOURCES</text>
 
-  <!-- ── Left: variety tree ── -->
-  <text x="42" y="38" fill="#1a2744" font-size="14" font-weight="700" letter-spacing="0.5">Sources</text>
+  <!-- Wiktionary -->
+  <rect x="26" y="44" width="290" height="52" rx="3" fill="#3d5175"/>
+  <text x="36" y="62" fill="#e8e4da" font-size="11" font-weight="600">Wiktionary (EN + EL)</text>
+  <text x="36" y="80" fill="#a8b8d0" font-size="10">AG 2.4M &#xB7; MG 2.8M &#xB7; Medieval 6.7K forms</text>
+  <text x="296" y="72" text-anchor="end" fill="#a8b8d0" font-size="18">&#x2192;</text>
 
-  <!-- trunk lines -->
-  <line x1="52" y1="56" x2="52" y2="300" stroke="#b8af9a" stroke-width="1.5"/>
+  <!-- Lexicon headwords + Lua -->
+  <rect x="26" y="104" width="180" height="68" rx="3" fill="#3d5175"/>
+  <text x="36" y="122" fill="#e8e4da" font-size="11" font-weight="600">Lexicon headwords</text>
+  <text x="36" y="138" fill="#a8b8d0" font-size="10">LSJ 119K &#xB7; Sophocles 20K</text>
+  <text x="36" y="154" fill="#a8b8d0" font-size="10">Cunliffe 12K</text>
 
-  <!-- Modern Greek branch -->
-  <line x1="52" y1="72" x2="76" y2="72" stroke="#b8af9a" stroke-width="1.5"/>
-  <text x="80" y="76" fill="#1a2744" font-size="13" font-weight="700">Modern Greek</text>
-  <line x1="80" y1="84" x2="80" y2="186" stroke="#b8af9a" stroke-width="1" stroke-dasharray="2,3"/>
-  <text x="92" y="100" fill="#3d3d3d" font-size="11">SMG / Demotic</text>
-  <text x="92" y="118" fill="#3d3d3d" font-size="11">Katharevousa</text>
-  <text x="92" y="136" fill="#3d3d3d" font-size="11">Cypriot</text>
-  <text x="92" y="154" fill="#3d3d3d" font-size="11">Cretan</text>
-  <text x="92" y="172" fill="#3d3d3d" font-size="11">Medieval / Byzantine*</text>
-  <text x="92" y="190" fill="#6b6560" font-size="10">Heptanesian, Maniot</text>
-  <text x="92" y="206" fill="#8a8279" font-size="9" font-style="italic">877K + 8K tagged entries</text>
-  <text x="42" y="430" fill="#8a8279" font-size="8">*As categorized in Wiktionary (vernacular medieval, not Byzantine literary Greek)</text>
+  <!-- Lua expansion arrow + box -->
+  <rect x="216" y="104" width="100" height="68" rx="3" fill="#4a6a3d"/>
+  <text x="266" y="126" text-anchor="middle" fill="#e8e4da" font-size="10" font-weight="600">Wiktionary</text>
+  <text x="266" y="140" text-anchor="middle" fill="#c8dac0" font-size="9">Lua modules</text>
+  <text x="266" y="154" text-anchor="middle" fill="#c8dac0" font-size="9">grc-decl/conj</text>
+  <text x="206" y="142" fill="#a8b8d0" font-size="14">&#x2192;</text>
+  <text x="296" y="142" text-anchor="end" fill="#c8dac0" font-size="18">&#x2192;</text>
 
-  <!-- Ancient Greek branch -->
-  <line x1="52" y1="240" x2="76" y2="240" stroke="#b8af9a" stroke-width="1.5"/>
-  <text x="80" y="244" fill="#1a2744" font-size="13" font-weight="700">Ancient Greek</text>
-  <line x1="80" y1="252" x2="80" y2="310" stroke="#b8af9a" stroke-width="1" stroke-dasharray="2,3"/>
-  <text x="92" y="268" fill="#3d3d3d" font-size="11">Epic &#xB7; Attic &#xB7; Ionic &#xB7; Koine</text>
-  <text x="92" y="286" fill="#3d3d3d" font-size="11">Doric &#xB7; Aeolic &#xB7; Laconian</text>
-  <text x="92" y="304" fill="#8a8279" font-size="9" font-style="italic">60K entries, 1.5M pairs</text>
+  <!-- Corpus pairs -->
+  <rect x="26" y="180" width="290" height="36" rx="3" fill="#3d5175"/>
+  <text x="36" y="198" fill="#e8e4da" font-size="11" font-weight="600">Corpus pairs</text>
+  <text x="174" y="198" fill="#a8b8d0" font-size="10">GLAUx 557K &#xB7; UD Treebanks 27K</text>
+  <text x="296" y="198" text-anchor="end" fill="#a8b8d0" font-size="18">&#x2192;</text>
 
-  <!-- ── Center: funnel ── -->
-  <path d="M265,80 L310,190 L310,220 L265,340 L285,340 L330,220 L330,190 L285,80 Z" fill="#d5d0c3" opacity="0.6"/>
-  <text x="297" y="195" text-anchor="middle" fill="#8a8279" font-size="9" letter-spacing="0.5">3.4M</text>
-  <text x="297" y="210" text-anchor="middle" fill="#8a8279" font-size="9" letter-spacing="0.5">PAIRS</text>
+  <!-- Training pairs note -->
+  <text x="171" y="240" text-anchor="middle" fill="#8090a8" font-size="9">3.4M training pairs (model) &#xB7; 12.3M lookup forms</text>
 
-  <!-- ── Right: Dilemma layers ── -->
-  <text x="520" y="42" text-anchor="middle" fill="#1a2744" font-size="26" font-weight="700" font-style="italic" letter-spacing="1.5">Dilemma</text>
+  <!-- Footnote -->
+  <text x="171" y="256" text-anchor="middle" fill="#6878a0" font-size="8">*Medieval = Wiktionary category (vernacular, not Byzantine literary)</text>
 
-  <!-- Lookup -->
-  <rect x="370" y="62" width="300" height="100" rx="2" fill="#f5f2ec" stroke="#1a2744" stroke-width="1"/>
-  <rect x="370" y="62" width="300" height="26" rx="2" fill="#1a2744"/>
-  <text x="520" y="80" text-anchor="middle" fill="#f5f2ec" font-size="12" font-weight="700">Lookup Table</text>
-  <text x="520" y="108" text-anchor="middle" fill="#3d3d3d" font-size="11">12.3 million indexed forms</text>
-  <text x="520" y="126" text-anchor="middle" fill="#6b6560" font-size="10">polytonic &#xB7; monotonic &#xB7; accent-stripped</text>
-  <text x="520" y="150" text-anchor="middle" fill="#1a2744" font-size="11" font-style="italic">instant resolution</text>
+  <!-- ── LOOKUP TABLE (gold) ── -->
+  <rect x="340" y="12" width="364" height="130" rx="4" fill="#c49a3c"/>
+  <text x="522" y="34" text-anchor="middle" fill="#fff" font-size="13" font-weight="700" letter-spacing="0.5">LOOKUP TABLE</text>
 
-  <!-- miss arrow -->
-  <text x="520" y="184" text-anchor="middle" fill="#8a8279" font-size="10">miss &#x2193;</text>
+  <rect x="350" y="44" width="344" height="88" rx="3" fill="#d4ad54"/>
+  <text x="522" y="66" text-anchor="middle" fill="#3d2d10" font-size="12" font-weight="600">12.3M indexed forms</text>
+  <text x="522" y="84" text-anchor="middle" fill="#5a4420" font-size="10">polytonic &#xB7; monotonic &#xB7; accent-stripped</text>
+  <text x="522" y="102" text-anchor="middle" fill="#5a4420" font-size="10">AG-first priority &#xB7; el-only overrides for MG</text>
+  <text x="522" y="122" text-anchor="middle" fill="#3d2d10" font-size="11" font-weight="600" font-style="italic">resolves 95%+ of words instantly</text>
 
-  <!-- Transformer -->
-  <rect x="370" y="198" width="300" height="120" rx="2" fill="#f5f2ec" stroke="#4a6fa5" stroke-width="1"/>
-  <rect x="370" y="198" width="300" height="26" rx="2" fill="#4a6fa5"/>
-  <text x="520" y="216" text-anchor="middle" fill="#f5f2ec" font-size="12" font-weight="700">Character Transformer</text>
-  <text x="520" y="244" text-anchor="middle" fill="#3d3d3d" font-size="11">3-layer encoder + 3-layer decoder</text>
-  <text x="520" y="262" text-anchor="middle" fill="#3d3d3d" font-size="11">~381 char vocabulary &#xB7; 4M parameters</text>
-  <text x="520" y="284" text-anchor="middle" fill="#6b6560" font-size="10">learns: -&#x03C9;&#x03C3;&#x03B5; &#x2192; -&#x03C9;&#x03BD;&#x03C9; &#xB7; -&#x03BF;&#x03C5;&#x03C3;&#x03B1;&#x03BD; &#x2192; -&#x03C9;</text>
-  <text x="520" y="306" text-anchor="middle" fill="#4a6fa5" font-size="11" font-style="italic">&lt;1ms per word &#xB7; PyTorch or ONNX</text>
+  <!-- Miss arrow -->
+  <text x="522" y="162" text-anchor="middle" fill="#8a8279" font-size="11">miss &#x2193;</text>
 
-  <!-- beam candidates arrow -->
-  <text x="520" y="340" text-anchor="middle" fill="#8a8279" font-size="10">beam candidates &#x2193;</text>
+  <!-- ── TRANSFORMER (light blue) ── -->
+  <rect x="340" y="174" width="364" height="140" rx="4" fill="#4a6fa5"/>
+  <text x="522" y="196" text-anchor="middle" fill="#fff" font-size="13" font-weight="700" letter-spacing="0.5">TRANSFORMER</text>
 
-  <!-- Headword filter -->
-  <rect x="370" y="350" width="300" height="48" rx="2" fill="#f5f2ec" stroke="#7a6e5d" stroke-width="1"/>
-  <rect x="370" y="350" width="300" height="24" rx="2" fill="#7a6e5d"/>
-  <text x="520" y="367" text-anchor="middle" fill="#f5f2ec" font-size="12" font-weight="700">Headword Filter</text>
-  <text x="520" y="390" text-anchor="middle" fill="#3d3d3d" font-size="10">~820K headwords (Wiktionary + LSJ + Cunliffe)</text>
+  <rect x="350" y="204" width="344" height="100" rx="3" fill="#5a80b8"/>
+  <text x="522" y="222" text-anchor="middle" fill="#e0e8f0" font-size="11">3-layer encoder-decoder &#xB7; 381 chars &#xB7; 4M params</text>
+  <text x="522" y="240" text-anchor="middle" fill="#c0d0e8" font-size="10">PyTorch or ONNX Runtime (no PyTorch needed)</text>
 
-  <!-- output -->
-  <text x="520" y="412" text-anchor="middle" fill="#8a8279" font-size="10">&#x2193;</text>
-  <rect x="460" y="418" width="120" height="24" rx="2" fill="#1a2744"/>
-  <text x="520" y="435" text-anchor="middle" fill="#f5f2ec" font-size="12" font-weight="700">lemma</text>
+  <!-- Candidate flow visualization -->
+  <text x="370" y="264" fill="#90a8c8" font-size="10">candidates:</text>
+  <text x="440" y="264" fill="#e0e8f0" font-size="10">&#x03BB;&#x03B1;&#x03BC;&#x03C0;&#x03C1;&#x03CD;&#x03BD;&#x03C9; &#x2713;</text>
+  <text x="530" y="264" fill="#7890a8" font-size="10" text-decoration="line-through">&#x03BB;&#x03B1;&#x03BC;&#x03C0;&#x03C1;&#x03CD;&#x03C9;&#x03BD;</text>
+  <text x="620" y="264" fill="#7890a8" font-size="10" text-decoration="line-through">&#x03BB;&#x03B5;&#x03BB;&#x03B1;&#x03BC;&#x03C0;&#x03C1;</text>
+
+  <text x="370" y="280" fill="#90a8c8" font-size="9">first match in ~820K headwords wins</text>
+  <text x="620" y="280" fill="#90a8c8" font-size="9">(Wikt + LSJ + Cunliffe)</text>
+
+  <!-- Output -->
+  <text x="522" y="332" text-anchor="middle" fill="#8a8279" font-size="11">&#x2193;</text>
+  <rect x="462" y="338" width="120" height="28" rx="3" fill="#1a2744"/>
+  <text x="522" y="357" text-anchor="middle" fill="#e8e4da" font-size="13" font-weight="700">lemma</text>
+
+  <!-- Convention note -->
+  <text x="522" y="382" text-anchor="middle" fill="#8a8279" font-size="9">optionally remapped by convention (lsj, cunliffe, triantafyllidis)</text>
+
+  <!-- Arrows from sources to lookup -->
+  <line x1="326" y1="70" x2="340" y2="70" stroke="#c49a3c" stroke-width="2"/>
+  <line x1="326" y1="138" x2="340" y2="90" stroke="#c49a3c" stroke-width="2"/>
+  <line x1="326" y1="198" x2="340" y2="110" stroke="#c49a3c" stroke-width="2"/>
 </svg>
