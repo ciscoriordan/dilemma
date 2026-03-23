@@ -141,7 +141,7 @@ morphology.
 | **Cypriot** | 199 |
 | **Heptanesian (Ionian)** | 18 |
 | **Maniot** | 3 |
-| **Medieval/Byzantine** | 3K (separate dump) |
+| **Medieval/Byzantine** | 3K (merged into MG) |
 
 ### Ancient Greek varieties
 
@@ -272,7 +272,7 @@ candidates = d.lemmatize_verbose("δ̓")
 
 Each `LemmaCandidate` has:
 - `lemma` - the lemma string
-- `lang` - `"el"` (SMG), `"grc"` (AG), `"med"` (Medieval)
+- `lang` - `"el"` (MG, including medieval), `"grc"` (AG), `"med"` (medieval provenance label in output)
 - `proper` - `True` if lemma is a proper noun (capitalized headword)
 - `source` - `"lookup"`, `"elision"`, `"crasis"`, `"compound"`, `"model"`, `"identity"`
 - `via` - how it matched: `"exact"`, `"lower"`, `"elision:ε"`, `"θεο+φθόγγος"`, `"+case_alt"`, etc.
