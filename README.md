@@ -388,9 +388,10 @@ an additional AG-only lookup pass runs first.
 
 When the transformer handles an unseen form, beam search generates
 multiple candidates and picks the first that matches a known headword
-from Wiktionary, [LSJ](https://github.com/helmadik/LSJLogeion) (246K
-headwords, including vowel-length variants), or [Cunliffe's Homeric Lexicon](https://archive.org/details/lexiconofhomeric0000cunn) (12K headwords). If nothing
-matches, the input is returned unchanged.
+from the combined filter (~900K headwords from Wiktionary self-maps,
+[LSJ9](https://github.com/ciscoriordan/lsj9) (119K entries + variants),
+and [Cunliffe's Homeric Lexicon](https://archive.org/details/lexiconofhomeric0000cunn) (12K entries)).
+If nothing matches, the input is returned unchanged.
 
 **Wiktionary as upstream:** Because Dilemma's lookup tables are built
 directly from Wiktionary, any missing or incorrect lemmatization can
@@ -800,7 +801,8 @@ will propagate into Dilemma via kaikki dumps.
 ## Credits
 
 - Training data from [English Wiktionary](https://en.wiktionary.org/) and [Greek Wiktionary](https://el.wiktionary.org/) via [kaikki.org](https://kaikki.org/) JSONL dumps
-- LSJ data from [LSJLogeion](https://github.com/helmadik/LSJLogeion) (Helma Dik)
+- LSJ headwords and forms from [LSJ9](https://github.com/ciscoriordan/lsj9) (OCR-corrected LSJ base text, CC BY 4.0)
+- LSJ XML from [LSJLogeion](https://github.com/helmadik/LSJLogeion) (Helma Dik, used for grammar expansion)
 - Sophocles lexicon TEI from [Ionian University / Internet Archive](https://archive.org/details/pateres)
 - [GLAUx](https://github.com/alekkeersmaekers/glaux) corpus data (Keersmaekers, 2021) (CC BY-SA 4.0)
 - DBBE evaluation data from [Swaelens et al.](https://github.com/coswaele/ByzantineGreekDatasets) (CC BY 4.0)

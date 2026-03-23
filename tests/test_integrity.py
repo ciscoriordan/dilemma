@@ -55,7 +55,7 @@ TEST_CASES_ELISION = [
 # Minimum thresholds
 MIN_COMBINED_ROWS = 12_000_000
 MIN_AG_ONLY_ROWS = 10_000
-MIN_HEADWORDS = 180_000
+MIN_HEADWORDS = 240_000
 
 # Shared Dilemma instance cache (avoids repeated cold starts)
 _dilemma_cache = {}
