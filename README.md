@@ -73,23 +73,35 @@ d = Dilemma(normalize=True, period="byzantine")
 
 ### Evaluation
 
-On the [Swaelens et al. (2024)](https://aclanthology.org/2024.lrec-main.899/)
-DBBE gold standard (8,342 tokens of unedited Byzantine Greek epigrams,
-punctuation excluded). All tools evaluated with the same normalization
-(case-folded, accent-stripped) and lemma equivalence groups (e.g.
-εἶπον/λέγω, γίνομαι/γίγνομαι). Accuracy = equiv-adjusted match rate.
+Equiv-adjusted accuracy across four periods of Greek. All tools
+evaluated with the same normalization (case-folded, accent-stripped)
+and lemma equivalence groups (see `data/benchmarks/bench_all.py`).
 
-| Tool | Accuracy | Uses POS | Training data |
-|------|:--------:|:--------:|---------------|
-| *spaCy* `el_core_news_sm` | 31.7% | yes (own tagger) | ~30K tokens (MG news) |
-| *stanza* `el` | 37.4% | yes (own tagger) | ~63K tokens (GDT treebank) |
-| Swaelens et al. best (2024, hybrid) | 65.8% | yes | AG treebanks + transformer |
-| CLTK `BackoffGreekLemmatizer` | 66.9% | no | Perseus treebank (~310K tokens) |
-| Morpheus (oracle) | 71.1% | no | hand-crafted rules + stemlists |
-| *stanza* `grc` | 71.3% | yes (own tagger) | AG treebanks (AGLDT + Perseus, ~310K tokens) |
-| Swaelens et al. best (2025, multi-task) | ~74-75% | yes | AG treebanks + multi-task transformer |
-| **Dilemma** | **91.5%** | **no** | **3.4M pairs + 12.3M lookup** |
-| **Dilemma** (with gold POS) | **92.0%** | **yes** (gold tags) | **3.4M pairs + 12.3M lookup** |
+**Test sets:**
+- **AG Classical**: Sextus Empiricus, *Pyrrhoniae Hypotyposes* 1.1-1.8 (323 tokens, [First1KGreek](https://opengreekandlatin.github.io/First1KGreek/), CC BY-SA). Not in any UD treebank or Gorman.
+- **Byzantine**: [Swaelens et al. (2024)](https://aclanthology.org/2024.lrec-main.899/) DBBE gold standard (8,342 tokens of unedited Byzantine epigrams, CC BY 4.0). Not in any tool's training data.
+- **Katharevousa**: Konstantinos Sathas, *Neoelliniki Filologia* (1868), biography of Bessarion (283 tokens, [el.wikisource.org](https://el.wikisource.org/), public domain). No Katharevousa treebank exists.
+- **Demotic MG**: Greek Wikipedia, "[Σπήλαιο Πετραλώνων](https://el.wikipedia.org/wiki/Σπήλαιο_Πετραλώνων)" (242 tokens, CC BY-SA). Not in any MG treebank.
+
+| Tool | AG Classical | Byzantine | Katharevousa | Demotic MG |
+|------|:--------:|:--------:|:--------:|:--------:|
+| [spaCy](https://spacy.io/) `el` | -- | 31.7% | 44.6% | 79.9% |
+| [stanza](https://stanfordnlp.github.io/stanza/) `el` | -- | 37.4% | 48.4% | 87.0% |
+| [Swaelens et al. (2024)](https://aclanthology.org/2024.lrec-main.899/) | -- | 65.8% | -- | -- |
+| [CLTK](https://github.com/cltk/cltk) | 81.2% | 66.6% | 74.8% | -- |
+| [Morpheus](https://github.com/perseids-tools/morpheus-perseids-api) (oracle) | -- | 71.1% | -- | -- |
+| [stanza](https://stanfordnlp.github.io/stanza/) `grc` | 92.2% | 71.3% | 85.2% | -- |
+| [Swaelens et al. (2025)](https://aclanthology.org/2025.acl-long.430/) | -- | ~74-75% | -- | -- |
+| **Dilemma** | **96.1%** | **91.5%** | **93.1%** | 77.3% |
+| **Dilemma** (gold POS) | -- | **92.0%** | -- | -- |
+
+Dilemma is the only tool that covers all four periods. Stanza `el`
+outperforms Dilemma on Demotic MG (87.0% vs 77.3%) since it outputs
+MG-convention lemmas natively, while Dilemma defaults to AG conventions
+(see [Lemma conventions](#lemma-conventions)). Morpheus "oracle" picks
+the best candidate from all its analyses, representing the ceiling for
+rule-based morphology. Cells marked "--" indicate the tool doesn't
+support that period or wasn't tested.
 
 Dilemma's remaining ~8.5% errors on DBBE break down as 3.1% no
 lookup hit and 5.4% wrong lemma or convention difference. The eval
@@ -99,48 +111,10 @@ categorization. `eval/eval_dbbe.py --use-pos gold` evaluates with
 POS-aware disambiguation.
 
 On the [DiGreC treebank](https://github.com/mdm33/digrec) (119K tokens,
-Homer through 15th century Byzantine Greek):
-
-| Mode | Accuracy |
-|------|:--------:|
-| Strict match | 90.3% |
-| + monotonic normalization | 91.2% |
-| + accent stripping | 91.6% |
-| **+ lemma equivalences** | **94.0%** |
-
-The equivalence-adjusted score accounts for legitimate convention
+Homer through 15th century Byzantine Greek), Dilemma reaches 94.0%
+equiv-adjusted (90.3% strict). The gap accounts for convention
 differences between annotation schemes (e.g. `εἶπον`/`λέγω`,
-`ἐγώ`/`ἡμεῖς`, `πρότερος`/`πρῶτος`).
-
-### Benchmarks
-
-Equiv-adjusted accuracy across four periods of Greek, evaluated with
-the same normalization and lemma equivalence groups for all tools
-(see `data/benchmarks/bench_all.py`).
-
-Test sets:
-- **AG Classical**: Sextus Empiricus, *Pyrrhoniae Hypotyposes* 1.1-1.8 (323 tokens, [First1KGreek](https://opengreekandlatin.github.io/First1KGreek/), CC BY-SA). Not in any UD treebank or Gorman.
-- **Byzantine**: [Swaelens et al. (2024)](https://aclanthology.org/2024.lrec-main.899/) DBBE gold standard (8,342 tokens of unedited Byzantine epigrams, CC BY 4.0). Not in any tool's training data.
-- **Katharevousa**: Konstantinos Sathas, *Neoelliniki Filologia* (1868), biography of Bessarion (283 tokens, [el.wikisource.org](https://el.wikisource.org/), public domain). No Katharevousa treebank exists.
-- **Demotic MG**: Greek Wikipedia article "[Σπήλαιο Πετραλώνων](https://el.wikipedia.org/wiki/Σπήλαιο_Πετραλώνων)" (242 tokens, CC BY-SA). Not in any MG treebank.
-
-| Tool | AG Classical | Byzantine | Katharevousa | Demotic MG |
-|------|:--------:|:--------:|:--------:|:--------:|
-| [spaCy](https://spacy.io/) `el` | -- | 31.7% | 44.6% | 79.9% |
-| [stanza](https://stanfordnlp.github.io/stanza/) `el` | -- | 37.4% | 48.4% | 87.0% |
-| [CLTK](https://github.com/cltk/cltk) | 81.2% | 66.6% | 74.8% | -- |
-| [Morpheus](https://github.com/perseids-tools/morpheus-perseids-api) (oracle) | -- | 71.1% | -- | -- |
-| [stanza](https://stanfordnlp.github.io/stanza/) `grc` | 92.2% | 71.3% | 85.2% | -- |
-| [Swaelens et al. (2025)](https://aclanthology.org/2025.acl-long.430/) | -- | ~74-75% | -- | -- |
-| **Dilemma** | **96.1%** | **91.5%** | **93.1%** | 77.3% |
-| **Dilemma** (gold POS) | -- | **92.0%** | -- | -- |
-
-Dilemma is the only tool that covers all four periods. Stanza `el`
-outperforms Dilemma on Demotic MG (87.0% vs 77.3%) since it trains
-on MG data, but fails on Katharevousa and has no AG coverage.
-Morpheus "oracle" picks the best candidate from all analyses,
-representing the ceiling for rule-based AG morphology. Cells marked
-"--" indicate the tool doesn't support that period or wasn't tested.
+`ἐγώ`/`ἡμεῖς`).
 
 ### Modern Greek varieties
 
