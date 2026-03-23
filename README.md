@@ -466,8 +466,8 @@ python build/expand_sophocles.py --expand    # expand Sophocles nouns
 python build/expand_sophocles.py --expand-verbs  # expand Sophocles verbs
 ```
 
-This requires the LSJ XML files from [LSJLogeion](https://github.com/helmadik/LSJLogeion)
-and the Sophocles TEI data (included in `data/sophocles/`).
+This requires LSJ9 data from [lsj9](https://github.com/ciscoriordan/lsj9)
+(via lsjpre export) and the Sophocles TEI data (included in `data/sophocles/`).
 
 ---
 
@@ -803,7 +803,7 @@ will propagate into Dilemma via kaikki dumps.
 
 - Training data from [English Wiktionary](https://en.wiktionary.org/) and [Greek Wiktionary](https://el.wiktionary.org/) via [kaikki.org](https://kaikki.org/) JSONL dumps
 - LSJ headwords and forms from [LSJ9](https://github.com/ciscoriordan/lsj9) (OCR-corrected LSJ base text, CC BY 4.0)
-- LSJ XML from [LSJLogeion](https://github.com/helmadik/LSJLogeion) (Helma Dik, used for grammar expansion)
+- LSJ grammar and indeclinables data from [LSJ9](https://github.com/ciscoriordan/lsj9) exports (lsj9_headwords.json, lsj9_forms.tsv, lsj9_indeclinables.json)
 - Sophocles lexicon TEI from [Ionian University / Internet Archive](https://archive.org/details/pateres)
 - [GLAUx](https://github.com/alekkeersmaekers/glaux) corpus data (Keersmaekers, 2021) (CC BY-SA 4.0)
 - DBBE evaluation data from [Swaelens et al.](https://github.com/coswaele/ByzantineGreekDatasets) (CC BY 4.0)

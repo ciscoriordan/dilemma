@@ -22,14 +22,14 @@ import os
 import re
 import sys
 import unicodedata
-import xml.etree.ElementTree as ET
 from collections import Counter
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = SCRIPT_DIR / "data"
-LSJ_DIR = Path.home() / "Documents" / "LSJLogeion"
-LSJ9_FORMS = Path.home() / "Documents" / "lsjpre" / "output" / "lsj9" / "lsj9_forms.tsv"
+LSJ9_DIR = Path.home() / "Documents" / "lsjpre" / "output" / "lsj9"
+LSJ9_FORMS = LSJ9_DIR / "lsj9_forms.tsv"
+LSJ9_HEADWORDS = LSJ9_DIR / "lsj9_headwords.json"
 KAIKKI_DIR = Path(os.environ.get(
     "KAIKKI_DIR", Path.home() / "Documents" / "Klisy" / "word_collector"))
 # Try nested layout first (en-el/), then flat layout
@@ -159,97 +159,80 @@ def build_genitive_from_itype(headword, itype):
 
 
 def parse_lsj_entries():
-    """Parse LSJ entries from lsj9 export (preferred) and/or XML files.
+    """Parse LSJ entries from lsj9 exports.
 
     Priority: lsj9_forms.tsv (63K entries with explicit grammar) is loaded
-    first, then LSJLogeion XML entries fill in gaps (entries not in lsj9).
+    first, then lsj9_headwords.json fills in remaining entries (those without
+    grammar in forms.tsv but present in the full headword list).
     """
-    # Start with lsj9 data if available (explicit grammar, no XML parsing)
+    # Start with lsj9 forms data (entries with explicit grammar)
     entries = parse_lsj9_entries()
 
-    # Fill in from XML for entries not covered by lsj9
-    xml_entries = _parse_lsj_xml()
-    xml_only = 0
-    for hw, entry in xml_entries.items():
+    # Fill in from headwords.json for entries not covered by forms.tsv
+    hw_entries = _parse_lsj9_headwords()
+    hw_only = 0
+    gen_fills = 0
+    for hw, entry in hw_entries.items():
         if hw not in entries:
             entries[hw] = entry
-            xml_only += 1
+            hw_only += 1
         elif not entries[hw]["genitive"] and entry.get("genitive"):
-            # lsj9 entry exists but lacks genitive - fill from XML
+            # forms.tsv entry exists but lacks genitive - fill from headwords
             entries[hw]["genitive"] = entry["genitive"]
             entries[hw]["itype"] = entry.get("itype", "")
+            gen_fills += 1
 
-    if xml_only:
-        print(f"  XML-only: {xml_only:,} additional entries")
+    if hw_only:
+        print(f"  headwords-only: {hw_only:,} additional entries")
+    if gen_fills:
+        print(f"  genitive fills from headwords: {gen_fills:,}")
     print(f"  Total: {len(entries):,} entries")
 
     return entries
 
 
-def _parse_lsj_xml():
-    """Parse LSJ XML files, extract headword + gender + genitive + itype."""
+def _parse_lsj9_headwords():
+    """Load all LSJ entries from lsj9_headwords.json.
+
+    Returns entries keyed by length-mark-stripped headword, with gender and
+    genitive extracted from the structured JSON.
+    """
     entries = {}
-    if not LSJ_DIR.exists():
+    if not LSJ9_HEADWORDS.exists():
+        print(f"  lsj9_headwords.json not found at {LSJ9_HEADWORDS}")
         return entries
-    for xml_file in sorted(LSJ_DIR.glob("greatscott*.xml")):
-        try:
-            tree = ET.parse(xml_file)
-        except ET.ParseError:
-            continue
-        for entry in tree.findall('.//div2'):
-            head = entry.find('.//head')
-            if head is None:
-                continue
-            headword = ''.join(head.itertext()).strip()
-            hw = headword.split(',')[0].strip().rstrip('.,;:()[]- ')
-            hw = strip_length_marks(hw)
-            if not hw or not any('\u0370' <= c <= '\u03FF' or
-                                  '\u1F00' <= c <= '\u1FFF' for c in hw):
-                continue
 
-            # orth_orig preserves length marks and stem breaks
-            orth_orig = head.get('orth_orig', hw)
+    with open(LSJ9_HEADWORDS, encoding="utf-8") as f:
+        headwords_list = json.load(f)
 
-            # Gender from <gen> element
-            gen_elem = entry.find('.//gen')
-            article = ''.join(gen_elem.itertext()).strip() if gen_elem is not None else ""
-            article = article.rstrip('.,; ')
-            gender = GENDER_MAP.get(article, "")
+    _grammar_to_info = {
+        "ὁ": ("ὁ", "m"),
+        "ἡ": ("ἡ", "f"),
+        "τό": ("τό", "n"),
+        "ον": ("ον", ""),
+        "ές": ("ές", ""),
+    }
 
-            # itype: genitive suffix / oblique stem indicator
-            itype_elem = entry.find('.//itype')
-            itype = ''.join(itype_elem.itertext()).strip() if itype_elem is not None else ""
-            itype = itype.rstrip('.,; ')
+    for e in headwords_list:
+        hw_orig = e["headword"]
+        hw = strip_length_marks(hw_orig)
+        grammar = e.get("grammar", "")
+        genitive = e.get("genitive", "")
 
-            # Filter non-genitive itypes
-            ADJ_ITYPES = {"ον", "ή", "η", "ές"}
-            genitive = ""
-            is_valid_itype = (itype
-                              and itype not in ADJ_ITYPES
-                              and "-" not in itype
-                              and "." not in itype
-                              and " " not in itype
-                              and len(itype) <= 8)
-            if is_valid_itype:
-                genitive = build_genitive_from_itype(hw, itype)
+        article, gender = _grammar_to_info.get(grammar, ("", ""))
+        itype = genitive if grammar in ("ὁ", "ἡ", "τό") and genitive else ""
 
-            # Fallback: try regex for explicit "gen." in entry text
-            if not genitive:
-                xml_str = ET.tostring(entry, encoding='unicode')
-                m = re.search(r'gen\.\s*<foreign[^>]*>([α-ωά-ώἀ-ᾧΑ-ΩῬ]+)', xml_str)
-                if not m:
-                    m = re.search(r'gen\.\s*([α-ωά-ώἀ-ᾧ]+)', xml_str)
-                if m:
-                    genitive = strip_length_marks(m.group(1).strip().rstrip(','))
-
+        if hw not in entries:
             entries[hw] = {
                 "headword": hw,
-                "orth_orig": orth_orig,
+                "orth_orig": hw_orig,
                 "article": article,
                 "gender": gender,
                 "itype": itype,
-                "genitive": genitive,
+                "genitive": genitive if gender else "",
             }
+
+    print(f"  lsj9_headwords: {len(entries):,} entries")
     return entries
 
 
@@ -257,7 +240,7 @@ def parse_lsj9_entries(forms_path: Path = LSJ9_FORMS) -> dict:
     """Load entries from lsj9_forms.tsv (output of lsjpre export_lsj9.py).
 
     This provides explicit grammar (ὁ/ἡ/τό/ον/ές) and pre-extracted
-    genitive endings for 63K entries, without needing LSJLogeion XML.
+    genitive endings for 63K entries.
 
     Returns same format as parse_lsj_entries(): {headword: {headword,
     orth_orig, article, gender, itype, genitive}}.
@@ -282,7 +265,8 @@ def parse_lsj9_entries(forms_path: Path = LSJ9_FORMS) -> dict:
             parts = line.rstrip("\n").split("\t")
             if len(parts) < 4:
                 continue
-            hw, grammar, genitive, etymology = parts
+            hw_raw, grammar, genitive, etymology = parts
+            hw = strip_length_marks(hw_raw)
 
             article_info = _grammar_to_article.get(grammar, ("", ""))
             article, gender = article_info
@@ -300,14 +284,15 @@ def parse_lsj9_entries(forms_path: Path = LSJ9_FORMS) -> dict:
                 # Use the extracted genitive as itype
                 itype = genitive
 
-            entries[hw] = {
-                "headword": hw,
-                "orth_orig": hw,
-                "article": article,
-                "gender": gender,
-                "itype": itype,
-                "genitive": genitive if grammar in ("ὁ", "ἡ", "τό") else "",
-            }
+            if hw not in entries:
+                entries[hw] = {
+                    "headword": hw,
+                    "orth_orig": hw_raw,
+                    "article": article,
+                    "gender": gender,
+                    "itype": itype,
+                    "genitive": genitive if grammar in ("ὁ", "ἡ", "τό") else "",
+                }
 
     print(f"  lsj9: {len(entries):,} entries from {forms_path.name}")
     return entries
