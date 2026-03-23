@@ -26,7 +26,7 @@ back to JSON if the database isn't present.
 are present, inference uses ONNX Runtime (~50 MB) instead of PyTorch (~2 GB).
 The lookup table (which handles 95%+ of words) needs neither.
 
-Handles Demotic (Standard Modern Greek), Katharevousa, Cypriot, Cretan,
+Handles Standard Modern Greek (Demotic), Katharevousa, Cypriot, Cretan,
 and other regional varieties alongside Ancient and Medieval Greek. Existing
 lemmatizers (*stanza*, *spaCy*) are trained on ~30K tokens of modern news
 and fail on anything outside standard SMG. Dilemma trains on **100x more
