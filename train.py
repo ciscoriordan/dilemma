@@ -480,6 +480,11 @@ def train(lang: str, epochs: int, batch_size: int, lr: float, eval_split: float,
                     if verb_logits is not None:
                         loss = loss + AUX_LOSS_WEIGHT * aux_criterion(verb_logits, verb_labels_batch)
 
+            if torch.isnan(loss) or torch.isinf(loss):
+                nan_count = nan_count + 1 if 'nan_count' in dir() else 1
+                scheduler.step()
+                continue
+
             optimizer.zero_grad()
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), MAX_GRAD_NORM)
@@ -501,15 +506,18 @@ def train(lang: str, epochs: int, batch_size: int, lr: float, eval_split: float,
                 with open(SCRIPT_DIR / "progress.log", "a") as pf:
                     pf.write(msg + "\n")
 
-        avg_loss = total_loss / batches
+        avg_loss = total_loss / batches if batches > 0 else float('nan')
         elapsed = time.time() - t0
+        skipped = nan_count if 'nan_count' in dir() else 0
 
         # Evaluate lemma accuracy
         accuracy, correct, total = evaluate(
             model, vocab, eval_pairs[:2000], device
         )
+        nan_msg = f", {skipped} NaN batches skipped" if skipped else ""
         msg = (f"  Epoch {epoch}/{epochs}: loss={avg_loss:.4f}, "
-               f"eval={correct}/{total} ({accuracy:.1%}), {elapsed:.0f}s")
+               f"eval={correct}/{total} ({accuracy:.1%}), {elapsed:.0f}s{nan_msg}")
+        nan_count = 0
 
         # Evaluate morphology head accuracy
         if use_multitask or use_morph:
