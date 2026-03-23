@@ -111,26 +111,32 @@ The equivalence-adjusted score accounts for legitimate convention
 differences between annotation schemes (e.g. `εἶπον`/`λέγω`,
 `ἐγώ`/`ἡμεῖς`, `πρότερος`/`πρῶτος`).
 
-### Cross-tool benchmarks
+### Benchmarks
 
-Equiv-adjusted accuracy on uncontaminated test sets across four periods
-of Greek (see `bench_all.py` for methodology):
+Equiv-adjusted accuracy across four periods of Greek. Byzantine uses
+the [Swaelens et al. (2024)](https://aclanthology.org/2024.lrec-main.899/)
+DBBE gold standard (8,342 tokens). The other three use uncontaminated
+test sets not in any tool's training data (see `data/benchmarks/`).
+All tools evaluated with the same normalization and lemma equivalence
+groups (see `bench_all.py`).
 
 | Tool | AG Classical | Byzantine | Katharevousa | Demotic MG |
 |------|:--------:|:--------:|:--------:|:--------:|
-| **Dilemma** | **96.1%** | **91.5%** | **93.1%** | **77.3%** |
-| stanza `grc` | 92.2% | 70.9% | 85.2% | -- |
-| stanza `el` | -- | -- | 48.4% | 87.0% |
+| *spaCy* `el` | -- | 31.7% | 44.6% | 79.9% |
+| *stanza* `el` | -- | 37.4% | 48.4% | 87.0% |
 | CLTK | 81.2% | 66.6% | 74.8% | -- |
 | Morpheus (oracle) | -- | 71.1% | -- | -- |
+| *stanza* `grc` | 92.2% | 71.3% | 85.2% | -- |
+| Swaelens et al. (2025) | -- | ~74-75% | -- | -- |
+| **Dilemma** | **96.1%** | **91.5%** | **93.1%** | 77.3% |
+| **Dilemma** (gold POS) | -- | **92.0%** | -- | -- |
 
-Dilemma is the only tool that covers all four periods in a single model.
-Stanza `grc` handles classical and Katharevousa reasonably but drops
-sharply on Byzantine text. Stanza `el` outperforms Dilemma on Demotic
-MG (its training domain) but fails on Katharevousa and has no AG
-coverage. Morpheus "oracle" selects the best candidate from its full
-analysis output, representing an upper bound for rule-based AG
-morphology.
+Dilemma is the only tool that covers all four periods. Stanza `el`
+outperforms Dilemma on Demotic MG (87.0% vs 77.3%) since it trains
+on MG data, but fails on Katharevousa and has no AG coverage.
+Morpheus "oracle" picks the best candidate from all analyses,
+representing the ceiling for rule-based AG morphology. Cells marked
+"--" indicate the tool doesn't support that period or wasn't tested.
 
 ### Modern Greek varieties
 
@@ -744,27 +750,6 @@ present"). These are propagated to every form in that table section:
 - **Training pair validation**. Every training pair's lemma must be a
   headword (maps to itself in the lookup). Pairs with non-headword
   lemmas are resolved to the real headword or dropped.
-
-## Comparison
-
-| Tool | DBBE acc. | Coverage | Training data | Katharevousa | Updates |
-|------|:---------:|----------|---------------|:------------:|---------|
-| *spaCy* `el_core_news_sm` | 31.7% | MG only | ~30K tokens (news) | no | static |
-| *stanza* `el` | 37.4% | MG only | ~63K tokens (GDT treebank) | no | static |
-| *stanza* `grc` | 71.3% | AG only | ~310K tokens (AGLDT + Perseus) | no | static |
-| CLTK `BackoffGreekLemmatizer` | 66.9% | AG only | ~310K tokens (Perseus) | no | static |
-| Perseus *Morpheus* | - | AG only | hand-crafted rules | no | not actively developed |
-| **Dilemma** | **91.5%** | **MG + AG + Medieval + dialects** | **3.4M pairs + 12.3M lookup** | **yes** | **monthly from Wiktionary** |
-
-DBBE accuracy is equiv-adjusted on 8,342 Byzantine Greek tokens
-(see `bench_dbbe.py` for methodology). All tools evaluated with the
-same normalization and lemma equivalence groups. *spaCy* and *stanza*
-`el` are trained on Modern Greek and perform poorly on polytonic/Byzantine
-text. *stanza* `grc` and CLTK are trained on classical AG treebanks and
-fare better, but still miss Byzantine-era forms. Dilemma trains on
-**100x more data** than *stanza* or *spaCy*, covering all periods in
-one model - the only tool that handles Katharevousa, which mixes AG
-morphology with MG vocabulary.
 
 ### Related work
 
