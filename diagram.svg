@@ -1,13 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 420" font-family="'Inter','Helvetica Neue',Arial,sans-serif">
   <defs>
-    <marker id="arr-lookup" markerWidth="10" markerHeight="8" refX="10" refY="4" orient="auto">
-      <path d="M0,0 L10,4 L0,8 Z" fill="#4a7a9c"/>
+    <marker id="arr-lookup" markerWidth="6" markerHeight="5" refX="5.5" refY="2.5" orient="auto" markerUnits="strokeWidth" overflow="visible">
+      <path d="M0,0 L6,2.5 L0,5 Z" fill="#4a7a9c" stroke="none"/>
     </marker>
-    <marker id="arr-transformer" markerWidth="10" markerHeight="8" refX="10" refY="4" orient="auto">
-      <path d="M0,0 L10,4 L0,8 Z" fill="#2d5a7a"/>
+    <marker id="arr-transformer" markerWidth="6" markerHeight="5" refX="5.5" refY="2.5" orient="auto" markerUnits="strokeWidth" overflow="visible">
+      <path d="M0,0 L6,2.5 L0,5 Z" fill="#2d5a7a" stroke="none"/>
     </marker>
-    <marker id="arr-output" markerWidth="10" markerHeight="8" refX="10" refY="4" orient="auto">
-      <path d="M0,0 L10,4 L0,8 Z" fill="#1a3050"/>
+    <marker id="arr-output" markerWidth="6" markerHeight="5" refX="5.5" refY="2.5" orient="auto" markerUnits="strokeWidth" overflow="visible">
+      <path d="M0,0 L6,2.5 L0,5 Z" fill="#1a3050" stroke="none"/>
     </marker>
   </defs>
 
@@ -29,7 +29,7 @@
   <text x="36" y="152" fill="#e0ecf4" font-size="10">Cunliffe 12K</text>
 
   <!-- Arrow from headwords to Lua -->
-  <line x1="156" y1="132" x2="214" y2="132" stroke="#6a94b0" stroke-width="2" marker-end="url(#arr-lookup)"/>
+  <line x1="158" y1="132" x2="212" y2="132" stroke="#6a94b0" stroke-width="2" marker-end="url(#arr-lookup)"/>
 
   <!-- Lua expansion box -->
   <rect x="216" y="104" width="100" height="56" rx="3" fill="#6a94b0"/>
@@ -47,9 +47,9 @@
   <text x="171" y="262" text-anchor="middle" fill="#4a6a84" font-size="8">*Medieval = Wiktionary category (vernacular, not Byzantine literary)</text>
 
   <!-- ── Arrows from sources to lookup (colored to match lookup) ── -->
-  <line x1="316" y1="70" x2="338" y2="70" stroke="#4a7a9c" stroke-width="2" marker-end="url(#arr-lookup)"/>
-  <line x1="316" y1="138" x2="338" y2="90" stroke="#4a7a9c" stroke-width="2" marker-end="url(#arr-lookup)"/>
-  <line x1="316" y1="204" x2="338" y2="110" stroke="#4a7a9c" stroke-width="2" marker-end="url(#arr-lookup)"/>
+  <line x1="318" y1="70" x2="334" y2="70" stroke="#4a7a9c" stroke-width="2" marker-end="url(#arr-lookup)"/>
+  <line x1="318" y1="132" x2="334" y2="90" stroke="#4a7a9c" stroke-width="2" marker-end="url(#arr-lookup)"/>
+  <line x1="318" y1="200" x2="334" y2="110" stroke="#4a7a9c" stroke-width="2" marker-end="url(#arr-lookup)"/>
 
   <!-- ── LOOKUP TABLE (medium blue) ── -->
   <rect x="340" y="12" width="364" height="130" rx="4" fill="#4a7a9c"/>
@@ -63,7 +63,7 @@
 
   <!-- Arrow from lookup to transformer (colored to match transformer) -->
   <text x="510" y="155" fill="#8a8279" font-size="9">miss</text>
-  <line x1="522" y1="144" x2="522" y2="172" stroke="#2d5a7a" stroke-width="2" marker-end="url(#arr-transformer)"/>
+  <line x1="522" y1="144" x2="522" y2="168" stroke="#2d5a7a" stroke-width="2" marker-end="url(#arr-transformer)"/>
 
   <!-- ── TRANSFORMER (darker blue) ── -->
   <rect x="340" y="174" width="364" height="140" rx="4" fill="#2d5a7a"/>
@@ -83,7 +83,7 @@
   <text x="522" y="298" text-anchor="middle" fill="#d0e4f0" font-size="8">(Wiktionary + LSJ + Cunliffe)</text>
 
   <!-- Arrow from transformer to output (colored to match output) -->
-  <line x1="522" y1="316" x2="522" y2="336" stroke="#1a3050" stroke-width="2" marker-end="url(#arr-output)"/>
+  <line x1="522" y1="316" x2="522" y2="332" stroke="#1a3050" stroke-width="2" marker-end="url(#arr-output)"/>
 
   <!-- Output (darkest blue) -->
   <rect x="462" y="338" width="120" height="28" rx="3" fill="#1a3050"/>
