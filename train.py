@@ -6,9 +6,9 @@ on Greek lemmatization. The model learns morphological patterns like
 -ωσε -> -ώνω (aorist -> present stem) and generalizes to unseen forms.
 
 Usage:
-    python train.py --scale 1               # 20K pairs (~15 sec)
-    python train.py --scale 2               # 1M pairs (~13 min on RTX 2080)
-    python train.py --scale 3               # full data (~40 min on RTX 2080)
+    python train.py --scale test            # 20K pairs (~15 sec, sanity check)
+    python train.py --scale full            # full data (~45 min on RTX 2080, default)
+    python train.py --scale 3               # legacy alias for full
     python train.py --eval-only             # evaluate existing model
 
 Prerequisites:
@@ -329,7 +329,12 @@ def train(lang: str, epochs: int, batch_size: int, lr: float, eval_split: float,
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(SEED)
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    if torch.cuda.is_available():
+        device = "cuda"
+    elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        device = "mps"
+    else:
+        device = "cpu"
     print(f"Device: {device}")
 
     pairs = load_pairs(lang, max_pairs=max_pairs)
@@ -527,7 +532,10 @@ def train(lang: str, epochs: int, batch_size: int, lr: float, eval_split: float,
 
     # Save model
     lang_dir = {"el": "el", "grc": "grc", "all": "combined"}[lang]
-    if scale is not None:
+    if scale == "test":
+        lang_dir = f"{lang_dir}-test"
+    elif scale and scale not in ("full",):
+        # Legacy: --scale 1/2/3 -> -s1/-s2/-s3 dirs
         lang_dir = f"{lang_dir}-s{scale}"
     out_dir = MODEL_DIR / lang_dir
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -600,16 +608,22 @@ def main():
                         help="Fraction held out for eval (default: 0.05)")
     parser.add_argument("--max-pairs", type=int, default=0,
                         help="Cap training pairs (0 = unlimited, overrides --scale)")
-    parser.add_argument("--scale", type=int, default=1, choices=[1, 2, 3],
-                        help="GPU scale: 1=20K pairs (~15 sec), "
-                             "2=1M (~13 min), "
-                             "3=all (~45 min)")
+    parser.add_argument("--scale", type=str, default="full",
+                        choices=["test", "full", "1", "2", "3"],
+                        help="Training scale: test=20K pairs (~15 sec), "
+                             "full=all data (~45 min on RTX 2080). "
+                             "Legacy 1/2/3 still accepted for compatibility.")
     parser.add_argument("--eval-only", action="store_true",
                         help="Evaluate existing model without training")
     args = parser.parse_args()
 
     if args.eval_only:
-        device = "cuda" if torch.cuda.is_available() else "cpu"
+        if torch.cuda.is_available():
+            device = "cuda"
+        elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            device = "mps"
+        else:
+            device = "cpu"
         lang_dir = {"el": "el", "grc": "grc", "all": "combined"}[args.lang]
         out_dir = MODEL_DIR / lang_dir
 
@@ -631,13 +645,15 @@ def main():
     else:
         # Resolve max_pairs from --scale if not explicitly set
         max_pairs = args.max_pairs
+        # Normalize legacy scale numbers to names
+        scale = {"1": "test", "2": "full", "3": "full"}.get(args.scale, args.scale)
         if max_pairs == 0:
-            scale_pairs = {1: 20_000, 2: 1_000_000, 3: 0}
-            max_pairs = scale_pairs[args.scale]
+            scale_pairs = {"test": 20_000, "full": 0}
+            max_pairs = scale_pairs[scale]
             if max_pairs:
-                print(f"Scale {args.scale}: capping at {max_pairs:,} pairs")
+                print(f"Scale {scale}: capping at {max_pairs:,} pairs")
         train(args.lang, args.epochs, args.batch, args.lr,
-              args.eval_split, max_pairs, scale=args.scale)
+              args.eval_split, max_pairs, scale=scale)
 
 
 if __name__ == "__main__":
