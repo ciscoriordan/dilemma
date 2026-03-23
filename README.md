@@ -85,10 +85,11 @@ punctuation excluded). All tools evaluated with the same normalization
 | *stanza* `el` | 37.4% | yes (own tagger) | ~63K tokens (GDT treebank) |
 | Swaelens et al. best (2024, hybrid) | 65.8% | yes | AG treebanks + transformer |
 | CLTK `BackoffGreekLemmatizer` | 66.9% | no | Perseus treebank (~310K tokens) |
+| Morpheus (oracle) | 71.1% | no | hand-crafted rules + stemlists |
 | *stanza* `grc` | 71.3% | yes (own tagger) | AG treebanks (AGLDT + Perseus, ~310K tokens) |
 | Swaelens et al. best (2025, multi-task) | ~74-75% | yes | AG treebanks + multi-task transformer |
 | **Dilemma** | **91.5%** | **no** | **3.4M pairs + 12.3M lookup** |
-| **Dilemma** (with gold POS) | **91.3%** | **yes** (gold tags) | **3.4M pairs + 12.3M lookup** |
+| **Dilemma** (with gold POS) | **92.0%** | **yes** (gold tags) | **3.4M pairs + 12.3M lookup** |
 
 The remaining ~8.5% errors break down as 3.1% no lookup hit and 5.4%
 wrong lemma or convention difference. The eval scripts (`eval_dbbe.py`,
@@ -562,10 +563,9 @@ medieval Wiktionary dump, but these are merged into the `el` lookup
 at build time.
 
 Note: [Opla](https://github.com/ciscoriordan/opla) (POS tagging +
-dependency parsing) handles `med` differently, grouping it with `grc`
-for syntax. Medieval *syntax* (polytonic script, full case system,
-optative mood) is closer to Ancient Greek even though the *morphology*
-is closer to Modern Greek.
+dependency parsing) uses `lang="grc"` for Byzantine text. Byzantine
+literary syntax (polytonic, full case system, optative mood) is closer
+to Ancient Greek, so the AG-trained POS tagger handles it well.
 
 ### 3. Export to ONNX (optional)
 
