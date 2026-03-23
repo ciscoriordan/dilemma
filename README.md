@@ -364,7 +364,7 @@ in elision contexts (ε, α, ο most common).
 | **Crasis table** | instant | ~50 common crasis forms | Hand-curated |
 | **Compound decomposition** | instant | Byzantine compound words | Split at linking vowel, look up base |
 | **Spelling correction** | lazy index | ED0-2 suggestions for unknown words | Accent-stripped edit distance |
-| **Transformer** | ~1s/word (CPU) | generalizes to unseen forms | Trained on Wiktionary pairs |
+| **Transformer** | beam search | generalizes to unseen forms | Trained on Wiktionary pairs |
 
 The lookup table is built from Wiktionary [kaikki dumps](https://kaikki.org/)
 (EN and EL editions for MG and AG, plus EL Medieval Greek), expanded with
@@ -608,7 +608,7 @@ morphological inflection shared tasks.
 | FFN | 512 dim |
 | Vocabulary | ~381 Greek characters + special tokens |
 | Parameters | ~4.2M |
-| Inference | ~1s/word (CPU, beam search with headword filter) |
+| Inference | ONNX or PyTorch, beam search with headword filter |
 
 No pretrained weights - the model is small enough to train from scratch
 on 500K+ pairs in minutes. The character vocabulary covers all Greek
@@ -627,18 +627,16 @@ vocabulary (~160 tokens), so the same word is ~10 steps. Combined with
 
 |  | ByT5-small | Dilemma |
 |--|:----------:|:-------:|
+| Approach | Subword tokenizer (UTF-8 bytes) | Character vocabulary (~381 Greek chars) |
 | Parameters | 300M | 4M |
-| Training (500K pairs, 3 epochs) | ~4 hours | ~10 min |
 | Training (3.4M pairs, 3 epochs) | ~20 hours | ~45 min |
-| Model inference | ~10ms/word | ~1s/word (CPU, beam search) |
-| Effective speed | ~10ms/word (all words) | ~0.03ms/word (95%+ via lookup, model only for unseen) |
 | Dependencies | torch + transformers | torch only (or ONNX only) |
 
-The custom model is slower per-word than ByT5 due to beam search with
-headword filtering, but in practice 95%+ of words resolve via the
-lookup table in microseconds. The model trains **20-25x faster**.
-Greek lemmatization is highly pattern-based - a small specialized
-model matches a large
+ByT5 processes raw UTF-8 bytes, so a 10-character Greek word becomes
+~20 encoder steps. Dilemma uses a Greek character vocabulary, so the
+same word is ~10 steps. Combined with 75x fewer parameters, the
+custom model trains much faster. Greek lemmatization is highly
+pattern-based - a small specialized model matches a large
 general-purpose one.
 
 ## Data
