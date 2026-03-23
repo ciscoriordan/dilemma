@@ -113,12 +113,15 @@ differences between annotation schemes (e.g. `εἶπον`/`λέγω`,
 
 ### Benchmarks
 
-Equiv-adjusted accuracy across four periods of Greek. Byzantine uses
-the [Swaelens et al. (2024)](https://aclanthology.org/2024.lrec-main.899/)
-DBBE gold standard (8,342 tokens). The other three use uncontaminated
-test sets not in any tool's training data (see `data/benchmarks/`).
-All tools evaluated with the same normalization and lemma equivalence
-groups (see `data/benchmarks/bench_all.py`).
+Equiv-adjusted accuracy across four periods of Greek, evaluated with
+the same normalization and lemma equivalence groups for all tools
+(see `data/benchmarks/bench_all.py`).
+
+Test sets:
+- **AG Classical**: Sextus Empiricus, *Pyrrhoniae Hypotyposes* 1.1-1.8 (323 tokens, [First1KGreek](https://opengreekandlatin.github.io/First1KGreek/), CC BY-SA). Not in any UD treebank or Gorman.
+- **Byzantine**: [Swaelens et al. (2024)](https://aclanthology.org/2024.lrec-main.899/) DBBE gold standard (8,342 tokens of unedited Byzantine epigrams, CC BY 4.0). Not in any tool's training data.
+- **Katharevousa**: Konstantinos Sathas, *Neoelliniki Filologia* (1868), biography of Bessarion (283 tokens, [el.wikisource.org](https://el.wikisource.org/), public domain). No Katharevousa treebank exists.
+- **Demotic MG**: Greek Wikipedia article "[Σπήλαιο Πετραλώνων](https://el.wikipedia.org/wiki/Σπήλαιο_Πετραλώνων)" (242 tokens, CC BY-SA). Not in any MG treebank.
 
 | Tool | AG Classical | Byzantine | Katharevousa | Demotic MG |
 |------|:--------:|:--------:|:--------:|:--------:|
