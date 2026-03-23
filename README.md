@@ -242,17 +242,34 @@ surface-form matching. Set `resolve_articles=True` to resolve them
 to canonical lemmas (`ὁ`, `ἐγώ`, `σύ`), matching treebank conventions
 (AGDT, DiGreC, PROIEL).
 
-The `convention` parameter remaps output lemmas to match a specific
-dictionary or treebank convention. Set `convention="lsj"` for LSJ
-dictionary headwords (maps suppletive aorists to present stems, adverbs
-to adjective entries, MG -o neuter forms to AG -on, etc.). Set
-`convention="cunliffe"` for Cunliffe Homeric Lexicon headwords (prefers
-uncontracted Homeric forms like νόος over νοῦς, γίγνομαι over γίνομαι,
-ἐθέλω over θέλω, and non-Attic -σσ- over -ττ-). Default is
-`None` (Wiktionary convention, no remapping). The mapping is built
-automatically from `data/lemma_equivalences.json` cross-referenced
-against the convention's headword list, with explicit overrides in
-`data/convention_{name}.json`.
+### Lemma conventions
+
+Different dictionaries and treebanks use different citation forms for
+the same word. The `convention` parameter remaps Dilemma's output to
+match a specific standard. This matters for benchmarking: a tool that
+outputs `εἰμί` and a gold standard that expects `είμαι` will show
+as an error even though both are correct for their respective
+conventions.
+
+| Convention | Target | Examples |
+|------------|--------|----------|
+| `None` (default) | Wiktionary headwords | `ὁ`, `εἰμί`, `σπήλαιον`, `γίνομαι` |
+| `"lsj"` | [LSJ](https://github.com/ciscoriordan/lsj9) dictionary | εἶπον→`λέγω`, adverbs→adjective entries, -ο→-ον |
+| `"cunliffe"` | [Cunliffe](https://archive.org/details/lexiconofhomeric0000cunn) Homeric Lexicon | `γίγνομαι`, `ἐθέλω`, `νόος`, -σσ- over -ττ- |
+| `"triantafyllidis"` | [Triantafyllidis](http://www.greek-language.gr/greekLang/modern_greek/tools/lexica/triantafyllides/) MG dictionary | `ο`, `είμαι`, `σπήλαιο`, `σκοτώνω`, `ένας` |
+
+The mapping is built automatically from `data/lemma_equivalences.json`
+cross-referenced against the convention's headword list, with explicit
+overrides in `data/convention_{name}.json`. Other tools (stanza, spaCy,
+CLTK) have fixed output conventions matching their training treebanks
+and cannot be remapped.
+
+In the benchmark table, Dilemma's scores use the default (Wiktionary)
+convention unless noted. The Demotic MG score (77.3%) is penalized by
+AG-convention output (`ὁ` instead of `ο`, `εἰμί` instead of `είμαι`);
+using `convention="triantafyllidis"` on MG text would improve this.
+Stanza `el` outputs MG-convention lemmas natively, giving it a natural
+advantage on the Demotic benchmark.
 
 ### Verbose mode
 
