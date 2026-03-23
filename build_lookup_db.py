@@ -92,22 +92,41 @@ def build():
     # so lower confidence than Wiktionary, but fill coverage gaps.
     glaux_added_ag = 0
     glaux_added_med = 0
+    glaux_skipped_med = 0
     if GLAUX_PAIRS_PATH.exists():
         t_g = time.time()
         with open(GLAUX_PAIRS_PATH, encoding="utf-8") as f:
             glaux_pairs = json.load(f)
+        # Snapshot AG keys before GLAUx expansion, so we can check
+        # whether a form had an original (Wiktionary) AG entry.
+        ag_original = dict(ag)
         for p in glaux_pairs:
             form, lemma = p["form"], p["lemma"]
             # Add to AG if not already present
             if form not in ag:
                 ag[form] = lemma
                 glaux_added_ag += 1
-            # Add to Med (Koine/late Greek is useful for medieval)
+            # Selectively add to Med: only when the pair won't cause
+            # a priority override conflict in the combined merge.
+            # Skip if the form exists in original AG with a different
+            # lemma (the conflict case, e.g. AG has a self-map like
+            # μᾶλλον->μᾶλλον that would be overridden by μᾶλλον->μάλα).
             if form not in med:
-                med[form] = lemma
-                glaux_added_med += 1
+                if form not in ag_original:
+                    # New coverage: form not in original AG at all
+                    med[form] = lemma
+                    glaux_added_med += 1
+                elif ag_original[form] == lemma:
+                    # Reinforcing: same lemma as AG
+                    med[form] = lemma
+                    glaux_added_med += 1
+                else:
+                    # Conflict: AG has a different lemma, skip
+                    glaux_skipped_med += 1
         print(f"  GLAUx: +{glaux_added_ag:,} to AG, "
-              f"+{glaux_added_med:,} to Med ({time.time()-t_g:.1f}s)")
+              f"+{glaux_added_med:,} to Med, "
+              f"{glaux_skipped_med:,} Med conflicts skipped "
+              f"({time.time()-t_g:.1f}s)")
 
     # Build combined lookup (AG-first priority, same logic as dilemma.py)
     print("\nBuilding combined lookup (AG-first)...")
@@ -179,7 +198,17 @@ def build():
     print("Adding stripped column for spell-checking...", end=" ", flush=True)
     conn.execute("ALTER TABLE lookup ADD COLUMN stripped TEXT")
     conn.create_function("strip_accents", 1, strip_accents)
-    conn.execute("UPDATE lookup SET stripped = strip_accents(form)")
+    # Batch the update to avoid huge transactions
+    conn.execute("PRAGMA journal_mode=WAL")
+    batch_size = 500_000
+    total = conn.execute("SELECT COUNT(*) FROM lookup").fetchone()[0]
+    for offset in range(0, total, batch_size):
+        conn.execute(
+            "UPDATE lookup SET stripped = strip_accents(form) "
+            "WHERE rowid IN (SELECT rowid FROM lookup LIMIT ? OFFSET ?)",
+            (batch_size, offset))
+        conn.commit()
+        print(f"{min(offset + batch_size, total)}/{total}...", end=" ", flush=True)
     conn.execute("CREATE INDEX idx_lookup_stripped ON lookup (stripped)")
     conn.commit()
     print("done")
