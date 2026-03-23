@@ -19,17 +19,17 @@
 
   <!-- Lua expansion box -->
   <rect x="216" y="104" width="100" height="68" rx="3" fill="#4a6a3d"/>
-  <text x="266" y="126" text-anchor="middle" fill="#e8e4da" font-size="10" font-weight="600">Wiktionary</text>
-  <text x="266" y="140" text-anchor="middle" fill="#d0e4c8" font-size="9">Lua modules</text>
-  <text x="266" y="154" text-anchor="middle" fill="#d0e4c8" font-size="9">grc-decl/conj</text>
+  <text x="256" y="126" text-anchor="middle" fill="#e8e4da" font-size="10" font-weight="600">Wiktionary</text>
+  <text x="256" y="140" text-anchor="middle" fill="#d0e4c8" font-size="9">Lua modules</text>
+  <text x="256" y="154" text-anchor="middle" fill="#d0e4c8" font-size="9">grc-decl/conj</text>
   <text x="208" y="142" fill="#c8d4e4" font-size="14">&#x2192;</text>
-  <text x="296" y="142" text-anchor="end" fill="#d0e4c8" font-size="18">&#x2192;</text>
+  <text x="316" y="142" fill="#d0e4c8" font-size="18">&#x2192;</text>
 
   <!-- Corpus pairs -->
-  <rect x="26" y="180" width="290" height="36" rx="3" fill="#3d5175"/>
-  <text x="36" y="198" fill="#e8e4da" font-size="11" font-weight="600">Corpus pairs</text>
-  <text x="174" y="198" fill="#c8d4e4" font-size="10">GLAUx 557K &#xB7; UD Treebanks 27K</text>
-  <text x="296" y="198" text-anchor="end" fill="#c8d4e4" font-size="18">&#x2192;</text>
+  <rect x="26" y="180" width="290" height="44" rx="3" fill="#3d5175"/>
+  <text x="36" y="196" fill="#e8e4da" font-size="11" font-weight="600">Corpus pairs</text>
+  <text x="36" y="212" fill="#c8d4e4" font-size="10">GLAUx 557K &#xB7; UD Treebanks 27K</text>
+  <text x="296" y="204" text-anchor="end" fill="#c8d4e4" font-size="18">&#x2192;</text>
 
   <!-- Notes under sources -->
   <text x="171" y="238" text-anchor="middle" fill="#8898b0" font-size="9">3.4M training pairs (model) &#xB7; 12.3M lookup forms</text>
@@ -62,7 +62,8 @@
   <text x="540" y="264" fill="#c8dce8" font-size="10" text-decoration="line-through">&#x03BB;&#x03B1;&#x03BC;&#x03C0;&#x03C1;&#x03CD;&#x03C9;&#x03BD;</text>
   <text x="630" y="264" fill="#c8dce8" font-size="9" text-decoration="line-through">&#x03BB;&#x03B5;&#x03BB;&#x03B1;&#x03BC;</text>
 
-  <text x="522" y="290" text-anchor="middle" fill="#fff" font-size="9">first match in ~820K known headwords wins (Wikt + LSJ + Cunliffe)</text>
+  <text x="522" y="286" text-anchor="middle" fill="#fff" font-size="9">first match in ~820K headwords wins</text>
+  <text x="522" y="298" text-anchor="middle" fill="#c8dce8" font-size="8">(Wiktionary + LSJ + Cunliffe)</text>
 
   <!-- Output -->
   <text x="522" y="332" text-anchor="middle" fill="#8a8279" font-size="11">&#x2193;</text>
