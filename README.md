@@ -100,7 +100,7 @@ outperforms Dilemma on Demotic MG (87.0% vs 77.3%) since it outputs
 MG-convention lemmas natively, while Dilemma defaults to AG conventions
 (see [Lemma conventions](#lemma-conventions)). Morpheus "oracle" picks
 the best candidate from all its analyses, representing the ceiling for
-rule-based morphology. Cells marked "--" indicate the tool doesn't
+rule-based morphology. Cells marked `--` indicate the tool doesn't
 support that period or wasn't tested.
 
 Dilemma's remaining ~8.5% errors on DBBE break down as 3.1% no
