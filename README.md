@@ -74,20 +74,26 @@ d = Dilemma(normalize=True, period="byzantine")
 ### Evaluation
 
 On the [Swaelens et al. (2024)](https://aclanthology.org/2024.lrec-main.899/)
-DBBE gold standard (10K tokens of unedited Byzantine Greek epigrams):
+DBBE gold standard (8,342 tokens of unedited Byzantine Greek epigrams,
+punctuation excluded). All tools evaluated with the same normalization
+(case-folded, accent-stripped) and lemma equivalence groups (e.g.
+εἶπον/λέγω, γίνομαι/γίγνομαι). Accuracy = equiv-adjusted match rate.
 
-| Method | Accuracy |
-|--------|:--------:|
-| Swaelens et al. best (2024, hybrid) | 65.8% |
-| Swaelens et al. best (2025, multi-task) | ~74-75% |
-| **Dilemma** | **91.4%** |
+| Tool | Accuracy | Uses POS | Training data |
+|------|:--------:|:--------:|---------------|
+| *spaCy* `el_core_news_sm` | 31.7% | yes (own tagger) | ~30K tokens (MG news) |
+| *stanza* `el` | 37.4% | yes (own tagger) | ~63K tokens (GDT treebank) |
+| Swaelens et al. best (2024, hybrid) | 65.8% | yes | AG treebanks + transformer |
+| CLTK `BackoffGreekLemmatizer` | 66.9% | no | Perseus treebank (~310K tokens) |
+| *stanza* `grc` | 71.3% | yes (own tagger) | AG treebanks (AGLDT + Perseus, ~310K tokens) |
+| Swaelens et al. best (2025, multi-task) | ~74-75% | yes | AG treebanks + multi-task transformer |
+| **Dilemma** | **91.5%** | **no** | **3.4M pairs + 9.7M lookup** |
+| **Dilemma** (with gold POS) | **91.3%** | **yes** (gold tags) | **3.4M pairs + 9.7M lookup** |
 
-The remaining 8.6% errors break down as 3.2% no lookup hit and 5.4%
-wrong lemma or convention difference. Compound decomposition (splitting
-Byzantine compounds at linking vowels, e.g. θεοφθόγγοις -> θεο+φθόγγος)
-reduced the no-lookup rate from 4.4% to 3.0%. The dedicated eval scripts
-(`eval_dbbe.py`, `eval_digrec.py`) provide per-POS breakdowns and error
-categorization.
+The remaining ~9.7% errors break down as 4.6% no lookup hit and 6.3%
+wrong lemma or convention difference. The dedicated eval scripts
+(`eval_dbbe.py`, `eval_digrec.py`, `bench_dbbe.py`) provide per-POS
+breakdowns and error categorization.
 
 On the [DiGreC treebank](https://github.com/mdm33/digrec) (119K tokens,
 Homer through 15th century Byzantine Greek):
@@ -699,17 +705,24 @@ present"). These are propagated to every form in that table section:
 
 ## Comparison
 
-| Tool | Coverage | Training data | Katharevousa | Updates |
-|------|----------|--------------|--------------|---------|
-| *spaCy* `el_core_news_sm` | MG only | ~30K tokens (news) | no | static |
-| *stanza* `el` | MG only | ~30K tokens (GDT treebank) | fails on augmented forms | static |
-| Perseus *Morpheus* | AG only | hand-crafted rules | no | not actively developed |
-| **Dilemma** | **MG + AG + Medieval + dialects** | **3.4M pairs + 12.3M lookup** | **yes (AG+MG combined)** | **monthly from Wiktionary** |
+| Tool | DBBE acc. | Coverage | Training data | Katharevousa | Updates |
+|------|:---------:|----------|---------------|:------------:|---------|
+| *spaCy* `el_core_news_sm` | 31.7% | MG only | ~30K tokens (news) | no | static |
+| *stanza* `el` | 37.4% | MG only | ~63K tokens (GDT treebank) | no | static |
+| *stanza* `grc` | 71.3% | AG only | ~310K tokens (AGLDT + Perseus) | no | static |
+| CLTK `BackoffGreekLemmatizer` | 66.9% | AG only | ~310K tokens (Perseus) | no | static |
+| Perseus *Morpheus* | - | AG only | hand-crafted rules | no | not actively developed |
+| **Dilemma** | **91.5%** | **MG + AG + Medieval + dialects** | **3.4M pairs + 9.7M lookup** | **yes** | **monthly from Wiktionary** |
 
-Dilemma trains on **100x more data** than *stanza* or *spaCy*. *Morpheus*
-is more accurate on classical AG (decades of hand-tuned rules), but only
-covers one period. Dilemma covers all periods in one model - the only tool
-that handles Katharevousa, which mixes AG morphology with MG vocabulary.
+DBBE accuracy is equiv-adjusted on 8,342 Byzantine Greek tokens
+(see `bench_dbbe.py` for methodology). All tools evaluated with the
+same normalization and lemma equivalence groups. *spaCy* and *stanza*
+`el` are trained on Modern Greek and perform poorly on polytonic/Byzantine
+text. *stanza* `grc` and CLTK are trained on classical AG treebanks and
+fare better, but still miss Byzantine-era forms. Dilemma trains on
+**100x more data** than *stanza* or *spaCy*, covering all periods in
+one model - the only tool that handles Katharevousa, which mixes AG
+morphology with MG vocabulary.
 
 ### Related work
 
@@ -734,7 +747,7 @@ tested lemmatization on unedited Byzantine Greek epigrams and found
 that classical accuracy (~95%) dropped 30+ points on Byzantine text
 due to itacism, crasis, and non-standard orthography. Their best hybrid
 method (transformer embeddings + dictionary lookup) reached 65.8%.
-Dilemma achieves 91.4% on the same dataset.
+Dilemma achieves 91.5% on the same dataset (equiv-adjusted).
 
 [Swaelens et al. (2025)](https://aclanthology.org/2025.acl-long.430/)
 showed that multi-task learning (joint POS + morphology + lemma
