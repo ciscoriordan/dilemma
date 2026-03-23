@@ -228,8 +228,8 @@ conventions.
 | Convention | Target | Examples |
 |------------|--------|----------|
 | `None` (default) | Wiktionary headwords | `ὁ`, `εἰμί`, `σπήλαιον`, `γίνομαι` |
-| `"lsj"` | [LSJ](https://github.com/ciscoriordan/lsj9) dictionary | εἶπον→`λέγω`, adverbs→adjective entries, -ο→-ον |
-| `"cunliffe"` | [Cunliffe](https://archive.org/details/lexiconofhomeric0000cunn) Homeric Lexicon | `γίγνομαι`, `ἐθέλω`, `νόος`, -σσ- over -ττ- |
+| `"lsj"` | [LSJ](https://github.com/ciscoriordan/lsj9) dictionary | `εἶπον`→`λέγω`, adverbs→adjective entries, `-ο`→`-ον` |
+| `"cunliffe"` | [Cunliffe](https://archive.org/details/lexiconofhomeric0000cunn) Homeric Lexicon | `γίγνομαι`, `ἐθέλω`, `νόος`, `-σσ-` over `-ττ-` |
 | `"triantafyllidis"` | [Triantafyllidis](http://www.greek-language.gr/greekLang/modern_greek/tools/lexica/triantafyllides/) MG dictionary | `ο`, `είμαι`, `σπήλαιο`, `σκοτώνω`, `ένας` |
 
 The mapping is built automatically from `data/lemma_equivalences.json`
