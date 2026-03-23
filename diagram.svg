@@ -18,9 +18,10 @@
   <text x="92" y="118" fill="#3d3d3d" font-size="11">Katharevousa</text>
   <text x="92" y="136" fill="#3d3d3d" font-size="11">Cypriot</text>
   <text x="92" y="154" fill="#3d3d3d" font-size="11">Cretan</text>
-  <text x="92" y="172" fill="#3d3d3d" font-size="11">Medieval / Byzantine</text>
+  <text x="92" y="172" fill="#3d3d3d" font-size="11">Medieval / Byzantine*</text>
   <text x="92" y="190" fill="#6b6560" font-size="10">Heptanesian, Maniot</text>
   <text x="92" y="206" fill="#8a8279" font-size="9" font-style="italic">877K + 8K tagged entries</text>
+  <text x="42" y="430" fill="#8a8279" font-size="8">*As categorized in Wiktionary (vernacular medieval, not Byzantine literary Greek)</text>
 
   <!-- Ancient Greek branch -->
   <line x1="52" y1="240" x2="76" y2="240" stroke="#b8af9a" stroke-width="1.5"/>
