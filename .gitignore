@@ -25,12 +25,6 @@ model/combined-s3/*
 model/grc-s3/*
 !model/grc-s3/*.pt
 !model/grc-s3/*.onnx
-!model/el-s3/
-model/el-s3/*
-!model/el-s3/*.pt
-!model/el-s3/*.onnx
-!model/el-s3/*.npz
-!model/el-s3/*.json
 
 # Python
 __pycache__/
