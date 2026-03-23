@@ -38,12 +38,12 @@
   <text x="171" y="262" text-anchor="middle" fill="#4a6a84" font-size="8">*Medieval = Wiktionary category (vernacular, not Byzantine literary)</text>
 
   <!-- ── Arrows from sources to lookup (colored to match lookup) ── -->
-  <line x1="318" y1="70" x2="334" y2="70" stroke="#4a7a9c" stroke-width="1.5"/>
-  <polygon points="334,65 342,70 334,75" fill="#4a7a9c"/>
-  <line x1="318" y1="90" x2="334" y2="90" stroke="#4a7a9c" stroke-width="1.5"/>
-  <polygon points="334,85 342,90 334,95" fill="#4a7a9c"/>
-  <line x1="318" y1="110" x2="334" y2="110" stroke="#4a7a9c" stroke-width="1.5"/>
-  <polygon points="334,105 342,110 334,115" fill="#4a7a9c"/>
+  <line x1="318" y1="70" x2="330" y2="70" stroke="#4a7a9c" stroke-width="1.5"/>
+  <polygon points="330,66 337,70 330,74" fill="#4a7a9c"/>
+  <line x1="318" y1="90" x2="330" y2="90" stroke="#4a7a9c" stroke-width="1.5"/>
+  <polygon points="330,86 337,90 330,94" fill="#4a7a9c"/>
+  <line x1="318" y1="110" x2="330" y2="110" stroke="#4a7a9c" stroke-width="1.5"/>
+  <polygon points="330,106 337,110 330,114" fill="#4a7a9c"/>
 
   <!-- ── LOOKUP TABLE (medium blue) ── -->
   <rect x="340" y="12" width="364" height="130" rx="4" fill="#4a7a9c"/>
@@ -57,8 +57,8 @@
 
   <!-- Arrow from lookup to transformer (colored to match transformer) -->
   <text x="530" y="155" fill="#8a8279" font-size="9">miss</text>
-  <line x1="522" y1="144" x2="522" y2="168" stroke="#2d5a7a" stroke-width="1.5"/>
-  <polygon points="517,168 522,176 527,168" fill="#2d5a7a"/>
+  <line x1="522" y1="144" x2="522" y2="164" stroke="#2d5a7a" stroke-width="1.5"/>
+  <polygon points="518,164 522,171 526,164" fill="#2d5a7a"/>
 
   <!-- ── TRANSFORMER (darker blue) ── -->
   <rect x="340" y="174" width="364" height="140" rx="4" fill="#2d5a7a"/>
@@ -78,8 +78,8 @@
   <text x="522" y="298" text-anchor="middle" fill="#d0e4f0" font-size="8">(Wiktionary + LSJ + Cunliffe)</text>
 
   <!-- Arrow from transformer to output -->
-  <line x1="522" y1="316" x2="522" y2="332" stroke="#1a3050" stroke-width="1.5"/>
-  <polygon points="517,332 522,340 527,332" fill="#1a3050"/>
+  <line x1="522" y1="316" x2="522" y2="328" stroke="#1a3050" stroke-width="1.5"/>
+  <polygon points="518,328 522,335 526,328" fill="#1a3050"/>
 
   <!-- Output (darkest blue) -->
   <rect x="462" y="338" width="120" height="28" rx="3" fill="#1a3050"/>
