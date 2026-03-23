@@ -371,13 +371,13 @@ from gold-standard treebanks (Gorman, AGDT). Each form is indexed under
 its original, monotonic, and accent-stripped variants, so `θεοὶ` (polytonic
 with grave), `θεοί` (monotonic with acute), and `θεοι` (stripped) all
 resolve to `θεός`. Input can be polytonic, monotonic, or unaccented. AG
-forms take priority, then Medieval, then MG - this ensures classical lemma
-forms (βιβλίον, φύσις, θεῖος) are preferred over their MG equivalents
-(βιβλίο, φύση, θείο). The Medieval lookup (6,735 entries from EL
-Wiktionary) has minimal practical impact: on DBBE's 8,342 Byzantine
-tokens, only 2 resolved via the Medieval table while 92.8% came from
-the AG lookup. For polytonic input (breathings/circumflex), an
-additional AG-only lookup pass runs first.
+forms take priority over MG, ensuring classical lemma forms (βιβλίον,
+φύσις, θεῖος) are preferred over their MG equivalents (βιβλίο, φύση,
+θείο). Medieval Wiktionary entries are merged into the MG table at
+build time. When `lang="el"` is used, 150K MG-specific entries
+override the AG-first defaults with MG lemma forms (ο instead of ὁ,
+είμαι instead of εἰμί). For polytonic input (breathings/circumflex),
+an additional AG-only lookup pass runs first.
 
 When the transformer handles an unseen form, beam search generates
 multiple candidates and picks the first that matches a known headword
@@ -539,32 +539,33 @@ Katharevousa, crasis, and model fallback across all resolution paths.
 d = Dilemma()                         # auto-detect best available
 ```
 
-Medieval/Byzantine Greek is treated as part of Modern Greek, not a
-separate language. The `"el"` mode includes Medieval forms alongside
-SMG, Katharevousa, and regional varieties. The Medieval corpus (~3K
-entries) covers Byzantine-era morphology that feeds directly into
-Katharevousa and formal MG.
+Medieval/Byzantine Greek forms are merged into Modern Greek (`el`),
+not treated as a separate language. EL Wiktionary's "Medieval Greek"
+category (6,735 entries) contains early Modern Greek vocabulary, not
+Byzantine literary Greek. On the DBBE benchmark, only 2 of 8,342
+tokens resolved via the medieval table, while 92.8% came from the AG
+lookup. Byzantine literary Greek is Atticist - it deliberately
+imitates classical Attic Greek - so the AG lookup handles it well.
 
 ### Language codes
 
 | Code | Period | ISO standard |
 |------|--------|-------------|
-| `el` | Modern Greek (including Medieval, Katharevousa, regional) | ISO 639-1 |
-| `grc` | Ancient Greek (Homer through late antiquity) | ISO 639-2 |
-| `med` | Medieval/Byzantine Greek (~300-1453 CE) | No ISO code exists (proposed `gkm` was [rejected](https://iso639-3.sil.org/request/2006-084)); `med` is an internal shorthand |
+| `el` | Modern Greek (including vernacular medieval, Katharevousa, regional) | ISO 639-1 |
+| `grc` | Ancient Greek (Homer through Byzantine literary Greek) | ISO 639-2 |
 
-`med` appears in `LemmaCandidate.lang` when a form is found only in
-the Medieval lookup table. In practice, Medieval forms are grouped
-with `el` for lookup priority since Byzantine morphology is the direct
-ancestor of Modern Greek.
+For lemmatization, the two-way split works because Byzantine literary
+Greek is classicizing (handled by `grc`), while vernacular medieval
+Greek is the ancestor of Modern Greek (handled by `el`). The `med`
+label still appears in `LemmaCandidate.lang` for forms from the
+medieval Wiktionary dump, but these are merged into the `el` lookup
+at build time.
 
 Note: [Opla](https://github.com/ciscoriordan/opla) (POS tagging +
 dependency parsing) handles `med` differently, grouping it with `grc`
-instead of `el`. This is intentional - lemmatization and syntactic
-analysis have different grouping needs. Medieval *morphology* (inflection
-patterns, form lookup) is closer to Modern Greek, but Medieval *syntax*
-(polytonic script, full case system, optative mood) is closer to Ancient
-Greek. Each tool groups `med` with whichever period best serves its task.
+for syntax. Medieval *syntax* (polytonic script, full case system,
+optative mood) is closer to Ancient Greek even though the *morphology*
+is closer to Modern Greek.
 
 ### 3. Export to ONNX (optional)
 
