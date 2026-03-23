@@ -154,8 +154,6 @@ AG morphology (augments, 3rd declension genitives) with MG vocabulary.
 The strong Epic/Homeric coverage (3,755 entries) is directly relevant for
 literary texts based on Homer.
 
-> `εσκότωσε` → `σκοτώνω` · `πολεμούσαν` → `πολεμώ` · `δώση` → `δίνω`
-
 <p align="center">
   <img src="https://raw.githubusercontent.com/ciscoriordan/dilemma/main/diagram.svg" width="700" alt="Dilemma architecture">
 </p>
