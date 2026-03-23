@@ -544,6 +544,8 @@ class Dilemma:
 
         # POS-indexed disambiguation table: {form: {upos: lemma}}
         self._pos_lookup: dict[str, dict[str, str]] = {}
+        # AG-only POS lookup for polytonic-first disambiguation
+        self._pos_ag_lookup: dict[str, dict[str, str]] = {}
 
         # Headword frequency table (lazy-loaded from lsj9_frequency.json)
         self._hw_frequency: dict[str, int] | None = None
@@ -640,64 +642,65 @@ class Dilemma:
             self._lookup = dict(self._ag_lookup)
 
     def _load_pos_lookups(self):
-        """Load POS disambiguation tables from JSON."""
-        # Load POS disambiguation tables.
-        # Priority: treebank (gold) > GLAUx (corpus) > MG Wiktionary > AG Wiktionary.
-        # Lower-priority sources only fill in form+upos slots not already set.
+        """Load POS disambiguation tables from JSON.
+
+        Builds two tables:
+        - _pos_ag_lookup: AG-only sources (treebank, GLAUx, AG Wiktionary, LSJ9)
+        - _pos_lookup: combined (AG sources + MG Wiktionary)
+
+        For polytonic input (breathing marks, circumflex), lemmatize_pos() and
+        lemmatize_batch_pos() check _pos_ag_lookup first before the combined
+        table, mirroring the AG-first logic in the main lookup.
+
+        Priority within each table: treebank (gold) > GLAUx (corpus) >
+        MG Wiktionary (combined only) > AG Wiktionary > LSJ9 grammar.
+        """
+        def _add_to(target, source_data, overwrite=False):
+            """Merge source_data into target POS dict."""
+            for form, upos_lemmas in source_data.items():
+                if form not in target:
+                    target[form] = {}
+                if overwrite:
+                    target[form].update(upos_lemmas)
+                else:
+                    for upos, lemma in upos_lemmas.items():
+                        if upos not in target[form]:
+                            target[form][upos] = lemma
 
         # 1. Treebank POS lookup (gold-annotated, highest priority for AG)
         if self.lang in ("all", "grc") and TREEBANK_POS_LOOKUP_PATH.exists():
             with open(TREEBANK_POS_LOOKUP_PATH, encoding="utf-8") as f:
                 tb_pos = json.load(f)
-            for form, upos_lemmas in tb_pos.items():
-                if form not in self._pos_lookup:
-                    self._pos_lookup[form] = {}
-                self._pos_lookup[form].update(upos_lemmas)
+            _add_to(self._pos_ag_lookup, tb_pos, overwrite=True)
+            _add_to(self._pos_lookup, tb_pos, overwrite=True)
 
         # 2. GLAUx POS lookup (corpus-derived, 8.7K entries)
         if self.lang in ("all", "grc") and GLAUX_POS_LOOKUP_PATH.exists():
             with open(GLAUX_POS_LOOKUP_PATH, encoding="utf-8") as f:
                 glaux_pos = json.load(f)
-            for form, upos_lemmas in glaux_pos.items():
-                if form not in self._pos_lookup:
-                    self._pos_lookup[form] = {}
-                for upos, lemma in upos_lemmas.items():
-                    if upos not in self._pos_lookup[form]:
-                        self._pos_lookup[form][upos] = lemma
+            _add_to(self._pos_ag_lookup, glaux_pos)
+            _add_to(self._pos_lookup, glaux_pos)
 
-        # 3. MG POS lookup (Wiktionary-derived, fills remaining gaps)
+        # 3. MG POS lookup (Wiktionary-derived, combined table only)
         if self.lang in ("all", "el") and MG_POS_LOOKUP_PATH.exists():
             with open(MG_POS_LOOKUP_PATH, encoding="utf-8") as f:
                 mg_pos = json.load(f)
-            for form, upos_lemmas in mg_pos.items():
-                if form not in self._pos_lookup:
-                    self._pos_lookup[form] = {}
-                for upos, lemma in upos_lemmas.items():
-                    if upos not in self._pos_lookup[form]:
-                        self._pos_lookup[form][upos] = lemma
+            _add_to(self._pos_lookup, mg_pos)  # combined only, not AG
 
         # 4. AG Wiktionary POS lookup (fills remaining gaps)
         if self.lang in ("all", "grc") and AG_POS_LOOKUP_PATH.exists():
             with open(AG_POS_LOOKUP_PATH, encoding="utf-8") as f:
                 ag_pos = json.load(f)
-            for form, upos_lemmas in ag_pos.items():
-                if form not in self._pos_lookup:
-                    self._pos_lookup[form] = {}
-                for upos, lemma in upos_lemmas.items():
-                    if upos not in self._pos_lookup[form]:
-                        self._pos_lookup[form][upos] = lemma
+            _add_to(self._pos_ag_lookup, ag_pos)
+            _add_to(self._pos_lookup, ag_pos)
 
         # 5. LSJ9 grammar-derived POS (407K forms with NOUN/ADJ from
         #    the grammar field: ὁ/ἡ/τό -> NOUN, ον/ές -> ADJ)
         if self.lang in ("all", "grc") and LSJ9_POS_LOOKUP_PATH.exists():
             with open(LSJ9_POS_LOOKUP_PATH, encoding="utf-8") as f:
                 lsj9_pos = json.load(f)
-            for form, upos_lemmas in lsj9_pos.items():
-                if form not in self._pos_lookup:
-                    self._pos_lookup[form] = {}
-                for upos, lemma in upos_lemmas.items():
-                    if upos not in self._pos_lookup[form]:
-                        self._pos_lookup[form][upos] = lemma
+            _add_to(self._pos_ag_lookup, lsj9_pos)
+            _add_to(self._pos_lookup, lsj9_pos)
 
     def _build_convention_map(self, convention: str | None) -> dict[str, str]:
         """Build a lemma remapping dict for the given convention.
@@ -1314,12 +1317,51 @@ class Dilemma:
 
         return self._apply_convention(pred)
 
+    def _pos_table_lookup(self, word: str, upos: str) -> str | None:
+        """Look up POS-specific lemma from POS disambiguation tables.
+
+        For polytonic input, checks the AG-only POS table first to avoid
+        MG lemma overrides on Ancient Greek text. Returns None if no match.
+        """
+        lower = word.lower()
+        acute = grave_to_acute(lower)
+        mono = to_monotonic(lower)
+        stripped = strip_accents(lower)
+        variants = (word, lower, acute, mono, stripped)
+
+        # For polytonic input, try AG-only POS first
+        nfd = unicodedata.normalize("NFD", word)
+        has_poly = any(ord(ch) in _POLYTONIC_STRIP | _POLYTONIC_TO_ACUTE
+                       for ch in nfd)
+        if has_poly and self.lang == "all" and self._pos_ag_lookup:
+            for variant in variants:
+                pos_entry = self._pos_ag_lookup.get(variant)
+                if pos_entry and upos in pos_entry:
+                    return pos_entry[upos]
+
+        # Combined POS lookup
+        for variant in variants:
+            pos_entry = self._pos_lookup.get(variant)
+            if pos_entry and upos in pos_entry:
+                return pos_entry[upos]
+
+        return None
+
     def lemmatize_pos(self, word: str, upos: str) -> str:
         """Lemmatize with POS-aware disambiguation.
 
-        If the form is in the POS lookup table and the given UPOS tag
-        matches a known disambiguation, returns the POS-specific lemma.
-        Otherwise falls back to regular lemmatize().
+        POS is used to disambiguate among multiple candidates from the
+        regular lookup, not to override it. The regular lookup (without
+        POS) already produces good results; POS should only help pick
+        between ambiguous candidates, never make things worse.
+
+        Algorithm:
+          1. Run regular lemmatize_verbose() to get all candidates.
+          2. If there is only one candidate, return it (POS can't help).
+          3. If there are multiple candidates, check POS tables for a
+             POS-specific lemma and see if any candidate matches it.
+          4. If a match is found, return it. Otherwise return the top
+             candidate (same as regular lookup).
 
         Args:
             word: Greek word form.
@@ -1328,29 +1370,52 @@ class Dilemma:
         Returns:
             The lemma string.
         """
-        # Closed class first (articles, pronouns)
-        closed = self._resolve_closed_class(word)
-        if closed is not None:
-            return self._apply_convention(closed)
+        # Get all candidates from regular lookup
+        candidates = self.lemmatize_verbose(word)
 
-        # Check POS lookup with cascade: exact, lower, grave_to_acute, monotonic, stripped
-        lower = word.lower()
-        acute = grave_to_acute(lower)
-        mono = to_monotonic(lower)
-        stripped = strip_accents(lower)
-        for variant in (word, lower, acute, mono, stripped):
-            pos_entry = self._pos_lookup.get(variant)
-            if pos_entry and upos in pos_entry:
-                return self._apply_convention(pos_entry[upos])
+        if not candidates:
+            # Should not happen (verbose always adds identity), but be safe
+            return self.lemmatize(word)
 
-        # Fall back to regular lemmatize (convention applied there)
-        return self.lemmatize(word)
+        if len(candidates) == 1:
+            # Only one candidate - POS can't help, return it directly
+            return candidates[0].lemma
+
+        # Multiple candidates - use POS to disambiguate
+        pos_lemma = self._pos_table_lookup(word, upos)
+        if pos_lemma is not None:
+            pos_lemma_conv = self._apply_convention(pos_lemma)
+            # Check if any candidate matches the POS-specific lemma
+            for c in candidates:
+                if c.lemma == pos_lemma_conv:
+                    return c.lemma
+            # Also check with accent-stripped comparison (POS tables and
+            # lookup tables may use slightly different accent conventions)
+            pos_stripped = strip_accents(pos_lemma_conv.lower())
+            for c in candidates:
+                if strip_accents(c.lemma.lower()) == pos_stripped:
+                    return c.lemma
+
+        # No POS match among candidates - return top candidate
+        # (same result as regular lemmatize)
+        return candidates[0].lemma
 
     def lemmatize_batch_pos(self, words: list[str], upos_tags: list[str]) -> list[str]:
         """Lemmatize a batch of words with POS-aware disambiguation.
 
-        For each word, tries POS-specific lookup first, then falls back
-        to regular batch lemmatization for unresolved words.
+        POS is used to disambiguate among multiple candidates, not to
+        override the regular lookup. This preserves the batch model
+        optimization from lemmatize_batch() while using POS only when
+        it can help (multiple valid candidates for a form).
+
+        Algorithm:
+          1. Run lemmatize_batch() to get baseline results (efficient,
+             batches model inference for unknown words).
+          2. For each word where POS tables suggest a different lemma,
+             call lemmatize_verbose() to get all candidates and check
+             if the POS-specific lemma is among them.
+          3. If the POS lemma matches a candidate, use it. Otherwise
+             keep the baseline result.
 
         Args:
             words: List of Greek word forms.
@@ -1363,39 +1428,44 @@ class Dilemma:
             f"words and upos_tags must have same length: {len(words)} vs {len(upos_tags)}"
         )
 
-        results = [None] * len(words)
-        fallback_indices = []
-        fallback_words = []
+        # Step 1: Get baseline results from regular batch lemmatization
+        results = self.lemmatize_batch(words)
 
+        # Step 2: For each word, check if POS could improve the result
         for i, (word, upos) in enumerate(zip(words, upos_tags)):
-            # Closed class first
-            closed = self._resolve_closed_class(word)
-            if closed is not None:
-                results[i] = self._apply_convention(closed)
+            pos_lemma = self._pos_table_lookup(word, upos)
+            if pos_lemma is None:
+                # No POS data for this form/UPOS - keep baseline
                 continue
 
-            # POS lookup cascade
-            lower = word.lower()
-            mono = to_monotonic(lower)
-            stripped = strip_accents(lower)
-            pos_hit = None
-            for variant in (word, lower, mono, stripped):
-                pos_entry = self._pos_lookup.get(variant)
-                if pos_entry and upos in pos_entry:
-                    pos_hit = pos_entry[upos]
+            pos_lemma_conv = self._apply_convention(pos_lemma)
+            if pos_lemma_conv == results[i]:
+                # POS agrees with baseline - no change needed
+                continue
+
+            # POS suggests a different lemma than baseline. Check if
+            # the POS lemma is among the valid candidates.
+            candidates = self.lemmatize_verbose(word)
+            if len(candidates) <= 1:
+                # Only one candidate - POS can't help, keep baseline
+                continue
+
+            # Check if any candidate matches the POS-specific lemma
+            pos_stripped = strip_accents(pos_lemma_conv.lower())
+            matched = False
+            for c in candidates:
+                if c.lemma == pos_lemma_conv:
+                    results[i] = c.lemma
+                    matched = True
                     break
-
-            if pos_hit is not None:
-                results[i] = self._apply_convention(pos_hit)
-            else:
-                fallback_indices.append(i)
-                fallback_words.append(word)
-
-        # Batch-lemmatize the fallbacks
-        if fallback_words:
-            fallback_lemmas = self.lemmatize_batch(fallback_words)
-            for idx, lemma in zip(fallback_indices, fallback_lemmas):
-                results[idx] = lemma
+            if not matched:
+                # Try accent-stripped comparison
+                for c in candidates:
+                    if strip_accents(c.lemma.lower()) == pos_stripped:
+                        results[i] = c.lemma
+                        matched = True
+                        break
+            # If no match among candidates, keep the baseline result
 
         return results
 

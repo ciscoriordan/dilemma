@@ -253,8 +253,8 @@ Each `LemmaCandidate` has:
 ### POS-aware disambiguation
 
 When a POS tagger (e.g. [Opla](https://github.com/ciscoriordan/opla))
-provides UPOS tags, `lemmatize_pos` uses a 85K-entry POS lookup table
-to disambiguate:
+provides UPOS tags, `lemmatize_pos` uses POS to disambiguate between
+multiple candidates from the regular lookup:
 
 ```python
 d = Dilemma()
@@ -264,8 +264,17 @@ d.lemmatize_pos("ἄκρα", "NOUN")    # "ἄκρον" (noun: summit)
 d.lemmatize_pos("ἄκρα", "ADJ")     # "ἄκρος" (adjective: outermost)
 ```
 
-The POS lookup is built from four sources in priority order: UD treebanks
-(gold), GLAUx corpus (8.7K entries), MG Wiktionary, AG Wiktionary.
+POS disambiguates rather than overrides: the regular lookup runs first to
+produce all valid candidates, and POS selects among them only when there
+are multiple options. When a form has just one candidate, POS is ignored,
+ensuring POS-aware lemmatization never produces worse results than the
+baseline.
+
+The POS lookup is built from five sources in priority order: UD treebanks
+(gold), GLAUx corpus (8.7K entries), MG Wiktionary, AG Wiktionary, LSJ9
+grammar. For polytonic input (breathing marks, circumflex), the AG-only
+POS entries are checked first to avoid MG lemma overrides on Ancient Greek
+text, mirroring the main lookup's AG-first logic.
 
 ### Spelling correction
 

@@ -9,6 +9,7 @@ Usage:
     python eval_dbbe.py --scale 3             # specific model scale
     python eval_dbbe.py --errors 50           # show more error examples
     python eval_dbbe.py --pos V-              # filter by POS
+    python eval_dbbe.py --use-pos gold        # use gold POS tags for lemmatization
 """
 
 import argparse
@@ -21,6 +22,22 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_DBBE = SCRIPT_DIR / "data" / "dbbe" / "lingAnn_GS_medievalGreek.tsv"
 EQUIV_PATH = SCRIPT_DIR / "data" / "lemma_equivalences.json"
+
+# DBBE POS category (first char) -> UPOS mapping
+DBBE_TO_UPOS = {
+    "n": "NOUN",
+    "v": "VERB",
+    "a": "ADJ",
+    "l": "DET",
+    "g": "PART",
+    "d": "ADV",
+    "p": "PRON",
+    "r": "ADP",
+    "c": "CCONJ",
+    "m": "NUM",
+    "i": "INTJ",
+    "e": "INTJ",
+}
 
 
 def to_monotonic(s):
@@ -72,8 +89,12 @@ def parse_dbbe(tsv_path):
     return tokens
 
 
-def evaluate(tokens, dilemma_instance, greedy=True):
-    """Run Dilemma on all tokens and compare with gold lemmas."""
+def evaluate(tokens, dilemma_instance, greedy=True, use_pos=None):
+    """Run Dilemma on all tokens and compare with gold lemmas.
+
+    Args:
+        use_pos: None (no POS), "gold" (use gold DBBE POS tags mapped to UPOS).
+    """
     if greedy:
         orig_predict = dilemma_instance._predict
         def _greedy_predict(words, num_beams=1):
@@ -83,12 +104,24 @@ def evaluate(tokens, dilemma_instance, greedy=True):
     forms = [t["form"] for t in tokens]
     batch_size = 500
     predicted = []
-    for i in range(0, len(forms), batch_size):
-        batch = forms[i:i+batch_size]
-        predicted.extend(dilemma_instance.lemmatize_batch(batch))
-        done = min(i + batch_size, len(forms))
-        if done % 5000 < batch_size:
-            print(f"  {done}/{len(forms)}...", flush=True)
+
+    if use_pos == "gold":
+        upos_tags = [DBBE_TO_UPOS.get(t["pos"], "X") for t in tokens]
+        for i in range(0, len(forms), batch_size):
+            batch_forms = forms[i:i+batch_size]
+            batch_upos = upos_tags[i:i+batch_size]
+            predicted.extend(dilemma_instance.lemmatize_batch_pos(
+                batch_forms, batch_upos))
+            done = min(i + batch_size, len(forms))
+            if done % 5000 < batch_size:
+                print(f"  {done}/{len(forms)}...", flush=True)
+    else:
+        for i in range(0, len(forms), batch_size):
+            batch = forms[i:i+batch_size]
+            predicted.extend(dilemma_instance.lemmatize_batch(batch))
+            done = min(i + batch_size, len(forms))
+            if done % 5000 < batch_size:
+                print(f"  {done}/{len(forms)}...", flush=True)
 
     if greedy:
         dilemma_instance._predict = orig_predict
@@ -157,6 +190,8 @@ def main():
                         help="Number of error examples to show")
     parser.add_argument("--pos", type=str, default=None,
                         help="Filter by POS prefix (e.g. V-, Nb, A-)")
+    parser.add_argument("--use-pos", type=str, default=None, choices=["gold"],
+                        help="Use POS tags for lemmatization: 'gold' uses DBBE gold tags")
     args = parser.parse_args()
 
     print(f"Parsing DBBE: {args.dbbe}")
@@ -185,11 +220,12 @@ def main():
     sys.path.insert(0, str(SCRIPT_DIR))
     from dilemma import Dilemma
     d = Dilemma(scale=args.scale, resolve_articles=True)
-    print(f"\nDilemma loaded (scale={args.scale}, resolve_articles=True)")
+    pos_label = f", use_pos={args.use_pos}" if args.use_pos else ""
+    print(f"\nDilemma loaded (scale={args.scale}, resolve_articles=True{pos_label})")
 
     # Evaluate
     print(f"\nEvaluating...")
-    results = evaluate(tokens, d)
+    results = evaluate(tokens, d, use_pos=args.use_pos)
 
     # Overall
     print(f"\n{'='*80}")
