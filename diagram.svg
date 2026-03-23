@@ -22,19 +22,20 @@
   <text x="36" y="62" fill="#fff" font-size="11" font-weight="600">Wiktionary (EN + EL)</text>
   <text x="36" y="80" fill="#e0ecf4" font-size="10">AG 2.4M &#xB7; MG 2.8M &#xB7; Medieval 6.7K forms</text>
 
-  <!-- Lexicon headwords + Lua -->
-  <rect x="26" y="104" width="180" height="68" rx="3" fill="#7aa0bc"/>
+  <!-- Lexicon headwords -->
+  <rect x="26" y="104" width="130" height="56" rx="3" fill="#7aa0bc"/>
   <text x="36" y="122" fill="#fff" font-size="11" font-weight="600">Lexicon headwords</text>
-  <text x="36" y="138" fill="#e0ecf4" font-size="10">LSJ 119K &#xB7; Sophocles 20K</text>
-  <text x="36" y="154" fill="#e0ecf4" font-size="10">Cunliffe 12K</text>
+  <text x="36" y="138" fill="#e0ecf4" font-size="10">LSJ 119K &#xB7; Soph 20K</text>
+  <text x="36" y="152" fill="#e0ecf4" font-size="10">Cunliffe 12K</text>
+
+  <!-- Arrow from headwords to Lua -->
+  <line x1="156" y1="132" x2="214" y2="132" stroke="#6a94b0" stroke-width="2" marker-end="url(#arr-lookup)"/>
 
   <!-- Lua expansion box -->
-  <rect x="216" y="104" width="100" height="68" rx="3" fill="#6a94b0"/>
-  <text x="256" y="126" text-anchor="middle" fill="#fff" font-size="10" font-weight="600">Wiktionary</text>
-  <text x="256" y="140" text-anchor="middle" fill="#e0ecf4" font-size="9">Lua modules</text>
-  <text x="256" y="154" text-anchor="middle" fill="#e0ecf4" font-size="9">grc-decl/conj</text>
-  <!-- Arrow from headwords to Lua -->
-  <line x1="206" y1="138" x2="214" y2="138" stroke="#6a94b0" stroke-width="2" marker-end="url(#arr-lookup)"/>
+  <rect x="216" y="104" width="100" height="56" rx="3" fill="#6a94b0"/>
+  <text x="266" y="122" text-anchor="middle" fill="#fff" font-size="10" font-weight="600">Wiktionary</text>
+  <text x="266" y="136" text-anchor="middle" fill="#e0ecf4" font-size="9">Lua modules</text>
+  <text x="266" y="150" text-anchor="middle" fill="#e0ecf4" font-size="9">grc-decl/conj</text>
 
   <!-- Corpus pairs -->
   <rect x="26" y="180" width="290" height="44" rx="3" fill="#7aa0bc"/>
