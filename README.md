@@ -80,13 +80,14 @@ DBBE gold standard (10K tokens of unedited Byzantine Greek epigrams):
 |--------|:--------:|
 | Swaelens et al. best (2024, hybrid) | 65.8% |
 | Swaelens et al. best (2025, multi-task) | ~74-75% |
-| **Dilemma** | **91.5%** |
+| **Dilemma** | **91.4%** |
 
-The remaining 8.5% errors break down as 3.0% no lookup hit and 5.5%
+The remaining 8.6% errors break down as 3.0% no lookup hit and 5.6%
 wrong lemma or convention difference. Compound decomposition (splitting
 Byzantine compounds at linking vowels, e.g. θεοφθόγγοις -> θεο+φθόγγος)
-reduced the no-lookup rate from 4.4% to 3.0%. The dedicated eval script
-(`eval_dbbe.py`) provides per-POS breakdowns and error categorization.
+reduced the no-lookup rate from 4.4% to 3.0%. The dedicated eval scripts
+(`eval_dbbe.py`, `eval_digrec.py`) provide per-POS breakdowns and error
+categorization.
 
 On the [DiGreC treebank](https://github.com/mdm33/digrec) (119K tokens,
 Homer through 15th century Byzantine Greek):
@@ -96,7 +97,7 @@ Homer through 15th century Byzantine Greek):
 | Strict match | 90.3% |
 | + monotonic normalization | 91.2% |
 | + accent stripping | 91.6% |
-| **+ lemma equivalences** | **93.5%** |
+| **+ lemma equivalences** | **94.0%** |
 
 The equivalence-adjusted score accounts for legitimate convention
 differences between annotation schemes (e.g. `εἶπον`/`λέγω`,
@@ -188,6 +189,12 @@ d_byz.lemmatize("θεω")                        # "θεός" (restores iota sub
 d_lsj = Dilemma(convention="lsj")
 d_lsj.lemmatize("αἰνῶς")                     # "αἰνός" (adverb -> adjective)
 d_lsj.lemmatize("εἶπον")                      # "λέγω" (aorist -> present stem)
+
+# Cunliffe convention: remap to Cunliffe Homeric Lexicon headwords
+d_cun = Dilemma(convention="cunliffe")
+d_cun.lemmatize("γίνεται")                    # "γίγνομαι" (Homeric form)
+d_cun.lemmatize("θέλει")                      # "ἐθέλω" (Homeric form)
+d_cun.lemmatize("νοῦν")                       # "νόος" (uncontracted Homeric form)
 ```
 
 By default, articles and pronoun clitics self-map (e.g. `τῆς` returns
@@ -199,11 +206,14 @@ to canonical lemmas (`ὁ`, `ἐγώ`, `σύ`), matching treebank conventions
 The `convention` parameter remaps output lemmas to match a specific
 dictionary or treebank convention. Set `convention="lsj"` for LSJ
 dictionary headwords (maps suppletive aorists to present stems, adverbs
-to adjective entries, MG -o neuter forms to AG -on, etc.). Default is
+to adjective entries, MG -o neuter forms to AG -on, etc.). Set
+`convention="cunliffe"` for Cunliffe Homeric Lexicon headwords (prefers
+uncontracted Homeric forms like νόος over νοῦς, γίγνομαι over γίνομαι,
+ἐθέλω over θέλω, and non-Attic -σσ- over -ττ-). Default is
 `None` (Wiktionary convention, no remapping). The mapping is built
 automatically from `data/lemma_equivalences.json` cross-referenced
-against LSJ headwords, with explicit overrides in
-`data/convention_lsj.json`.
+against the convention's headword list, with explicit overrides in
+`data/convention_{name}.json`.
 
 ### Verbose mode
 
