@@ -206,6 +206,13 @@ d_cun = Dilemma(convention="cunliffe")
 d_cun.lemmatize("γίνεται")                    # "γίγνομαι" (Homeric form)
 d_cun.lemmatize("θέλει")                      # "ἐθέλω" (Homeric form)
 d_cun.lemmatize("νοῦν")                       # "νόος" (uncontracted Homeric form)
+
+# Triantafyllidis convention: remap to Modern Greek monotonic forms
+d_mg = Dilemma(convention="triantafyllidis")
+d_mg.lemmatize("σπήλαια")                     # "σπήλαιο" (not σπήλαιον)
+d_mg.lemmatize("Είναι")                       # "είμαι" (not εἰμί)
+d_mg.lemmatize("εργαλεία")                    # "εργαλείο" (not ἐργαλεῖον)
+d_mg.lemmatize("τα")                          # "ο" (not ὁ)
 ```
 
 By default, articles and pronoun clitics self-map (e.g. `τῆς` returns
@@ -381,7 +388,7 @@ an additional AG-only lookup pass runs first.
 
 When the transformer handles an unseen form, beam search generates
 multiple candidates and picks the first that matches a known headword
-from the combined filter (~900K headwords from Wiktionary self-maps,
+from the combined filter (~820K headwords from Wiktionary self-maps,
 [LSJ9](https://github.com/ciscoriordan/lsj9) (119K entries + variants),
 and [Cunliffe's Homeric Lexicon](https://archive.org/details/lexiconofhomeric0000cunn) (12K entries)).
 If nothing matches, the input is returned unchanged.
