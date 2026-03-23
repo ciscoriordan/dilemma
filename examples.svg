@@ -5,8 +5,8 @@
   <text x="360" y="28" text-anchor="middle" fill="#1a2744" font-size="13" font-weight="700" letter-spacing="0.5">Lemmatization examples across varieties</text>
 
   <!-- ── Left: Lookup ── -->
-  <rect x="20" y="46" width="330" height="18" rx="1" fill="#1a2744"/>
-  <text x="185" y="59" text-anchor="middle" fill="#f5f2ec" font-size="10" font-weight="600">LOOKUP TABLE</text>
+  <rect x="20" y="46" width="330" height="18" rx="1" fill="#c49a3c"/>
+  <text x="185" y="59" text-anchor="middle" fill="#fff" font-size="10" font-weight="600">LOOKUP TABLE</text>
 
   <text x="32" y="82" fill="#8a8279" font-size="9">FORM</text>
   <text x="290" y="82" fill="#8a8279" font-size="9">VARIETY</text>
