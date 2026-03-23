@@ -25,7 +25,7 @@ import xml.etree.ElementTree as ET
 from collections import Counter
 from pathlib import Path
 
-SCRIPT_DIR = Path(__file__).resolve().parent
+SCRIPT_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = SCRIPT_DIR / "data"
 DEFAULT_GLAUX = Path.home() / "Documents" / "glaux" / "xml"
 

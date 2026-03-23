@@ -15,7 +15,7 @@ import unicodedata
 from collections import Counter, defaultdict
 from pathlib import Path
 
-SCRIPT_DIR = Path(__file__).resolve().parent
+SCRIPT_DIR = Path(__file__).resolve().parent.parent
 DBBE_PATH = SCRIPT_DIR / "data" / "dbbe" / "lingAnn_GS_medievalGreek.tsv"
 EQUIV_PATH = SCRIPT_DIR / "data" / "lemma_equivalences.json"
 

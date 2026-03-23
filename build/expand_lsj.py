@@ -26,7 +26,7 @@ import xml.etree.ElementTree as ET
 from collections import Counter
 from pathlib import Path
 
-SCRIPT_DIR = Path(__file__).resolve().parent
+SCRIPT_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = SCRIPT_DIR / "data"
 LSJ_DIR = Path.home() / "Documents" / "LSJLogeion"
 LSJ9_FORMS = Path.home() / "Documents" / "lsjpre" / "output" / "lsj9" / "lsj9_forms.tsv"

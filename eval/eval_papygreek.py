@@ -20,7 +20,7 @@ import xml.etree.ElementTree as ET
 from collections import Counter, defaultdict
 from pathlib import Path
 
-SCRIPT_DIR = Path(__file__).resolve().parent
+SCRIPT_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_PAPYGREEK = Path.home() / "Documents" / "papygreek-treebanks" / "documentary"
 
 

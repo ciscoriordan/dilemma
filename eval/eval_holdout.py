@@ -25,7 +25,7 @@ import xml.etree.ElementTree as ET
 from collections import Counter, defaultdict
 from pathlib import Path
 
-SCRIPT_DIR = Path(__file__).resolve().parent
+SCRIPT_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = SCRIPT_DIR / "data"
 GORMAN = (Path.home() / "Documents" / "iliad-pipeline" / "data" / "sources"
           / "beyond-translation-site" / "backend" / "data" / "raw" / "gorman-trees")

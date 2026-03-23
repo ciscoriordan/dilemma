@@ -14,7 +14,7 @@ import json
 import sys
 from pathlib import Path
 
-DATA_DIR = Path(__file__).parent / "data"
+DATA_DIR = Path(__file__).parent.parent / "data"
 
 
 def test_lookup_no_chains(lookup: dict) -> tuple[int, int, list[str]]:
