@@ -50,19 +50,19 @@
 
   <!-- ── TRANSFORMER (blue) ── -->
   <rect x="340" y="174" width="364" height="140" rx="4" fill="#4a6fa5"/>
-  <text x="522" y="196" text-anchor="middle" fill="#fff" font-size="13" font-weight="700" letter-spacing="0.5">TRANSFORMER</text>
+  <text x="522" y="196" text-anchor="middle" fill="#fff" font-size="13" font-weight="700" letter-spacing="0.5">TRANSFORMER (unseen forms)</text>
 
   <rect x="350" y="204" width="344" height="100" rx="3" fill="#5a80b8"/>
   <text x="522" y="222" text-anchor="middle" fill="#fff" font-size="11">3-layer encoder-decoder &#xB7; 381 chars &#xB7; 4M params</text>
-  <text x="522" y="240" text-anchor="middle" fill="#dce8f4" font-size="10">PyTorch or ONNX Runtime (no PyTorch needed)</text>
+  <text x="522" y="240" text-anchor="middle" fill="#fff" font-size="10">PyTorch or ONNX Runtime (no PyTorch needed)</text>
 
   <!-- Candidate flow -->
-  <text x="360" y="264" fill="#dce8f4" font-size="10">candidates:</text>
+  <text x="360" y="264" fill="#fff" font-size="10">candidates:</text>
   <text x="440" y="264" fill="#fff" font-size="10" font-weight="600">&#x03BB;&#x03B1;&#x03BC;&#x03C0;&#x03C1;&#x03CD;&#x03BD;&#x03C9; &#x2713;</text>
-  <text x="540" y="264" fill="#a0b8d4" font-size="10" text-decoration="line-through">&#x03BB;&#x03B1;&#x03BC;&#x03C0;&#x03C1;&#x03CD;&#x03C9;&#x03BD;</text>
-  <text x="630" y="264" fill="#a0b8d4" font-size="9" text-decoration="line-through">&#x03BB;&#x03B5;&#x03BB;&#x03B1;&#x03BC;</text>
+  <text x="540" y="264" fill="#c8dce8" font-size="10" text-decoration="line-through">&#x03BB;&#x03B1;&#x03BC;&#x03C0;&#x03C1;&#x03CD;&#x03C9;&#x03BD;</text>
+  <text x="630" y="264" fill="#c8dce8" font-size="9" text-decoration="line-through">&#x03BB;&#x03B5;&#x03BB;&#x03B1;&#x03BC;</text>
 
-  <text x="522" y="290" text-anchor="middle" fill="#dce8f4" font-size="9">first match in ~820K known headwords wins (Wikt + LSJ + Cunliffe)</text>
+  <text x="522" y="290" text-anchor="middle" fill="#fff" font-size="9">first match in ~820K known headwords wins (Wikt + LSJ + Cunliffe)</text>
 
   <!-- Output -->
   <text x="522" y="332" text-anchor="middle" fill="#8a8279" font-size="11">&#x2193;</text>
