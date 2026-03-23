@@ -406,6 +406,19 @@ python build_data.py --download
 Dilemma auto-detects: if ONNX files exist, uses ONNX Runtime. Otherwise
 falls back to PyTorch. Both produce identical output.
 
+### Testing
+
+```bash
+python test_integrity.py              # data integrity + model inference checks
+python test_dilemma.py                # lookup table + end-to-end lemmatization tests
+python test_dilemma.py --lookup-only  # skip model tests
+```
+
+`test_integrity.py` catches structural issues: ONNX/vocab dimension
+mismatches, missing DB tables, model load failures, and ONNX/PyTorch
+parity. `test_dilemma.py` validates lookup correctness and known
+form-lemma pairs across Greek varieties.
+
 ### LSJ/Sophocles expansion (optional, requires wikitextprocessor)
 
 To regenerate the expanded lookup table from LSJ and Sophocles sources:
