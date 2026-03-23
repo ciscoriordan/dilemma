@@ -225,12 +225,12 @@ outputs `εἰμί` and a gold standard that expects `είμαι` will show
 as an error even though both are correct for their respective
 conventions.
 
-| Convention | Target | Examples |
-|------------|--------|----------|
-| `None` (default) | Wiktionary headwords | `ὁ`, `εἰμί`, `σπήλαιον`, `γίνομαι` |
-| `"lsj"` | [LSJ](https://github.com/ciscoriordan/lsj9) dictionary | `εἶπον`→`λέγω`, adverbs→adjective entries, `-ο`→`-ον` |
-| `"cunliffe"` | [Cunliffe](https://archive.org/details/lexiconofhomeric0000cunn) Homeric Lexicon | `γίγνομαι`, `ἐθέλω`, `νόος`, `-σσ-` over `-ττ-` |
-| `"triantafyllidis"` | [Triantafyllidis](http://www.greek-language.gr/greekLang/modern_greek/tools/lexica/triantafyllides/) MG dictionary | `ο`, `είμαι`, `σπήλαιο`, `σκοτώνω`, `ένας` |
+| Convention | Target | Example mappings |
+|------------|--------|-----------------|
+| `None` (default) | Wiktionary headwords | `εἶπον`→`εἶπον`, `θεούς`→`θεός`, `σπήλαια`→`σπήλαιον` |
+| `"lsj"` | [LSJ](https://github.com/ciscoriordan/lsj9) dictionary | `εἶπον`→`λέγω`, `αἰνῶς`→`αἰνός`, `σπήλαιο`→`σπήλαιον` |
+| `"cunliffe"` | [Cunliffe](https://archive.org/details/lexiconofhomeric0000cunn) Homeric Lexicon | `γίνεται`→`γίγνομαι`, `θέλει`→`ἐθέλω`, `νοῦν`→`νόος` |
+| `"triantafyllidis"` | [Triantafyllidis](http://www.greek-language.gr/greekLang/modern_greek/tools/lexica/triantafyllides/) MG dictionary | `ὁ`→`ο`, `εἰμί`→`είμαι`, `σπήλαιον`→`σπήλαιο`, `εἷς`→`ένας` |
 
 The mapping is built automatically from `data/lemma_equivalences.json`
 cross-referenced against the convention's headword list, with explicit
