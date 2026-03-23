@@ -126,7 +126,7 @@ differences between annotation schemes (e.g. `εἶπον`/`λέγω`,
 | **Cypriot** | 199 |
 | **Heptanesian (Ionian)** | 18 |
 | **Maniot** | 3 |
-| **Medieval/Byzantine** | 3K ([merged into MG](#why-medieval-is-mg) - vernacular medieval is the ancestor of MG; Byzantine literary Greek is Atticist and handled by the AG lookup) |
+| **Medieval/Byzantine** | 3K ([merged into MG](#why-medieval-is-mg) - vernacular medieval is the ancestor of MG; Byzantine literary Greek is Atticist-influenced and resolved via AG-first lookup, then MG fallback) |
 
 ### Ancient Greek varieties
 
@@ -553,8 +553,9 @@ not treated as a separate language. EL Wiktionary's "Medieval Greek"
 category (6,735 entries) contains early Modern Greek vocabulary, not
 Byzantine literary Greek. On the DBBE benchmark, only 2 of 8,342
 tokens resolved via the medieval table, while 92.8% came from the AG
-lookup. Byzantine literary Greek is Atticist - it deliberately
-imitates classical Attic Greek - so the AG lookup handles it well.
+lookup. Byzantine literary Greek is Atticist-influenced, so most
+of its vocabulary resolves via the AG lookup first, with MG as
+fallback for post-classical forms.
 
 ### Language codes
 
