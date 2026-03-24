@@ -549,12 +549,22 @@ d = Dilemma()                         # auto-detect best available
 <a id="why-medieval-is-mg"></a>
 Medieval/Byzantine Greek forms are merged into Modern Greek (`el`),
 not treated as a separate language. EL Wiktionary's "Medieval Greek"
-category (6,735 entries) contains early Modern Greek vocabulary, not
-Byzantine literary Greek. On the DBBE benchmark, only 2 of 8,342
+category (6,735 entries, 2,685 headwords) is roughly 71% vernacular
+and 29% literary Byzantine, based on presence of polytonic diacritics:
+
+- **Vernacular** (~71%): δέρνω, θυμώνω, χτενίζω, βρίσκω, γούνα,
+  ναράντζι, βουρκόλακας, ξεχαρβαλώνω - early MG vocabulary
+- **Literary Byzantine** (~29%): ἀποφθέγγομαι, αἰθεροπόρος,
+  περικαλλής, κριθάλευρον - Atticist-influenced forms
+- **Medieval-specific**: μαξιλάριν, ἀδελφάτον, κασσίδιον, ἴνδικτος,
+  γαστάλδος - neither pure AG nor modern MG
+
+Merging all into `el` works because the AG lookup runs first. The 29%
+literary forms typically already exist in the AG table and resolve
+there; only the vernacular and medieval-specific forms actually fall
+through to the MG lookup. On the DBBE benchmark, only 2 of 8,342
 tokens resolved via the medieval table, while 92.8% came from the AG
-lookup. Byzantine literary Greek is Atticist-influenced, so most
-of its vocabulary resolves via the AG lookup first, with MG as
-fallback for post-classical forms.
+lookup.
 
 ### Language codes
 
