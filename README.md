@@ -88,12 +88,14 @@ and lemma equivalence groups (see `data/benchmarks/bench_all.py`).
 | [Morpheus](https://github.com/perseids-tools/morpheus-perseids-api) (oracle) | -- | 71.1% | -- | -- |
 | [stanza](https://stanfordnlp.github.io/stanza/) `grc` | 92.2% | 71.3% | 85.2% | -- |
 | [Swaelens et al. (2025)](https://aclanthology.org/2025.acl-long.430/) | -- | ~74-75% | -- | -- |
-| **Dilemma** | **96.1%** | **91.5%** | **93.1%** | 77.3% |
+| **Dilemma** | **96.1%** | **91.7%** | **93.1%** | 78.1% |
 | **Dilemma** (gold POS) | -- | **92.0%** | -- | -- |
+| **Dilemma** MG | -- | -- | 89.3% | **94.0%** |
 
-Dilemma is the only tool that covers all four periods. Stanza `el`
-outperforms Dilemma on Demotic MG (87.0% vs 77.3%) since it outputs
-MG-convention lemmas natively, while Dilemma defaults to AG conventions
+Dilemma is the only tool that covers all four periods. On Demotic MG,
+using `convention="triantafyllidis"` (the "Dilemma MG" row) reaches
+94.0%, well ahead of stanza `el` (87.0%). The default Dilemma row
+(78.1%) uses AG conventions and is penalized by convention mismatch
 (see [Lemma conventions](#lemma-conventions)). Morpheus "oracle" picks
 the best candidate from all its analyses, representing the ceiling for
 rule-based morphology. Cells marked `--` indicate the tool doesn't
@@ -215,7 +217,9 @@ By default, articles and pronoun clitics self-map (e.g. `τῆς` returns
 `τῆς`). This is better for alignment pipelines where you want
 surface-form matching. Set `resolve_articles=True` to resolve them
 to canonical lemmas (`ὁ`, `ἐγώ`, `σύ`), matching treebank conventions
-(AGDT, DiGreC, PROIEL).
+(AGDT, DiGreC, PROIEL). The `triantafyllidis` convention auto-enables
+article resolution (articles to `ο`, skipping AG pronoun resolution
+for forms like `σε`/`με` that are MG prepositions).
 
 ### Lemma conventions
 
@@ -239,12 +243,11 @@ overrides in `data/convention_{name}.json`. Other tools (stanza, spaCy,
 CLTK) have fixed output conventions matching their training treebanks
 and cannot be remapped.
 
-In the benchmark table, Dilemma's scores use the default (Wiktionary)
-convention unless noted. The Demotic MG score (77.3%) is penalized by
-AG-convention output (`ὁ` instead of `ο`, `εἰμί` instead of `είμαι`);
-using `convention="triantafyllidis"` on MG text would improve this.
-Stanza `el` outputs MG-convention lemmas natively, giving it a natural
-advantage on the Demotic benchmark.
+In the benchmark table, the main Dilemma row uses the default
+(Wiktionary) convention. The "Dilemma MG" row uses
+`convention="triantafyllidis"`, which auto-enables article resolution
+(articles to `ο`, demonstratives to `αυτός`) and outputs monotonic MG
+lemma forms. This is the recommended setting for Modern Greek text.
 
 ### Verbose mode
 
@@ -774,7 +777,7 @@ tested lemmatization on unedited Byzantine Greek epigrams and found
 that classical accuracy (~95%) dropped 30+ points on Byzantine text
 due to itacism, crasis, and non-standard orthography. Their best hybrid
 method (transformer embeddings + dictionary lookup) reached 65.8%.
-Dilemma achieves 91.5% on the same dataset (equiv-adjusted).
+Dilemma achieves 91.7% on the same dataset (equiv-adjusted).
 
 [Swaelens et al. (2025)](https://aclanthology.org/2025.acl-long.430/)
 showed that multi-task learning (joint POS + morphology + lemma

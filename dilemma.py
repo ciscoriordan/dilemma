@@ -108,6 +108,39 @@ _PRONOUN_LEMMAS = {
     "ὑμεῖς": "σύ", "ὑμῶν": "σύ", "ὑμῖν": "σύ", "ὑμᾶς": "σύ",
 }
 
+# Modern Greek closed-class resolution (monotonic).
+# Used when convention='triantafyllidis' to intercept MG function words
+# before the AG lookup cascade, which otherwise misresolves them
+# (e.g. στη -> ἵστημι, σε -> σύ, τις -> τις self-map).
+_MG_ARTICLE_FORMS = {
+    "ο", "η", "το", "τον", "την", "του", "της", "τα", "τους", "τις",
+    "των", "τη", "οι",
+}
+_MG_ARTICLE_LEMMA = "ο"
+
+_MG_CLOSED_CLASS = {
+    # Preposition contractions σε + article -> σε
+    "στη": "σε", "στην": "σε", "στο": "σε", "στον": "σε",
+    "στου": "σε", "στους": "σε", "στις": "σε", "στα": "σε",
+    "στης": "σε", "στων": "σε",
+    # Indefinite article -> ένας
+    "ένα": "ένας", "μία": "ένας", "μια": "ένας",
+    "ενός": "ένας", "μίας": "ένας", "μιας": "ένας",
+    # Copula -> είμαι
+    "είναι": "είμαι", "ήταν": "είμαι", "ήμουν": "είμαι",
+    "ήσουν": "είμαι", "ήμαστε": "είμαι", "ήσαστε": "είμαι",
+    # Common auxiliaries -> έχω
+    "έχει": "έχω", "είχε": "έχω", "έχουν": "έχω",
+    "είχαν": "έχω", "έχεις": "έχω", "είχες": "έχω",
+    "έχουμε": "έχω", "είχαμε": "έχω",
+    # Demonstrative/personal pronoun αυτός (MG Wiktionary has bad
+    # mappings like αυτών->τα due to article/pronoun conflation)
+    "αυτό": "αυτός", "αυτόν": "αυτός", "αυτήν": "αυτός",
+    "αυτού": "αυτός", "αυτής": "αυτός", "αυτών": "αυτός",
+    "αυτούς": "αυτός", "αυτές": "αυτός", "αυτοί": "αυτός",
+    "αυτά": "αυτός",
+}
+
 
 @dataclass
 class LemmaCandidate:
@@ -159,6 +192,12 @@ def strip_accents(s: str) -> str:
     nfd = unicodedata.normalize("NFD", s)
     return unicodedata.normalize("NFC",
         "".join(c for c in nfd if unicodedata.category(c) != "Mn"))
+
+
+def _is_self_map(form: str, lemma: str) -> bool:
+    """Check if a lookup entry is a trivial self-map (form ≈ lemma)."""
+    return (form == lemma
+            or strip_accents(form.lower()) == strip_accents(lemma.lower()))
 
 
 def _levenshtein(a: str, b: str) -> int:
@@ -544,7 +583,12 @@ class Dilemma:
             lang = "all"
         self.lang = lang
         self._scale = scale
+        # Triantafyllidis convention always needs article resolution:
+        # MG text lemmatizes articles to ο, pronouns to αυτός, etc.
+        if convention == "triantafyllidis" and not resolve_articles:
+            resolve_articles = True
         self._resolve_articles = resolve_articles
+        self._convention_name = convention
         self._model = None
         self._vocab = None
         self._device = device
@@ -620,6 +664,10 @@ class Dilemma:
             else:
                 self._lookup = LookupDB(LOOKUP_DB_PATH, lang='all')
                 self._ag_lookup = LookupDB(LOOKUP_DB_PATH, lang='grc')
+                # Load MG lookup for triantafyllidis convention: MG entries
+                # should take priority over AG for monotonic MG forms.
+                if self._convention_name == "triantafyllidis":
+                    self._mg_lookup = LookupDB(LOOKUP_DB_PATH, lang='el')
             self._using_db = True
         else:
             # JSON fallback
@@ -1003,14 +1051,41 @@ class Dilemma:
             }
 
     def _resolve_closed_class(self, word: str) -> str | None:
-        """Resolve articles/pronouns to canonical lemma if enabled."""
+        """Resolve articles/pronouns to canonical lemma if enabled.
+
+        When convention='triantafyllidis', MG closed-class resolution
+        takes priority: MG articles -> ο, preposition contractions
+        (στη, στον, ...) -> σε, copula forms -> είμαι, etc. AG pronoun
+        resolution (σε -> σύ, με -> ἐγώ) is skipped since those forms
+        serve as prepositions/particles in MG.
+        """
         if not self._resolve_articles:
             return None
+
+        # MG closed-class resolution (triantafyllidis convention)
+        if self._convention_name == "triantafyllidis":
+            lower = word.lower()
+            # MG articles -> ο
+            if lower in _MG_ARTICLE_FORMS:
+                return _MG_ARTICLE_LEMMA
+            # MG preposition contractions, copula, auxiliaries, αυτός
+            if lower in _MG_CLOSED_CLASS:
+                return _MG_CLOSED_CLASS[lower]
+            # For triantafyllidis, skip AG pronoun resolution entirely.
+            # AG pronouns (σε -> σύ, με -> ἐγώ) conflict with MG
+            # prepositions/particles. Fall through to AG article
+            # resolution only for polytonic article forms.
+
         if (word in _ARTICLE_FORMS
                 or to_monotonic(word) in _ARTICLE_FORMS):
             # Don't use strip_accents here - it's too aggressive for short
             # words (e.g. ἤ "or" becomes η which matches the article)
             return _ARTICLE_LEMMA
+
+        # Skip AG pronoun resolution when triantafyllidis is active
+        if self._convention_name == "triantafyllidis":
+            return None
+
         if word in _PRONOUN_LEMMAS:
             return _PRONOUN_LEMMAS[word]
         mono = to_monotonic(word)
@@ -1035,10 +1110,13 @@ class Dilemma:
         and map to themselves - these are usually false positives from
         accent stripping on elided or particle forms.
         """
-        # For MG mode, try MG-specific lookup first. MG entries take
-        # priority over AG when there's a conflict (e.g. MG lemma
-        # forms preferred over AG lemma forms for the same surface form).
-        if self.lang == "el" and self._mg_lookup:
+        # For MG mode or triantafyllidis convention, try MG-specific
+        # lookup first. MG entries take priority over AG when there's a
+        # conflict (e.g. χρήσης -> χρήση in MG vs χράω in AG, or
+        # κοντά -> κοντά in MG vs κοντός in AG).
+        _prefer_mg = (self.lang == "el"
+                      or self._convention_name == "triantafyllidis")
+        if _prefer_mg and self._mg_lookup:
             tbl = self._mg_lookup
             hit = tbl.get(word) or tbl.get(word.lower())
             if not hit:
@@ -1410,6 +1488,10 @@ class Dilemma:
 
         If a convention is set, the output lemma is remapped accordingly.
         """
+        # Pass through tokens that are purely digits/punctuation (dates, numbers)
+        if word.isdigit():
+            return word
+
         # Resolve articles/pronouns to canonical lemma
         closed = self._resolve_closed_class(word)
         if closed is not None:
@@ -1641,6 +1723,11 @@ class Dilemma:
                     score=score,
                     via=via,
                 ))
+
+        # 0. Digit-only passthrough
+        if word.isdigit():
+            _add(word, source="identity")
+            return candidates
 
         # 1. Article/pronoun
         if self._resolve_articles:
