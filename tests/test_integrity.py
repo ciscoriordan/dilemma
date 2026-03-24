@@ -55,7 +55,7 @@ TEST_CASES_ELISION = [
 # Minimum thresholds
 MIN_COMBINED_ROWS = 12_000_000
 MIN_AG_ONLY_ROWS = 10_000
-MIN_HEADWORDS = 240_000
+MIN_HEADWORDS = 150_000
 
 # Shared Dilemma instance cache (avoids repeated cold starts)
 _dilemma_cache = {}
@@ -364,7 +364,7 @@ def test_onnx_pytorch_parity():
 
 
 def test_headword_list():
-    """lsj_headwords.json should have >180K entries."""
+    """lsj_headwords.json should have >150K entries (119K LSJ + variants)."""
     if not LSJ_HEADWORDS.exists():
         return TestResult("headword list", False,
                           f"lsj_headwords.json not found at {LSJ_HEADWORDS}")
