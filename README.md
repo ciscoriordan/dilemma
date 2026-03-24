@@ -90,7 +90,7 @@ and lemma equivalence groups (see `data/benchmarks/bench_all.py`).
 | [Morpheus](https://github.com/perseids-tools/morpheus-perseids-api) (oracle) | -- | 71.1% | -- | -- |
 | [stanza](https://stanfordnlp.github.io/stanza/) `grc` | 92.2% | 71.3% | 85.2% | -- |
 | [Swaelens et al. (2025)](https://aclanthology.org/2025.acl-long.430/) | -- | ~74-75% | -- | -- |
-| **Dilemma** | **96.1%** | **91.7%** | **93.1%** | 78.1% |
+| **Dilemma** | **96.1%** | **92.0%** | **93.1%** | 78.1% |
 | **Dilemma** (gold POS) | -- | **92.0%** | -- | -- |
 | **Dilemma** MG | -- | -- | 89.3% | **94.0%** |
 
@@ -103,8 +103,8 @@ the best candidate from all its analyses, representing the ceiling for
 rule-based morphology. Cells marked `--` indicate the tool doesn't
 support that period or wasn't tested.
 
-Dilemma's remaining ~8.5% errors on DBBE break down as 3.1% no
-lookup hit and 5.4% wrong lemma or convention difference. The eval
+Dilemma's remaining ~8% errors on DBBE break down as 2.5% no
+lookup hit and 5.5% wrong lemma or convention difference. The eval
 scripts (`eval/eval_dbbe.py`, `eval/eval_digrec.py`,
 `eval/bench_dbbe.py`) provide per-POS breakdowns and error
 categorization. `eval/eval_dbbe.py --use-pos gold` evaluates with
