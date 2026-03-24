@@ -154,6 +154,45 @@ AG morphology (augments, 3rd declension genitives) with MG vocabulary.
 The strong Epic/Homeric coverage (3,755 entries) is directly relevant for
 literary texts based on Homer.
 
+<a id="why-medieval-is-mg"></a>
+Medieval/Byzantine Greek forms are merged into Modern Greek (`el`),
+not treated as a separate language. EL Wiktionary's "Medieval Greek"
+category (6,735 entries, 2,685 headwords) is roughly 71% vernacular
+and 29% literary Byzantine, based on presence of polytonic diacritics:
+
+- **Vernacular** (~71%): δέρνω, θυμώνω, χτενίζω, βρίσκω, γούνα,
+  ναράντζι, βουρκόλακας, ξεχαρβαλώνω - early MG vocabulary
+- **Literary Byzantine** (~29%): ἀποφθέγγομαι, αἰθεροπόρος,
+  περικαλλής, κριθάλευρον - Atticist-influenced forms
+- **Medieval-specific**: μαξιλάριν, ἀδελφάτον, κασσίδιον, ἴνδικτος,
+  γαστάλδος - neither pure AG nor modern MG
+
+Merging all into `el` works because the AG lookup runs first. The 29%
+literary forms typically already exist in the AG table and resolve
+there; only the vernacular and medieval-specific forms actually fall
+through to the MG lookup. On the DBBE benchmark, only 2 of 8,342
+tokens resolved via the medieval table, while 92.8% came from the AG
+lookup.
+
+### Language codes
+
+| Code | Period | ISO standard |
+|------|--------|-------------|
+| `el` | Modern Greek (including vernacular medieval, Katharevousa, regional) | ISO 639-1 |
+| `grc` | Ancient Greek (Homer through Byzantine literary Greek) | ISO 639-2 |
+
+For lemmatization, the two-way split works because Byzantine literary
+Greek is classicizing (handled by `grc`), while vernacular medieval
+Greek is the ancestor of Modern Greek (handled by `el`). The `med`
+label still appears in `LemmaCandidate.lang` for forms from the
+medieval Wiktionary dump, but these are merged into the `el` lookup
+at build time.
+
+Note: [Opla](https://github.com/ciscoriordan/opla) (POS tagging +
+dependency parsing) uses `lang="grc"` for Byzantine text. Byzantine
+literary syntax (polytonic, full case system, optative mood) is closer
+to Ancient Greek, so the AG-trained POS tagger handles it well.
+
 <p align="center">
   <img src="https://raw.githubusercontent.com/ciscoriordan/dilemma/main/diagram.svg" width="700" alt="Dilemma architecture">
 </p>
@@ -466,6 +505,25 @@ python build/expand_sophocles.py --expand-verbs  # expand Sophocles verbs
 This requires LSJ9 data from [lsj9](https://github.com/ciscoriordan/lsj9)
 (via lsjpre export) and the Sophocles TEI data (included in `data/sophocles/`).
 
+### Export to ONNX (optional)
+
+Generates ONNX model files so inference works without PyTorch.
+
+```bash
+python export_onnx.py                  # exports encoder.onnx + decoder_step.onnx
+```
+
+### GPU quick start
+
+```bash
+git clone https://github.com/ciscoriordan/dilemma.git && cd dilemma
+pip install -r requirements.txt
+python build_data.py --download
+python build_lookup_db.py              # SQLite for instant startup
+python train.py                        # full scale (~45 min on RTX 2080)
+python export_onnx.py                  # optional: enable PyTorch-free inference
+```
+
 ---
 
 ## Training
@@ -535,73 +593,6 @@ accuracy on the held-out set.
 Training uses a linear warmup LR scheduler (500 steps warmup, then linear
 decay) and gradient clipping (max norm 1.0) for stable convergence.
 
-Tests are a 55-case suite covering SMG, Epic, Attic, Koine, Byzantine,
-Katharevousa, crasis, and model fallback across all resolution paths.
-
-`Dilemma()` auto-detects the best available model:
-
-```python
-d = Dilemma()                         # auto-detect best available
-```
-
-<a id="why-medieval-is-mg"></a>
-Medieval/Byzantine Greek forms are merged into Modern Greek (`el`),
-not treated as a separate language. EL Wiktionary's "Medieval Greek"
-category (6,735 entries, 2,685 headwords) is roughly 71% vernacular
-and 29% literary Byzantine, based on presence of polytonic diacritics:
-
-- **Vernacular** (~71%): δέρνω, θυμώνω, χτενίζω, βρίσκω, γούνα,
-  ναράντζι, βουρκόλακας, ξεχαρβαλώνω - early MG vocabulary
-- **Literary Byzantine** (~29%): ἀποφθέγγομαι, αἰθεροπόρος,
-  περικαλλής, κριθάλευρον - Atticist-influenced forms
-- **Medieval-specific**: μαξιλάριν, ἀδελφάτον, κασσίδιον, ἴνδικτος,
-  γαστάλδος - neither pure AG nor modern MG
-
-Merging all into `el` works because the AG lookup runs first. The 29%
-literary forms typically already exist in the AG table and resolve
-there; only the vernacular and medieval-specific forms actually fall
-through to the MG lookup. On the DBBE benchmark, only 2 of 8,342
-tokens resolved via the medieval table, while 92.8% came from the AG
-lookup.
-
-### Language codes
-
-| Code | Period | ISO standard |
-|------|--------|-------------|
-| `el` | Modern Greek (including vernacular medieval, Katharevousa, regional) | ISO 639-1 |
-| `grc` | Ancient Greek (Homer through Byzantine literary Greek) | ISO 639-2 |
-
-For lemmatization, the two-way split works because Byzantine literary
-Greek is classicizing (handled by `grc`), while vernacular medieval
-Greek is the ancestor of Modern Greek (handled by `el`). The `med`
-label still appears in `LemmaCandidate.lang` for forms from the
-medieval Wiktionary dump, but these are merged into the `el` lookup
-at build time.
-
-Note: [Opla](https://github.com/ciscoriordan/opla) (POS tagging +
-dependency parsing) uses `lang="grc"` for Byzantine text. Byzantine
-literary syntax (polytonic, full case system, optative mood) is closer
-to Ancient Greek, so the AG-trained POS tagger handles it well.
-
-### 3. Export to ONNX (optional)
-
-Generates ONNX model files so inference works without PyTorch.
-
-```bash
-python export_onnx.py                  # exports encoder.onnx + decoder_step.onnx
-```
-
-### GPU quick start
-
-```bash
-git clone https://github.com/ciscoriordan/dilemma.git && cd dilemma
-pip install -r requirements.txt
-python build_data.py --download
-python build_lookup_db.py              # SQLite for instant startup
-python train.py                        # full scale (~45 min on RTX 2080)
-python export_onnx.py                  # optional: enable PyTorch-free inference
-```
-
 ## Architecture
 
 Small character-level encoder-decoder transformer (~4M parameters),
@@ -642,13 +633,6 @@ vocabulary (~160 tokens), so the same word is ~10 steps. Combined with
 | Parameters | 300M | 4M |
 | Training (3.4M pairs, 3 epochs) | ~20 hours | ~45 min |
 | Dependencies | torch + transformers | torch only (or ONNX only) |
-
-ByT5 processes raw UTF-8 bytes, so a 10-character Greek word becomes
-~20 encoder steps. Dilemma uses a Greek character vocabulary, so the
-same word is ~10 steps. Combined with 75x fewer parameters, the
-custom model trains much faster. Greek lemmatization is highly
-pattern-based - a small specialized model matches a large
-general-purpose one.
 
 ## Data
 
@@ -812,7 +796,7 @@ will propagate into Dilemma via kaikki dumps.
 
 - Training data from [English Wiktionary](https://en.wiktionary.org/) and [Greek Wiktionary](https://el.wiktionary.org/) via [kaikki.org](https://kaikki.org/) JSONL dumps
 - LSJ headwords and forms from [LSJ9](https://github.com/ciscoriordan/lsj9) (OCR-corrected LSJ base text, CC BY 4.0)
-- LSJ grammar and indeclinables data from [LSJ9](https://github.com/ciscoriordan/lsj9) exports (lsj9_headwords.json, lsj9_forms.tsv, lsj9_indeclinables.json)
+- LSJ grammar and indeclinables data from [LSJ9](https://github.com/ciscoriordan/lsj9) exports (`lsj9_headwords.json`, `lsj9_forms.tsv`, `lsj9_indeclinables.json`)
 - Sophocles lexicon TEI from [Ionian University / Internet Archive](https://archive.org/details/pateres)
 - [GLAUx](https://github.com/alekkeersmaekers/glaux) corpus data (Keersmaekers, 2021) (CC BY-SA 4.0)
 - DBBE evaluation data from [Swaelens et al.](https://github.com/coswaele/ByzantineGreekDatasets) (CC BY 4.0)
