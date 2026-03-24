@@ -389,7 +389,7 @@ an additional AG-only lookup pass runs first.
 
 When the transformer handles an unseen form, beam search generates
 multiple candidates and picks the first that matches a known headword
-from the combined filter (~820K headwords from Wiktionary self-maps,
+from the combined filter (~740K headwords from Wiktionary self-maps,
 [LSJ9](https://github.com/ciscoriordan/lsj9) (119K entries + variants),
 and [Cunliffe's Homeric Lexicon](https://archive.org/details/lexiconofhomeric0000cunn) (12K entries)).
 If nothing matches, the input is returned unchanged.
