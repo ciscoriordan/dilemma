@@ -35,9 +35,9 @@ from pathlib import Path
 
 DB_PATH = Path(__file__).parent / "data" / "lookup.db"
 INDEX_PATH = Path(__file__).parent / "data" / "vesuvius_index.json.gz"
-FREQ_PATH = Path(__file__).parent / "data" / "glaux_freq.json"
+FREQ_PATH = Path(__file__).parent / "data" / "corpus_freq.json"
 
-# Genre index in glaux_freq.json (matches build/build_glaux_freq.py GENRE_ORDER)
+# Genre index in corpus_freq.json (matches build/build_glaux_freq.py GENRE_ORDER)
 GENRES = [
     "philosophy", "poetry", "history", "oratory", "science",
     "narrative", "epistles", "religion", "commentary", "other",

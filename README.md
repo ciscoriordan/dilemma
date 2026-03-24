@@ -40,6 +40,7 @@ The lookup table combines forms from multiple sources:
 | **LSJ** (Liddell-Scott-Jones) | 4.2M | 32K nouns, 22K verbs, 14K adjectives expanded via Wiktionary Lua modules |
 | **Sophocles Lexicon** (Byzantine/Patristic) | 1.0M | 13.5K nouns, 4.6K verbs, 1.5K adverbs from OCR'd TEI data |
 | **[GLAUx](https://github.com/alekkeersmaekers/glaux)** (Keersmaekers, 2021) | 557K | 17M-token corpus, 8th c. BC - 4th c. AD, 98.8% lemma accuracy |
+| **[Diorisis](https://figshare.com/articles/dataset/The_Diorisis_Ancient_Greek_Corpus/6187256)** (Vatri & McGillivray, 2018) | 76K new | 10M-token corpus, Homer - 5th c. AD, 91.4% lemma accuracy. Low-priority pairs (only added when no conflict with existing sources). Also provides frequency data (27M combined tokens with GLAUx). |
 | **UD Treebanks** (Perseus, PROIEL, DiGreC) | 27K | Gold form-lemma pairs from annotated treebanks |
 | Closed-class fixes | ~500 | Articles, pronouns, prepositions mapped to canonical lemmas |
 
@@ -653,6 +654,7 @@ vocabulary (~160 tokens), so the same word is ~10 steps. Combined with
 | Sophocles lexicon expansion | 1.0M | Byzantine/Patristic vocabulary |
 | UD Treebanks (AG) | 27K | Gold annotations from Perseus, PROIEL, DiGreC |
 | GLAUx corpus | 557K | 17M tokens, 98.8% accuracy ([Keersmaekers 2021](https://github.com/alekkeersmaekers/glaux)) |
+| Diorisis corpus | 76K new | 10M tokens, 91.4% accuracy ([Vatri & McGillivray 2018](https://figshare.com/articles/dataset/The_Diorisis_Ancient_Greek_Corpus/6187256)) |
 | **Total lookup** | **12.3M** | |
 
 All Wiktionary data is extracted automatically from
@@ -662,13 +664,21 @@ Lua modules on headwords extracted from lexicon XML/TEI files.
 
 The [GLAUx corpus](https://github.com/alekkeersmaekers/glaux) provides
 the largest single source of new form-lemma pairs outside Wiktionary.
-We chose GLAUx over two larger corpora:
+GLAUx is the primary corpus source due to its 98.8% lemma accuracy.
+The [Diorisis corpus](https://figshare.com/articles/dataset/The_Diorisis_Ancient_Greek_Corpus/6187256)
+(Vatri & McGillivray, 2018; 10M tokens, Homer - 5th c. AD) is used
+as a secondary source: its 456K form-lemma pairs add 76K new entries
+not found in GLAUx, and its token frequencies are merged with GLAUx
+for 27M combined tokens. Because Diorisis has lower lemma accuracy
+(91.4%), its pairs are only added when they don't conflict with existing
+entries from Wiktionary, LSJ, or GLAUx.
+
+We chose not to integrate one other large corpus:
 
 - [Opera Graeca Adnotata](https://doi.org/10.5281/zenodo.14206061)
-  (OGA, 40M tokens): lower lemma accuracy (91.4% vs GLAUx's 98.8%),
-  standoff PAULA XML format requires complex alignment code, and at
-  91.4% accuracy would introduce ~3.4M wrong lemmas into the lookup
-  table - more noise than signal for a lookup-first system.
+  (OGA, 40M tokens): standoff PAULA XML format requires complex
+  alignment code, and at 91.4% accuracy with 4x the size of Diorisis,
+  the noise-to-signal ratio is worse for lookup purposes.
 - [Pedalion](https://github.com/perseids-publications/pedalion-trees)
   (5.8M tokens): smaller than GLAUx with similar classical-period
   coverage. Would add few forms not already covered by GLAUx + Wiktionary
@@ -807,6 +817,7 @@ will propagate into Dilemma via kaikki dumps.
 - LSJ grammar and indeclinables data from [LSJ9](https://github.com/ciscoriordan/lsj9) exports (`lsj9_headwords.json`, `lsj9_forms.tsv`, `lsj9_indeclinables.json`)
 - Sophocles lexicon TEI from [Ionian University / Internet Archive](https://archive.org/details/pateres)
 - [GLAUx](https://github.com/alekkeersmaekers/glaux) corpus data (Keersmaekers, 2021) (CC BY-SA 4.0)
+- [Diorisis](https://figshare.com/articles/dataset/The_Diorisis_Ancient_Greek_Corpus/6187256) corpus data (Vatri & McGillivray, 2018) (CC BY-SA 3.0)
 - DBBE evaluation data from [Swaelens et al.](https://github.com/coswaele/ByzantineGreekDatasets) (CC BY 4.0)
 - Flag icons by [svg-flags](https://github.com/ciscoriordan/svg-flags)
 

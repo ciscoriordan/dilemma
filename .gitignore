@@ -6,6 +6,7 @@ data/*.tar.gz
 data/*.xml
 data/*.xml.bz2
 data/dbbe/
+data/diorisis/
 data/wtp.db-shm
 data/wtp.db-wal
 data/wtp.db.pickle
