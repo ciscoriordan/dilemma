@@ -275,15 +275,21 @@ def score(predictions, gold_pairs, equiv_map):
 # ---------------------------------------------------------------------------
 
 class DilemmaWrapper:
-    def __init__(self, use_pos=False):
+    def __init__(self, use_pos=False, convention=None):
         self.use_pos = use_pos
-        self.name = "Dilemma (gold POS)" if use_pos else "Dilemma (no POS)"
+        self.convention = convention
+        if convention == "triantafyllidis":
+            self.name = "Dilemma MG"
+        elif use_pos:
+            self.name = "Dilemma (gold POS)"
+        else:
+            self.name = "Dilemma (no POS)"
         self.d = None
         self.verbose_stats = None
 
     def load(self):
         from dilemma import Dilemma
-        self.d = Dilemma()
+        self.d = Dilemma(convention=self.convention)
 
     def lemmatize_dataset(self, sentences, has_pos=False):
         # Flatten all forms
@@ -599,6 +605,12 @@ TOOL_MATRIX = {
         "katharevousa": "No gold POS tags in this dataset",
         "demotic": "No gold POS tags in this dataset",
     },
+    "Dilemma MG": {
+        "ag_classical": "MG convention, not for AG text",
+        "byzantine": "MG convention, not for Byzantine text",
+        "katharevousa": True,
+        "demotic": True,
+    },
     "stanza grc": {
         "ag_classical": True,
         "byzantine": True,
@@ -688,6 +700,7 @@ def run_benchmark():
     tool_constructors = [
         ("Dilemma (no POS)", lambda: DilemmaWrapper(use_pos=False)),
         ("Dilemma (gold POS)", lambda: DilemmaWrapper(use_pos=True)),
+        ("Dilemma MG", lambda: DilemmaWrapper(convention="triantafyllidis")),
         ("stanza grc", lambda: StanzaWrapper("grc")),
         ("stanza el", lambda: StanzaWrapper("el")),
         ("spaCy el", lambda: SpacyWrapper()),
