@@ -437,9 +437,6 @@ pip install torch                      # ~2 GB, needed for training only
 python build_data.py --download
 ```
 
-Dilemma auto-detects: if ONNX files exist, uses ONNX Runtime. Otherwise
-falls back to PyTorch. Both produce identical output.
-
 ### Testing
 
 ```bash
