@@ -74,7 +74,7 @@
   <text x="540" y="264" fill="#90b0c8" font-size="10" text-decoration="line-through">&#x03BB;&#x03B1;&#x03BC;&#x03C0;&#x03C1;&#x03CD;&#x03C9;&#x03BD;</text>
   <text x="630" y="264" fill="#90b0c8" font-size="9" text-decoration="line-through">&#x03BB;&#x03B5;&#x03BB;&#x03B1;&#x03BC;</text>
 
-  <text x="522" y="286" text-anchor="middle" fill="#fff" font-size="9">first match in ~820K headwords wins</text>
+  <text x="522" y="286" text-anchor="middle" fill="#fff" font-size="9">first match in ~740K headwords wins</text>
   <text x="522" y="298" text-anchor="middle" fill="#d0e4f0" font-size="8">(Wiktionary + LSJ + Cunliffe)</text>
 
   <!-- Arrow from transformer to output -->
