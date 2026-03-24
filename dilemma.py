@@ -1395,7 +1395,8 @@ class Dilemma:
         'προ',
     ]
 
-    def _normalize_byzantine(self, word: str) -> str | None:
+    def _normalize_byzantine(self, word: str,
+                             use_normalizer: bool = True) -> str | None:
         """Try Byzantine-specific normalizations to find a lookup match.
 
         Handles common scribal/orthographic features of Byzantine Greek
@@ -1405,6 +1406,13 @@ class Dilemma:
           - Iota adscript (ωι, ηι instead of subscript ῳ, ῃ)
           - Missing breathings on initial vowels
           - Hyphens and editorial marks in transcriptions
+
+        When use_normalizer=True, also chains with the orthographic
+        normalizer to handle itacism, geminate simplification, etc.
+        This is more aggressive and can produce false positives.
+
+        When use_normalizer=False, only the precise/safe normalizations
+        above are applied.
 
         Called as a fallback after lookup, normalizer, and model have
         all failed. Returns a lemma if any normalization yields a
@@ -1470,14 +1478,66 @@ class Dilemma:
                     if lemma:
                         return lemma
 
+        if not use_normalizer:
+            return None
+
+        # 6. Chain: apply Byzantine fixes, then run the orthographic
+        #    normalizer on the result. This handles cases like
+        #    ἀναγυνώσκοντα (ι/υ itacism + no iota adscript issue)
+        #    where the normalizer alone would have worked if the
+        #    form had standard orthographic features.
+        #    Use existing normalizer if available, otherwise create a
+        #    lightweight Byzantine normalizer on first use.
+        #    Only applied to longer words (>= 6 chars) to avoid false
+        #    matches on short common words.
+        stripped_lower = strip_accents(word.lower())
+        if len(stripped_lower) >= 6:
+            if not hasattr(self, '_byz_normalizer'):
+                from normalize import Normalizer
+                self._byz_normalizer = Normalizer(period="byzantine")
+            norm = self._normalizer or self._byz_normalizer
+
+            # Collect all forms to try: original + Byzantine-fixed variants
+            forms_to_try = [word]
+            # Final sigma fix
+            if word.endswith('σ'):
+                forms_to_try.append(word[:-1] + 'ς')
+            # Iota adscript fix
+            fixed = word
+            for src, dst in self._IOTA_ADSCRIPT_MAP.items():
+                fixed = fixed.replace(src, dst)
+            if fixed != word:
+                forms_to_try.append(fixed)
+            # Lowercase
+            if word and word[0].isupper():
+                forms_to_try.append(word[0].lower() + word[1:])
+
+            # Only run normalizer if it wasn't already run pre-model
+            # (avoid double-normalizing). For pre-model normalizer,
+            # only the original form was tried, so skip it here.
+            start_idx = 1 if self._normalizer else 0
+            for variant in forms_to_try[start_idx:]:
+                for candidate in norm.normalize(variant):
+                    lemma = self._lookup_word(candidate)
+                    if lemma:
+                        lemma_s = strip_accents(lemma.lower())
+                        cand_s = strip_accents(candidate.lower())
+                        # Guard: only accept if the lookup found a real
+                        # lemma (different from the candidate form).
+                        # This prevents accepting identity lookups where
+                        # the normalizer just tweaked the form slightly.
+                        if lemma_s != cand_s:
+                            return lemma
+
         return None
 
     def _prefix_strip_lookup(self, word: str) -> str | None:
         """Try stripping known Greek prefixes and looking up the base.
 
         For compound verbs and adjectives where the prefixed form is not
-        in the lookup table but the base form is. Returns the lemma of
-        the base form prefixed with the stripped prefix, or None.
+        in the lookup table but the base form is. Only returns a result
+        if the reconstructed prefix+base_lemma compound is itself a known
+        form in the lookup table (very conservative to avoid false hits).
         """
         lower = word.lower()
         stripped = strip_accents(lower)
@@ -1506,7 +1566,13 @@ class Dilemma:
 
             # Reconstruct compound: prefix + base_lemma
             compound = prefix_s + base_lemma_s
-            return compound
+
+            # Validate: the reconstructed compound must itself be
+            # a known form in the lookup table. This avoids producing
+            # nonsense compounds like υπεραραρισκω.
+            compound_lemma = self._lookup_word(compound)
+            if compound_lemma:
+                return compound_lemma
 
         return None
 
@@ -1669,8 +1735,10 @@ class Dilemma:
         # (model couldn't lemmatize). Uses accent-stripped comparison since
         # the model may return slight accent variants of the input.
         if strip_accents(pred.lower()) == strip_accents(word.lower()):
-            # 1. Byzantine normalization (final sigma, iota adscript, etc.)
-            byz = self._normalize_byzantine(word)
+            # 1. Light Byzantine normalization (final sigma, iota
+            #    adscript, breathing, hyphen - very precise, few false
+            #    positives)
+            byz = self._normalize_byzantine(word, use_normalizer=False)
             if byz:
                 return self._apply_convention(byz)
 
@@ -1683,6 +1751,13 @@ class Dilemma:
             prefix_hit = self._prefix_strip_lookup(word)
             if prefix_hit:
                 return self._apply_convention(prefix_hit)
+
+            # 4. Heavy Byzantine normalization (uses the orthographic
+            #    normalizer to handle itacism, geminate simplification,
+            #    etc. - more aggressive, may produce false positives)
+            byz_heavy = self._normalize_byzantine(word, use_normalizer=True)
+            if byz_heavy:
+                return self._apply_convention(byz_heavy)
 
         return self._apply_convention(pred)
 
@@ -2070,23 +2145,30 @@ class Dilemma:
             except (FileNotFoundError, RuntimeError):
                 model_identity = True
 
-        # 7. Compound decomposition (only when model returned identity)
+        # 7. Light Byzantine normalization (only when model returned identity)
+        if model_identity and not candidates:
+            byz = self._normalize_byzantine(word, use_normalizer=False)
+            if byz:
+                _add(byz, source="byzantine_norm", score=0.7)
+
+        # 8. Compound decomposition (only when model returned identity)
         if model_identity:
             for compound, base_lemma, prefix in self._decompose_compound_all(word):
                 _add(compound, source="compound",
-                     via=f"{prefix}+{base_lemma}", score=0.7)
-
-        # 8. Byzantine normalization (only when model returned identity)
-        if model_identity and not candidates:
-            byz = self._normalize_byzantine(word)
-            if byz:
-                _add(byz, source="byzantine_norm", score=0.6)
+                     via=f"{prefix}+{base_lemma}", score=0.65)
 
         # 9. Prefix stripping (only when model returned identity)
         if model_identity and not candidates:
             prefix_hit = self._prefix_strip_lookup(word)
             if prefix_hit:
-                _add(prefix_hit, source="prefix_strip", score=0.5)
+                _add(prefix_hit, source="prefix_strip", score=0.6)
+
+        # 10. Heavy Byzantine normalization with normalizer
+        if model_identity and not candidates:
+            byz_heavy = self._normalize_byzantine(
+                word, use_normalizer=True)
+            if byz_heavy:
+                _add(byz_heavy, source="byzantine_norm", score=0.5)
 
         # If still nothing, return the word itself
         if not candidates:
@@ -2188,20 +2270,23 @@ class Dilemma:
             for idx, word, pred in zip(model_indices, model_words, predictions):
                 # Fallback strategies when model returns identity
                 if strip_accents(pred.lower()) == strip_accents(word.lower()):
-                    # 1. Byzantine normalization
-                    byz = self._normalize_byzantine(word)
+                    # 1. Light Byzantine normalization (safe/precise)
+                    byz = self._normalize_byzantine(
+                        word, use_normalizer=False)
                     if byz:
                         pred = byz
+                    # 2. Compound decomposition (linking vowel split)
+                    elif (compound := self._decompose_compound(word)):
+                        pred = compound
+                    # 3. Prefix stripping (known prefixes + base)
+                    elif (pfx := self._prefix_strip_lookup(word)):
+                        pred = pfx
+                    # 4. Heavy Byzantine normalization (with normalizer)
                     else:
-                        # 2. Compound decomposition
-                        compound = self._decompose_compound(word)
-                        if compound:
-                            pred = compound
-                        else:
-                            # 3. Prefix stripping
-                            prefix_hit = self._prefix_strip_lookup(word)
-                            if prefix_hit:
-                                pred = prefix_hit
+                        byz_heavy = self._normalize_byzantine(
+                            word, use_normalizer=True)
+                        if byz_heavy:
+                            pred = byz_heavy
                 results[idx] = pred
 
         # Apply convention remapping to all results
