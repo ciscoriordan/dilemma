@@ -345,6 +345,14 @@ are multiple options. When a form has just one candidate, POS is ignored,
 ensuring POS-aware lemmatization never produces worse results than the
 baseline.
 
+With `convention="triantafyllidis"` or `lang="el"`, POS tags also fix MG
+self-map issues for adjective and verb inflections. MG lookup tables
+sometimes return self-maps for inflected forms (e.g. `ανθρώπινα` maps to
+itself instead of `ανθρώπινος`). When POS is ADJ, the masculine nominative
+citation form (-ος, -ής, -ύς) is preferred. When POS is VERB, the
+infinitive/1sg form (-ω, -ώ, -μαι) is preferred. Adverbs and nouns keep
+their MG self-maps unchanged.
+
 The POS lookup tables (435K AG-only entries, 482K combined) are built
 from five sources in priority order: UD treebanks (gold), GLAUx corpus
 (8.7K entries), MG Wiktionary, AG Wiktionary, LSJ9 grammar. For

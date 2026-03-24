@@ -1376,6 +1376,140 @@ class Dilemma:
         mask = (src == 0)
         return src, mask
 
+    # ---- Byzantine normalization fallback ----
+
+    # Iota adscript -> subscript mappings (Byzantine texts often write
+    # the iota next to rather than under the vowel).
+    _IOTA_ADSCRIPT_MAP = {
+        'ωι': 'ῳ', 'ηι': 'ῃ',
+        'ῶι': 'ῷ', 'ῆι': 'ῇ',
+        'ώι': 'ῴ', 'ήι': 'ῄ',
+        'ὼι': 'ῲ', 'ὴι': 'ῂ',
+    }
+
+    # Known Greek verbal/nominal prefixes for compound decomposition.
+    _KNOWN_PREFIXES = [
+        'ἀντι', 'ἐπι', 'ὑπερ', 'παρα', 'κατα', 'ἀπο', 'μετα',
+        'περι', 'προσ', 'ἀνα', 'δια', 'ὑπο', 'ἐξ', 'ἐκ',
+        'εἰσ', 'εἰς', 'συν', 'συμ', 'συγ', 'συλ', 'ἐν',
+        'προ',
+    ]
+
+    def _normalize_byzantine(self, word: str) -> str | None:
+        """Try Byzantine-specific normalizations to find a lookup match.
+
+        Handles common scribal/orthographic features of Byzantine Greek
+        manuscripts that differ from the classical forms stored in the
+        lookup table:
+          - Final medial sigma (σ instead of ς at word end)
+          - Iota adscript (ωι, ηι instead of subscript ῳ, ῃ)
+          - Missing breathings on initial vowels
+          - Hyphens and editorial marks in transcriptions
+
+        Called as a fallback after lookup, normalizer, and model have
+        all failed. Returns a lemma if any normalization yields a
+        lookup hit, otherwise None.
+        """
+        # 1. Final sigma: σ at end of word -> ς
+        if word.endswith('σ'):
+            fixed = word[:-1] + 'ς'
+            lemma = self._lookup_word(fixed)
+            if lemma:
+                return lemma
+
+        # 2. Iota adscript -> subscript
+        fixed = word
+        for src, dst in self._IOTA_ADSCRIPT_MAP.items():
+            fixed = fixed.replace(src, dst)
+        if fixed != word:
+            lemma = self._lookup_word(fixed)
+            if lemma:
+                return lemma
+
+        # 3. Hyphen removal (editorial hyphens in line-broken words)
+        if '-' in word:
+            fixed = word.replace('-', '')
+            lemma = self._lookup_word(fixed)
+            if lemma:
+                return lemma
+
+        # 4. Lowercase initial capital (Byzantine sentence-initial caps)
+        if word and word[0].isupper():
+            lowered = word[0].lower() + word[1:]
+            lemma = self._lookup_word(lowered)
+            if lemma:
+                return lemma
+            # Also try lowercase + iota adscript fix
+            fixed = lowered
+            for src, dst in self._IOTA_ADSCRIPT_MAP.items():
+                fixed = fixed.replace(src, dst)
+            if fixed != lowered:
+                lemma = self._lookup_word(fixed)
+                if lemma:
+                    return lemma
+            # Also try lowercase + final sigma fix
+            if lowered.endswith('σ'):
+                fixed = lowered[:-1] + 'ς'
+                lemma = self._lookup_word(fixed)
+                if lemma:
+                    return lemma
+
+        # 5. Missing breathing on initial vowel: try adding smooth or rough
+        lower = word.lower()
+        nfd = unicodedata.normalize("NFD", lower)
+        if nfd and nfd[0] in 'αεηιουω':
+            # Check if there's already a breathing mark
+            has_breathing = (len(nfd) > 1
+                            and ord(nfd[1]) in (0x0313, 0x0314))
+            if not has_breathing:
+                # Try smooth breathing (U+0313), then rough (U+0314)
+                for breathing in ('\u0313', '\u0314'):
+                    candidate = unicodedata.normalize(
+                        "NFC", nfd[0] + breathing + nfd[1:])
+                    lemma = self._lookup_word(candidate)
+                    if lemma:
+                        return lemma
+
+        return None
+
+    def _prefix_strip_lookup(self, word: str) -> str | None:
+        """Try stripping known Greek prefixes and looking up the base.
+
+        For compound verbs and adjectives where the prefixed form is not
+        in the lookup table but the base form is. Returns the lemma of
+        the base form prefixed with the stripped prefix, or None.
+        """
+        lower = word.lower()
+        stripped = strip_accents(lower)
+
+        for prefix in self._KNOWN_PREFIXES:
+            prefix_s = strip_accents(prefix)
+            if not stripped.startswith(prefix_s):
+                continue
+            if len(stripped) <= len(prefix_s) + 2:
+                continue
+
+            remainder = stripped[len(prefix_s):]
+            base_lemma = self._lookup_word(remainder)
+            if not base_lemma:
+                continue
+
+            base_lemma_s = strip_accents(base_lemma.lower())
+
+            # Guard: skip identity lookups
+            if base_lemma_s == remainder:
+                continue
+
+            # Guard: skip suspiciously short base lemmas
+            if len(base_lemma_s) < 2:
+                continue
+
+            # Reconstruct compound: prefix + base_lemma
+            compound = prefix_s + base_lemma_s
+            return compound
+
+        return None
+
     # ---- Compound decomposition ----
 
     # Linking vowels at the junction of Greek compounds
@@ -1531,13 +1665,24 @@ class Dilemma:
         self._load_model()
         pred = self._predict([word])[0]
 
-        # Compound decomposition: only when the model returns identity
+        # Fallback strategies when the model returns identity
         # (model couldn't lemmatize). Uses accent-stripped comparison since
         # the model may return slight accent variants of the input.
         if strip_accents(pred.lower()) == strip_accents(word.lower()):
+            # 1. Byzantine normalization (final sigma, iota adscript, etc.)
+            byz = self._normalize_byzantine(word)
+            if byz:
+                return self._apply_convention(byz)
+
+            # 2. Compound decomposition (linking vowel split)
             compound = self._decompose_compound(word)
             if compound:
                 return self._apply_convention(compound)
+
+            # 3. Prefix stripping (known prefixes + base lookup)
+            prefix_hit = self._prefix_strip_lookup(word)
+            if prefix_hit:
+                return self._apply_convention(prefix_hit)
 
         return self._apply_convention(pred)
 
@@ -1571,6 +1716,87 @@ class Dilemma:
 
         return None
 
+    def _fix_mg_selfmap(self, word: str, candidates: list[LemmaCandidate],
+                        upos: str | None = None) -> str | None:
+        """Fix MG self-map problem for adjective/verb inflections.
+
+        When _prefer_mg is true (triantafyllidis or lang="el"), the MG
+        lookup sometimes returns self-maps for inflected forms instead
+        of the citation form (masculine nominative for ADJ, infinitive
+        for VERB). Examples:
+          - ανθρώπινα -> ανθρώπινα (self-map), should be ανθρώπινος
+          - περιέχει -> περιέχει (self-map), should be περιέχω
+
+        When POS is known (from upos parameter), uses it directly.
+        Adverbs and nouns keep their MG self-maps unchanged.
+
+        Also fixes adjectives where MG returns a feminine nominative
+        (e.g. παλαιολιθική) instead of the masculine nominative
+        (παλαιολιθικός), by checking if a -ος form exists as a headword.
+
+        Returns the corrected lemma, or None if no fix applies.
+        """
+        _prefer_mg = (self.lang == "el"
+                      or self._convention_name == "triantafyllidis")
+        if not _prefer_mg or not candidates:
+            return None
+
+        top = candidates[0]
+        form_lower = word.lower()
+        top_lower = top.lemma.lower()
+
+        # ADJ/VERB self-map fix: when MG returns a self-map for an
+        # inflected form, prefer a non-self-map citation form from
+        # the combined/AG lookup.
+        is_selfmap = _is_self_map(word, top.lemma)
+
+        if is_selfmap and upos in ("ADJ", "VERB", None):
+            # Find non-self-map candidates
+            for c in candidates:
+                if _is_self_map(word, c.lemma):
+                    continue
+                c_lower = c.lemma.lower()
+                # ADJ: prefer masculine nominative (-ος, -ής, -ύς)
+                if upos == "ADJ" or upos is None:
+                    if (c_lower.endswith("ος") or c_lower.endswith("ής")
+                            or c_lower.endswith("ύς")):
+                        if not c.proper:
+                            return c.lemma
+                # VERB: prefer infinitive/1sg (-ω, -ώ, -μαι)
+                if upos == "VERB" or upos is None:
+                    if (c_lower.endswith("ω") or c_lower.endswith("ώ")
+                            or c_lower.endswith("μαι")):
+                        if not c.proper:
+                            return c.lemma
+
+        # ADJ feminine-to-masculine fix: when the top result is a
+        # feminine nominative adjective (ending in -η/-ή/-ια/-α), check
+        # if there is a masculine form (-ος) available as a headword.
+        if upos == "ADJ" and not is_selfmap:
+            mono_lemma = to_monotonic(top_lower)
+            masc_form = None
+            # Common feminine -> masculine adjective mappings
+            if mono_lemma.endswith("ική") or mono_lemma.endswith("ικη"):
+                masc_form = mono_lemma[:-1] + "ός"
+            elif mono_lemma.endswith("ή"):
+                masc_form = mono_lemma[:-1] + "ός"
+            elif mono_lemma.endswith("η"):
+                masc_form = mono_lemma[:-1] + "ος"
+            elif mono_lemma.endswith("ια"):
+                masc_form = mono_lemma[:-2] + "ος"
+            elif mono_lemma.endswith("ιά"):
+                masc_form = mono_lemma[:-2] + "ός"
+
+            if masc_form:
+                # Check if the masculine form exists as a headword
+                # (self-mapping entry) in any table
+                for tbl in (self._mg_lookup, self._ag_lookup, self._lookup):
+                    hit = tbl.get(masc_form)
+                    if hit and strip_accents(hit.lower()) == strip_accents(masc_form.lower()):
+                        return self._apply_convention(hit)
+
+        return None
+
     def lemmatize_pos(self, word: str, upos: str) -> str:
         """Lemmatize with POS-aware disambiguation.
 
@@ -1584,7 +1810,10 @@ class Dilemma:
           2. If there is only one candidate, return it (POS can't help).
           3. If there are multiple candidates, check POS tables for a
              POS-specific lemma and see if any candidate matches it.
-          4. If a match is found, return it. Otherwise return the top
+          4. For MG self-map fix: when _prefer_mg is true and POS is
+             ADJ/VERB, check if the top candidate is an MG self-map and
+             prefer a citation-form alternative from combined/AG lookup.
+          5. If a match is found, return it. Otherwise return the top
              candidate (same as regular lookup).
 
         Args:
@@ -1620,6 +1849,12 @@ class Dilemma:
                 if strip_accents(c.lemma.lower()) == pos_stripped:
                     return c.lemma
 
+        # MG self-map fix: when the top candidate is an MG self-map for
+        # an ADJ/VERB inflection, prefer the citation form from combined/AG.
+        mg_fix = self._fix_mg_selfmap(word, candidates, upos=upos)
+        if mg_fix is not None:
+            return mg_fix
+
         # No POS match among candidates - return top candidate
         # (same result as regular lemmatize)
         return candidates[0].lemma
@@ -1638,8 +1873,10 @@ class Dilemma:
           2. For each word where POS tables suggest a different lemma,
              call lemmatize_verbose() to get all candidates and check
              if the POS-specific lemma is among them.
-          3. If the POS lemma matches a candidate, use it. Otherwise
-             keep the baseline result.
+          3. For MG self-map fix: when _prefer_mg is true and POS is
+             ADJ/VERB, check if the baseline result is an MG self-map
+             and prefer a citation-form alternative.
+          4. If a match is found, use it. Otherwise keep the baseline.
 
         Args:
             words: List of Greek word forms.
@@ -1658,38 +1895,47 @@ class Dilemma:
         # Step 2: For each word, check if POS could improve the result
         for i, (word, upos) in enumerate(zip(words, upos_tags)):
             pos_lemma = self._pos_table_lookup(word, upos)
-            if pos_lemma is None:
-                # No POS data for this form/UPOS - keep baseline
-                continue
+            if pos_lemma is not None:
+                pos_lemma_conv = self._apply_convention(pos_lemma)
+                if pos_lemma_conv == results[i]:
+                    # POS agrees with baseline - no change needed
+                    continue
 
-            pos_lemma_conv = self._apply_convention(pos_lemma)
-            if pos_lemma_conv == results[i]:
-                # POS agrees with baseline - no change needed
-                continue
+                # POS suggests a different lemma than baseline. Check if
+                # the POS lemma is among the valid candidates.
+                candidates = self.lemmatize_verbose(word)
+                if len(candidates) <= 1:
+                    # Only one candidate - POS can't help, keep baseline
+                    continue
 
-            # POS suggests a different lemma than baseline. Check if
-            # the POS lemma is among the valid candidates.
-            candidates = self.lemmatize_verbose(word)
-            if len(candidates) <= 1:
-                # Only one candidate - POS can't help, keep baseline
-                continue
-
-            # Check if any candidate matches the POS-specific lemma
-            pos_stripped = strip_accents(pos_lemma_conv.lower())
-            matched = False
-            for c in candidates:
-                if c.lemma == pos_lemma_conv:
-                    results[i] = c.lemma
-                    matched = True
-                    break
-            if not matched:
-                # Try accent-stripped comparison
+                # Check if any candidate matches the POS-specific lemma
+                pos_stripped = strip_accents(pos_lemma_conv.lower())
+                matched = False
                 for c in candidates:
-                    if strip_accents(c.lemma.lower()) == pos_stripped:
+                    if c.lemma == pos_lemma_conv:
                         results[i] = c.lemma
                         matched = True
                         break
-            # If no match among candidates, keep the baseline result
+                if not matched:
+                    # Try accent-stripped comparison
+                    for c in candidates:
+                        if strip_accents(c.lemma.lower()) == pos_stripped:
+                            results[i] = c.lemma
+                            matched = True
+                            break
+                if matched:
+                    continue
+
+            # MG self-map fix: when the baseline result is an MG self-map
+            # for an ADJ/VERB inflection, prefer the citation form.
+            # Also handles ADJ feminine-to-masculine fix (not a self-map
+            # but still a wrong lemma form).
+            if results[i] is not None and upos in ("ADJ", "VERB"):
+                candidates = self.lemmatize_verbose(word)
+                if len(candidates) > 1:
+                    mg_fix = self._fix_mg_selfmap(word, candidates, upos=upos)
+                    if mg_fix is not None:
+                        results[i] = mg_fix
 
         return results
 
@@ -1830,6 +2076,18 @@ class Dilemma:
                 _add(compound, source="compound",
                      via=f"{prefix}+{base_lemma}", score=0.7)
 
+        # 8. Byzantine normalization (only when model returned identity)
+        if model_identity and not candidates:
+            byz = self._normalize_byzantine(word)
+            if byz:
+                _add(byz, source="byzantine_norm", score=0.6)
+
+        # 9. Prefix stripping (only when model returned identity)
+        if model_identity and not candidates:
+            prefix_hit = self._prefix_strip_lookup(word)
+            if prefix_hit:
+                _add(prefix_hit, source="prefix_strip", score=0.5)
+
         # If still nothing, return the word itself
         if not candidates:
             _add(word, source="identity", score=0.0)
@@ -1928,11 +2186,22 @@ class Dilemma:
             self._load_model()
             predictions = self._predict(model_words)
             for idx, word, pred in zip(model_indices, model_words, predictions):
-                # Compound decomposition: only when model returns identity
+                # Fallback strategies when model returns identity
                 if strip_accents(pred.lower()) == strip_accents(word.lower()):
-                    compound = self._decompose_compound(word)
-                    if compound:
-                        pred = compound
+                    # 1. Byzantine normalization
+                    byz = self._normalize_byzantine(word)
+                    if byz:
+                        pred = byz
+                    else:
+                        # 2. Compound decomposition
+                        compound = self._decompose_compound(word)
+                        if compound:
+                            pred = compound
+                        else:
+                            # 3. Prefix stripping
+                            prefix_hit = self._prefix_strip_lookup(word)
+                            if prefix_hit:
+                                pred = prefix_hit
                 results[idx] = pred
 
         # Apply convention remapping to all results
