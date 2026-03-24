@@ -21,9 +21,11 @@ one, and the 12.3M lookup table handles the rest.
 (instant startup, ~0.3s) instead of parsing 600MB of JSON (~11s). Falls
 back to JSON if the database isn't present.
 
-**ONNX support:** Dilemma can run without PyTorch. When ONNX model files
-are present, inference uses ONNX Runtime (~50 MB) instead of PyTorch (~2 GB).
-The lookup table (which handles 95%+ of words) needs neither.
+**ONNX support:** For inference, ONNX Runtime (~50 MB) and PyTorch
+(~2 GB) produce identical results. If you already have PyTorch
+installed, it works fine. If you're starting fresh, ONNX is the
+lighter option. PyTorch is only required for training. The lookup
+table (which handles 95%+ of words) needs neither.
 
 Handles Standard Modern Greek (Demotic), Katharevousa, Cypriot, Cretan,
 and other regional varieties alongside Ancient and Medieval Greek.
@@ -415,7 +417,7 @@ transformations (`σκότωσε` → `σκοτώνω`). For Katharevousa forms 
 
 ```bash
 git clone https://github.com/ciscoriordan/dilemma.git && cd dilemma
-pip install onnxruntime                # ~50 MB, no PyTorch needed
+pip install onnxruntime                # ~50 MB, lightweight
 python build_data.py --download        # downloads Wiktionary dumps, builds lookup tables
 python build_lookup_db.py              # builds SQLite DB for instant startup (optional)
 ```
@@ -425,14 +427,13 @@ step is optional but recommended - it reduces startup time from ~11s to
 ~0.3s. Without it, Dilemma falls back to loading JSON files. For the
 remaining ~5% (unseen forms), the ONNX model files (`encoder.onnx`,
 `decoder_step.onnx`) in the model directory provide transformer
-inference without PyTorch. If these files aren't present, install
-PyTorch and run `python export_onnx.py` to generate them from the
-`.pt` checkpoint.
+inference. If you already have PyTorch installed, that works too -
+both produce identical output.
 
-### With PyTorch (for training or if ONNX files aren't available)
+### With PyTorch (for training)
 
 ```bash
-pip install torch                      # ~2 GB
+pip install torch                      # ~2 GB, needed for training only
 python build_data.py --download
 ```
 
