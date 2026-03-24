@@ -119,8 +119,8 @@ gap: AG citation forms like `σπήλαιον` don't match the MG gold standard
 The "gold POS" row feeds gold-standard POS tags from the DBBE dataset
 into Dilemma instead of letting it disambiguate on its own. The small
 gain (92.0% to 92.5%) confirms that POS ambiguity is not a major error
-source - remaining errors are from missing lookup entries (3.5%) and
-wrong lemma or convention differences (6.6%).
+source - remaining errors are from missing lookup entries (1.6%) and
+wrong lemma or convention differences (6.2%).
 
 Morpheus "oracle" picks the best candidate from all its analyses,
 representing the ceiling for rule-based morphology. Cells marked `--`
