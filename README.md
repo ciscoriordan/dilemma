@@ -30,6 +30,17 @@ table (which handles 95%+ of words) needs neither.
 Handles Standard Modern Greek (Demotic), Katharevousa, Cypriot, Cretan,
 and other regional varieties alongside Ancient and Medieval Greek.
 
+### Language codes and terminology
+
+Code and API calls use ISO 639 language codes: **`el`** for Modern Greek
+and **`grc`** for Ancient Greek. In English text we often use the
+shorthands **MG** (Modern Greek) and **AG** (Ancient Greek).
+
+For Dilemma's purposes, MG (`el`) includes Katharevousa, even though
+Katharevousa often benefits from AG lemmatization due to its archaizing
+vocabulary and morphology. Medieval/Byzantine Greek is treated as AG
+(`grc`) by default.
+
 ### Lookup table sources
 
 The lookup table combines forms from multiple sources:
@@ -91,15 +102,20 @@ and lemma equivalence groups (see `data/benchmarks/bench_all.py`).
 | [Morpheus](https://github.com/perseids-tools/morpheus-perseids-api) (oracle) | -- | 71.1% | -- | -- |
 | [stanza](https://stanfordnlp.github.io/stanza/) `grc` | 92.2% | 71.3% | 85.2% | -- |
 | [Swaelens et al. (2025)](https://aclanthology.org/2025.acl-long.430/) | -- | ~74-75% | -- | -- |
-| **Dilemma** | **96.1%** | **92.0%** | **93.1%** | 78.5% |
-| **Dilemma** (gold POS) | -- | **92.0%** | -- | -- |
-| **Dilemma** MG | -- | -- | 89.3% | **95.2%** |
+| **Dilemma** (default) | **96.1%** | **92.0%** | **93.1%** | 78.5%¹ |
+| **Dilemma** (default + gold POS) | -- | **92.0%** | -- | -- |
+| **Dilemma** (`triantafyllidis`) | -- | -- | 89.3% | **95.2%** |
 
-Dilemma is the only tool that covers all four periods. On Demotic MG,
-using `convention="triantafyllidis"` (the "Dilemma MG" row) reaches
-95.2%, well ahead of stanza `el` (87.0%). The default Dilemma row
-(78.5%) uses AG conventions and is penalized by convention mismatch
-(see [Lemma conventions](#lemma-conventions)). Morpheus "oracle" picks
+Dilemma is the only tool that covers all four periods. The three rows
+show different configurations: **default** uses Wiktionary headwords
+(polytonic, AG citation forms); **default + gold POS** replaces
+Dilemma's POS tagger with gold-standard POS tags, testing the ceiling
+for disambiguation; **`triantafyllidis`** uses `convention="triantafyllidis"`,
+which outputs monotonic MG lemma forms and is the recommended setting
+for Modern Greek text. ¹The default row scores 78.5% on Demotic MG
+because AG citation forms mismatch the MG gold standard - not a
+real accuracy gap (see [Lemma conventions](#lemma-conventions)).
+Morpheus "oracle" picks
 the best candidate from all its analyses, representing the ceiling for
 rule-based morphology. Cells marked `--` indicate the tool doesn't
 support that period or wasn't tested.
@@ -285,8 +301,8 @@ overrides in `data/convention_{name}.json`. Other tools (stanza, spaCy,
 CLTK) have fixed output conventions matching their training treebanks
 and cannot be remapped.
 
-In the benchmark table, the main Dilemma row uses the default
-(Wiktionary) convention. The "Dilemma MG" row uses
+In the benchmark table, the "Dilemma (default)" row uses the Wiktionary
+convention. The "Dilemma (`triantafyllidis`)" row uses
 `convention="triantafyllidis"`, which auto-enables article resolution
 (articles to `ο`, demonstratives to `αυτός`) and outputs monotonic MG
 lemma forms. This is the recommended setting for Modern Greek text.
