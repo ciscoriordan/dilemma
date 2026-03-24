@@ -828,6 +828,10 @@ Francisco Riordan, Dilemma [computer software] (2026).
 https://github.com/ciscoriordan/dilemma
 ```
 
+## Upcoming
+
+- `pip install dilemma` - PyPI package for easy installation
+
 ## License
 
 MIT
