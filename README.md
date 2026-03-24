@@ -361,13 +361,13 @@ in elision contexts (ε, α, ο most common).
 
 | Layer | Speed | Coverage | Source |
 |-------|-------|----------|--------|
-| **Lookup table** | instant | 12.3M known forms | Wiktionary + LSJ + Sophocles + GLAUx + treebanks |
-| **Normalizer** | instant | Byzantine orthographic variants | Rule-based candidate generation |
-| **Elision expansion** | instant | AG elided forms | Vowel expansion against lookup |
-| **Crasis table** | instant | ~50 common crasis forms | Hand-curated |
-| **Compound decomposition** | instant | Byzantine compound words | Split at linking vowel, look up base |
-| **Spelling correction** | lazy index | ED0-2 suggestions for unknown words | Accent-stripped edit distance |
-| **Transformer** | beam search | generalizes to unseen forms | Trained on Wiktionary pairs |
+| **Lookup table** | `O(1)` hash lookup | 12.3M known forms | Wiktionary + LSJ + Sophocles + GLAUx + treebanks |
+| **Normalizer** | `O(k)` k candidates | Byzantine orthographic variants | Rule-based candidate generation |
+| **Elision expansion** | `O(v)` v=7 vowels | AG elided forms | Vowel expansion against lookup |
+| **Crasis table** | `O(1)` hash lookup | ~50 common crasis forms | Hand-curated |
+| **Compound decomposition** | `O(n)` n=word length | Byzantine compound words | Split at linking vowel, look up base |
+| **Spelling correction** | `O(d·m)` BK-tree | ED0-2 suggestions for unknown words | Accent-stripped edit distance |
+| **Transformer** | `O(b·n²)` beam search | generalizes to unseen forms | Trained on Wiktionary pairs |
 
 The lookup table is built from Wiktionary [kaikki dumps](https://kaikki.org/)
 (EN and EL editions for MG and AG, plus EL Medieval Greek), expanded with
