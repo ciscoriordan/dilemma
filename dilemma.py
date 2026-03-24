@@ -54,7 +54,7 @@ CUNLIFFE_HEADWORDS_PATH = Path(__file__).parent / "data" / "cunliffe_headwords.j
 MG_HEADWORDS_PATH = Path(__file__).parent / "data" / "mg_headwords.json"
 AG_HEADWORDS_PATH = Path(__file__).parent / "data" / "ag_headwords.json"
 LEMMA_EQUIVALENCES_PATH = Path(__file__).parent / "data" / "lemma_equivalences.json"
-GLAUX_FREQ_PATH = Path(__file__).parent / "data" / "glaux_freq.json"
+CORPUS_FREQ_PATH = Path(__file__).parent / "data" / "corpus_freq.json"
 CONVENTION_DIR = Path(__file__).parent / "data"
 
 _VALID_CONVENTIONS = {None, "lsj", "cunliffe", "triantafyllidis", "wiktionary"}
@@ -2467,16 +2467,16 @@ class Dilemma:
         return self._hw_frequency.get(headword, 0)
 
     def _get_glaux_freq(self, stripped_form: str) -> int:
-        """Get GLAUx corpus token count for a stripped form.
+        """Get corpus token count for a stripped form.
 
-        Lazy-loads glaux_freq.json on first call (extracts only the total
+        Lazy-loads corpus_freq.json on first call (extracts only the total
         count per form, discarding genre breakdowns). Returns 0 for
         forms not in the corpus.
         """
         if self._glaux_freq is None:
             self._glaux_freq = {}
-            if GLAUX_FREQ_PATH.exists():
-                with open(GLAUX_FREQ_PATH, encoding="utf-8") as f:
+            if CORPUS_FREQ_PATH.exists():
+                with open(CORPUS_FREQ_PATH, encoding="utf-8") as f:
                     data = json.load(f)
                 # Index 0 of each value array is the total count
                 self._glaux_freq = {

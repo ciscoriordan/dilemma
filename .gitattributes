@@ -12,3 +12,6 @@ data/glaux_pairs.json filter=lfs diff=lfs merge=lfs -text
 data/lookup.db filter=lfs diff=lfs merge=lfs -text
 data/vesuvius_index.json.gz filter=lfs diff=lfs merge=lfs -text
 data/glaux_freq.json filter=lfs diff=lfs merge=lfs -text
+data/diorisis_pairs.json filter=lfs diff=lfs merge=lfs -text
+data/corpus_freq.json filter=lfs diff=lfs merge=lfs -text
+data/diorisis_freq.json filter=lfs diff=lfs merge=lfs -text
