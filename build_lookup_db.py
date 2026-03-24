@@ -27,6 +27,7 @@ AG_PATH = DATA_DIR / "ag_lookup.json"
 MG_PATH = DATA_DIR / "mg_lookup.json"
 MED_PATH = DATA_DIR / "med_lookup.json"
 GLAUX_PAIRS_PATH = DATA_DIR / "glaux_pairs.json"
+DIORISIS_PAIRS_PATH = DATA_DIR / "diorisis_pairs.json"
 
 
 def strip_accents(s):
@@ -131,6 +132,44 @@ def build():
               f"+{glaux_added_med:,} to el, "
               f"{glaux_skipped_med:,} el conflicts skipped "
               f"({time.time()-t_g:.1f}s)")
+
+    # Expand AG and el with Diorisis corpus pairs (456K forms from
+    # 10.2M tokens of ancient Greek texts). Lower confidence than GLAUx
+    # (91.4% vs 98.8% lemma accuracy), so lowest priority: only added
+    # when not already present from Wiktionary, LSJ, or GLAUx.
+    dior_added_ag = 0
+    dior_added_el = 0
+    dior_skipped_el = 0
+    dior_skipped_ag = 0
+    if DIORISIS_PAIRS_PATH.exists():
+        t_d = time.time()
+        with open(DIORISIS_PAIRS_PATH, encoding="utf-8") as f:
+            diorisis_pairs = json.load(f)
+        # Snapshot AG keys before Diorisis expansion (includes Wiktionary + GLAUx)
+        ag_before_dior = dict(ag)
+        for p in diorisis_pairs:
+            form, lemma = p["form"], p["lemma"]
+            # Add to AG if not already present from any source
+            if form not in ag:
+                ag[form] = lemma
+                dior_added_ag += 1
+            else:
+                dior_skipped_ag += 1
+            # Selectively add to el: only when the pair won't cause
+            # a priority override conflict in the combined merge.
+            if form not in el:
+                if form not in ag_before_dior:
+                    el[form] = lemma
+                    dior_added_el += 1
+                elif ag_before_dior[form] == lemma:
+                    el[form] = lemma
+                    dior_added_el += 1
+                else:
+                    dior_skipped_el += 1
+        print(f"  Diorisis: +{dior_added_ag:,} to AG ({dior_skipped_ag:,} skipped), "
+              f"+{dior_added_el:,} to el, "
+              f"{dior_skipped_el:,} el conflicts skipped "
+              f"({time.time()-t_d:.1f}s)")
 
     # Build combined lookup (AG-first priority)
     print("\nBuilding combined lookup (AG-first)...")
