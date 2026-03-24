@@ -6,7 +6,7 @@ Datasets:
   1. AG classical (Sextus Empiricus, ~323 tokens)
   2. Byzantine (DBBE medieval Greek, ~8342 tokens)
   3. Katharevousa (~283 tokens)
-  4. Demotic MG (~242 tokens)
+  4. Demotic MG (~363 tokens)
 
 Tools:
   - Dilemma (no POS)
