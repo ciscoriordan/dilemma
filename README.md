@@ -91,14 +91,14 @@ and lemma equivalence groups (see `data/benchmarks/bench_all.py`).
 | [Morpheus](https://github.com/perseids-tools/morpheus-perseids-api) (oracle) | -- | 71.1% | -- | -- |
 | [stanza](https://stanfordnlp.github.io/stanza/) `grc` | 92.2% | 71.3% | 85.2% | -- |
 | [Swaelens et al. (2025)](https://aclanthology.org/2025.acl-long.430/) | -- | ~74-75% | -- | -- |
-| **Dilemma** | **96.1%** | **92.0%** | **93.1%** | 78.1% |
+| **Dilemma** | **96.1%** | **92.0%** | **93.1%** | 78.5% |
 | **Dilemma** (gold POS) | -- | **92.0%** | -- | -- |
-| **Dilemma** MG | -- | -- | 89.3% | **94.0%** |
+| **Dilemma** MG | -- | -- | 89.3% | **95.2%** |
 
 Dilemma is the only tool that covers all four periods. On Demotic MG,
 using `convention="triantafyllidis"` (the "Dilemma MG" row) reaches
-94.0%, well ahead of stanza `el` (87.0%). The default Dilemma row
-(78.1%) uses AG conventions and is penalized by convention mismatch
+95.2%, well ahead of stanza `el` (87.0%). The default Dilemma row
+(78.5%) uses AG conventions and is penalized by convention mismatch
 (see [Lemma conventions](#lemma-conventions)). Morpheus "oracle" picks
 the best candidate from all its analyses, representing the ceiling for
 rule-based morphology. Cells marked `--` indicate the tool doesn't
@@ -686,10 +686,11 @@ We chose not to integrate one other large corpus:
   not found in any classical corpus.
 
 All three are CC BY-SA 4.0. Compound decomposition (added in v1.5)
-reduced the no-lookup-hit rate on DBBE from 4.4% to 3.1% by splitting
-compound words at linking vowels (ο/ι/υ) and looking up the base
-element. The remaining 3.1% are forms where neither lookup, compound
-decomposition, nor the seq2seq model can recover the correct lemma.
+reduced the no-lookup-hit rate on DBBE from 4.4% to 2.5% by splitting
+compound words at linking vowels (ο/ι/υ), stripping known prefixes,
+and applying Byzantine-specific normalizations. The remaining 2.5%
+are forms where neither lookup, compound decomposition, nor the
+seq2seq model can recover the correct lemma.
 
 Each form is indexed under its original, monotonic, and accent-stripped
 variants for fuzzy matching.
@@ -787,7 +788,7 @@ tested lemmatization on unedited Byzantine Greek epigrams and found
 that classical accuracy (~95%) dropped 30+ points on Byzantine text
 due to itacism, crasis, and non-standard orthography. Their best hybrid
 method (transformer embeddings + dictionary lookup) reached 65.8%.
-Dilemma achieves 91.7% on the same dataset (equiv-adjusted).
+Dilemma achieves 92.0% on the same dataset (equiv-adjusted).
 
 [Swaelens et al. (2025)](https://aclanthology.org/2025.acl-long.430/)
 showed that multi-task learning (joint POS + morphology + lemma
