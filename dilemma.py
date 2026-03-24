@@ -30,6 +30,7 @@ Usage:
 """
 
 import json
+import math
 import re
 import sqlite3
 import unicodedata
@@ -53,6 +54,7 @@ CUNLIFFE_HEADWORDS_PATH = Path(__file__).parent / "data" / "cunliffe_headwords.j
 MG_HEADWORDS_PATH = Path(__file__).parent / "data" / "mg_headwords.json"
 AG_HEADWORDS_PATH = Path(__file__).parent / "data" / "ag_headwords.json"
 LEMMA_EQUIVALENCES_PATH = Path(__file__).parent / "data" / "lemma_equivalences.json"
+GLAUX_FREQ_PATH = Path(__file__).parent / "data" / "glaux_freq.json"
 CONVENTION_DIR = Path(__file__).parent / "data"
 
 _VALID_CONVENTIONS = {None, "lsj", "cunliffe", "triantafyllidis", "wiktionary"}
@@ -611,6 +613,9 @@ class Dilemma:
 
         # Headword frequency table (lazy-loaded from lsj9_frequency.json)
         self._hw_frequency: dict[str, int] | None = None
+
+        # GLAUx corpus frequency: stripped_form -> token_count (lazy-loaded)
+        self._glaux_freq: dict[str, int] | None = None
 
         self._load_lookups()
         self._convention_map = self._build_convention_map(convention)
@@ -1829,6 +1834,28 @@ class Dilemma:
         if not candidates:
             _add(word, source="identity", score=0.0)
 
+        # Refine lookup candidate scores using GLAUx corpus frequency.
+        # Only activated when there are multiple lookup candidates to rank.
+        lookup_candidates = [c for c in candidates if c.source == "lookup"]
+        if len(lookup_candidates) > 1:
+            # Collect frequencies for all lookup candidates' lemmas
+            freq_pairs = []
+            for c in lookup_candidates:
+                stripped = strip_accents(c.lemma.lower())
+                freq = self._get_glaux_freq(stripped)
+                freq_pairs.append((c, freq))
+            # Only refine if at least one candidate has frequency data
+            has_freq = any(f > 0 for _, f in freq_pairs)
+            if has_freq:
+                max_log = max(math.log1p(f) for _, f in freq_pairs)
+                for c, freq in freq_pairs:
+                    if freq > 0:
+                        # Scale log(1+freq) into [0.5, 1.0]
+                        c.score = 0.5 + 0.5 * (math.log1p(freq) / max_log)
+                    else:
+                        # No corpus data: slight penalty vs attested forms
+                        c.score = 0.55
+
         # Sort: non-proper before proper, then by score descending
         candidates.sort(key=lambda c: (c.proper, -c.score))
 
@@ -2084,6 +2111,25 @@ class Dilemma:
                 with open(LSJ9_FREQUENCY_PATH, encoding="utf-8") as f:
                     self._hw_frequency = json.load(f)
         return self._hw_frequency.get(headword, 0)
+
+    def _get_glaux_freq(self, stripped_form: str) -> int:
+        """Get GLAUx corpus token count for a stripped form.
+
+        Lazy-loads glaux_freq.json on first call (extracts only the total
+        count per form, discarding genre breakdowns). Returns 0 for
+        forms not in the corpus.
+        """
+        if self._glaux_freq is None:
+            self._glaux_freq = {}
+            if GLAUX_FREQ_PATH.exists():
+                with open(GLAUX_FREQ_PATH, encoding="utf-8") as f:
+                    data = json.load(f)
+                # Index 0 of each value array is the total count
+                self._glaux_freq = {
+                    form: counts[0]
+                    for form, counts in data.get("forms", {}).items()
+                }
+        return self._glaux_freq.get(stripped_form, 0)
 
     def _rank_spell_results(self, word: str, query_stripped: str,
                             hits: dict[str, list[str]],
