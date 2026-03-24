@@ -1,6 +1,6 @@
 {
   "Dilemma (no POS)": {
-    "load_time_s": 0.828,
+    "load_time_s": 1.535,
     "datasets": {
       "ag_classical": {
         "status": "ok",
@@ -9,21 +9,21 @@
         "monotonic_normalized": 94.68,
         "accent_stripped": 95.8,
         "equiv_adjusted": 96.08,
-        "inference_time_s": 7.8196,
-        "tokens_per_second": 45.7,
+        "inference_time_s": 7.88,
+        "tokens_per_second": 45.3,
         "dilemma_strategy": {
           "by_source": {
             "identity": {
-              "count": 2,
-              "time_s": 0.2456
+              "count": 1,
+              "time_s": 0.1683
             },
             "lookup": {
               "count": 354,
-              "time_s": 0.0393
+              "time_s": 0.817
             },
             "model": {
-              "count": 1,
-              "time_s": 0.113
+              "count": 2,
+              "time_s": 0.3533
             }
           },
           "sampled": false,
@@ -34,37 +34,41 @@
       "byzantine": {
         "status": "ok",
         "n_tokens": 8348,
-        "strict": 58.62,
-        "monotonic_normalized": 89.21,
-        "accent_stripped": 90.39,
-        "equiv_adjusted": 91.69,
-        "inference_time_s": 62.1398,
-        "tokens_per_second": 134.3,
+        "strict": 58.82,
+        "monotonic_normalized": 89.59,
+        "accent_stripped": 90.75,
+        "equiv_adjusted": 92.03,
+        "inference_time_s": 85.8214,
+        "tokens_per_second": 97.3,
         "dilemma_strategy": {
           "by_source": {
+            "byzantine_norm": {
+              "count": 66,
+              "time_s": 9.4495
+            },
             "compound": {
               "count": 100,
-              "time_s": 13.8791
+              "time_s": 18.609
             },
             "crasis": {
               "count": 16,
-              "time_s": 0.0004
+              "time_s": 0.0005
             },
             "elision": {
               "count": 66,
-              "time_s": 0.0638
+              "time_s": 0.059
             },
             "identity": {
-              "count": 250,
-              "time_s": 32.5637
+              "count": 183,
+              "time_s": 25.0372
             },
             "lookup": {
               "count": 7630,
-              "time_s": 0.5699
+              "time_s": 0.7947
             },
             "model": {
               "count": 283,
-              "time_s": 32.7527
+              "time_s": 43.6431
             }
           },
           "sampled": true,
@@ -75,33 +79,33 @@
       "katharevousa": {
         "status": "ok",
         "n_tokens": 318,
-        "strict": 91.19,
-        "monotonic_normalized": 92.77,
+        "strict": 90.88,
+        "monotonic_normalized": 92.45,
         "accent_stripped": 93.08,
         "equiv_adjusted": 93.08,
-        "inference_time_s": 2.308,
-        "tokens_per_second": 137.8,
+        "inference_time_s": 3.5157,
+        "tokens_per_second": 90.5,
         "dilemma_strategy": {
           "by_source": {
             "compound": {
               "count": 2,
-              "time_s": 0.2584
+              "time_s": 0.3583
             },
             "elision": {
               "count": 1,
-              "time_s": 0.0012
+              "time_s": 0.0011
             },
             "identity": {
-              "count": 3,
-              "time_s": 0.2977
+              "count": 7,
+              "time_s": 0.4044
             },
             "lookup": {
               "count": 296,
-              "time_s": 0.0179
+              "time_s": 0.0218
             },
             "model": {
-              "count": 16,
-              "time_s": 1.7871
+              "count": 12,
+              "time_s": 2.2253
             }
           },
           "sampled": false,
@@ -111,41 +115,37 @@
       },
       "demotic": {
         "status": "ok",
-        "n_tokens": 269,
-        "strict": 56.51,
-        "monotonic_normalized": 76.21,
-        "accent_stripped": 76.58,
-        "equiv_adjusted": 77.32,
-        "inference_time_s": 0.5507,
-        "tokens_per_second": 488.5,
+        "n_tokens": 400,
+        "strict": 56.75,
+        "monotonic_normalized": 75.5,
+        "accent_stripped": 76.0,
+        "equiv_adjusted": 78.5,
+        "inference_time_s": 1.3887,
+        "tokens_per_second": 288.0,
         "dilemma_strategy": {
           "by_source": {
             "compound": {
-              "count": 1,
-              "time_s": 0.1594
+              "count": 2,
+              "time_s": 0.4772
             },
             "identity": {
-              "count": 2,
-              "time_s": 0.2617
+              "count": 5,
+              "time_s": 0.5655
             },
             "lookup": {
-              "count": 264,
-              "time_s": 0.0148
-            },
-            "model": {
-              "count": 2,
-              "time_s": 0.1273
+              "count": 393,
+              "time_s": 0.033
             }
           },
           "sampled": false,
-          "sample_size": 269,
-          "total_tokens": 269
+          "sample_size": 400,
+          "total_tokens": 400
         }
       }
     }
   },
   "Dilemma (gold POS)": {
-    "load_time_s": 0.87,
+    "load_time_s": 0.636,
     "datasets": {
       "ag_classical": {
         "status": "N/A",
@@ -154,33 +154,41 @@
       "byzantine": {
         "status": "ok",
         "n_tokens": 8348,
-        "strict": 59.21,
-        "monotonic_normalized": 89.65,
-        "accent_stripped": 90.87,
-        "equiv_adjusted": 92.17,
-        "inference_time_s": 69.8254,
-        "tokens_per_second": 119.6,
+        "strict": 59.39,
+        "monotonic_normalized": 90.03,
+        "accent_stripped": 91.23,
+        "equiv_adjusted": 92.51,
+        "inference_time_s": 146.6943,
+        "tokens_per_second": 56.9,
         "dilemma_strategy": {
           "by_source": {
+            "byzantine_norm": {
+              "count": 16,
+              "time_s": 2.9894
+            },
             "compound": {
-              "count": 66,
-              "time_s": 7.4929
+              "count": 50,
+              "time_s": 7.1956
             },
             "elision": {
               "count": 66,
-              "time_s": 0.0778
+              "time_s": 0.075
             },
             "identity": {
-              "count": 217,
-              "time_s": 26.3157
+              "count": 183,
+              "time_s": 31.7134
             },
             "lookup": {
-              "count": 7763,
-              "time_s": 0.5565
+              "count": 7797,
+              "time_s": 0.6996
             },
             "model": {
-              "count": 233,
-              "time_s": 30.0038
+              "count": 200,
+              "time_s": 37.8592
+            },
+            "prefix_strip": {
+              "count": 33,
+              "time_s": 6.312
             }
           },
           "sampled": true,
@@ -198,8 +206,95 @@
       }
     }
   },
+  "Dilemma MG": {
+    "load_time_s": 2.283,
+    "datasets": {
+      "ag_classical": {
+        "status": "N/A",
+        "notes": "MG convention, not for AG text"
+      },
+      "byzantine": {
+        "status": "N/A",
+        "notes": "MG convention, not for Byzantine text"
+      },
+      "katharevousa": {
+        "status": "ok",
+        "n_tokens": 318,
+        "strict": 45.91,
+        "monotonic_normalized": 87.11,
+        "accent_stripped": 87.74,
+        "equiv_adjusted": 89.31,
+        "inference_time_s": 10.9007,
+        "tokens_per_second": 29.2,
+        "dilemma_strategy": {
+          "by_source": {
+            "article": {
+              "count": 63,
+              "time_s": 0.001
+            },
+            "compound": {
+              "count": 2,
+              "time_s": 0.3645
+            },
+            "elision": {
+              "count": 1,
+              "time_s": 0.0012
+            },
+            "identity": {
+              "count": 7,
+              "time_s": 0.4275
+            },
+            "lookup": {
+              "count": 233,
+              "time_s": 0.769
+            },
+            "model": {
+              "count": 12,
+              "time_s": 2.2503
+            }
+          },
+          "sampled": false,
+          "sample_size": 318,
+          "total_tokens": 318
+        }
+      },
+      "demotic": {
+        "status": "ok",
+        "n_tokens": 400,
+        "strict": 94.25,
+        "monotonic_normalized": 94.75,
+        "accent_stripped": 95.0,
+        "equiv_adjusted": 95.25,
+        "inference_time_s": 1.3264,
+        "tokens_per_second": 301.6,
+        "dilemma_strategy": {
+          "by_source": {
+            "article": {
+              "count": 96,
+              "time_s": 0.0015
+            },
+            "compound": {
+              "count": 2,
+              "time_s": 0.4575
+            },
+            "identity": {
+              "count": 5,
+              "time_s": 0.5493
+            },
+            "lookup": {
+              "count": 297,
+              "time_s": 0.0382
+            }
+          },
+          "sampled": false,
+          "sample_size": 400,
+          "total_tokens": 400
+        }
+      }
+    }
+  },
   "stanza grc": {
-    "load_time_s": 3.875,
+    "load_time_s": 3.28,
     "datasets": {
       "ag_classical": {
         "status": "ok",
@@ -208,8 +303,8 @@
         "monotonic_normalized": 90.2,
         "accent_stripped": 92.16,
         "equiv_adjusted": 92.16,
-        "inference_time_s": 0.3022,
-        "tokens_per_second": 1181.4
+        "inference_time_s": 0.3354,
+        "tokens_per_second": 1064.4
       },
       "byzantine": {
         "status": "ok",
@@ -218,8 +313,8 @@
         "monotonic_normalized": 63.68,
         "accent_stripped": 68.64,
         "equiv_adjusted": 70.89,
-        "inference_time_s": 4.2271,
-        "tokens_per_second": 1974.9
+        "inference_time_s": 4.1188,
+        "tokens_per_second": 2026.8
       },
       "katharevousa": {
         "status": "ok",
@@ -228,8 +323,8 @@
         "monotonic_normalized": 84.28,
         "accent_stripped": 85.22,
         "equiv_adjusted": 85.22,
-        "inference_time_s": 0.2873,
-        "tokens_per_second": 1106.8
+        "inference_time_s": 0.2867,
+        "tokens_per_second": 1109.2
       },
       "demotic": {
         "status": "N/A",
@@ -238,7 +333,7 @@
     }
   },
   "stanza el": {
-    "load_time_s": 1.603,
+    "load_time_s": 1.544,
     "datasets": {
       "ag_classical": {
         "status": "N/A",
@@ -255,23 +350,23 @@
         "monotonic_normalized": 47.17,
         "accent_stripped": 48.11,
         "equiv_adjusted": 48.43,
-        "inference_time_s": 0.336,
-        "tokens_per_second": 946.3
+        "inference_time_s": 0.3799,
+        "tokens_per_second": 837.1
       },
       "demotic": {
         "status": "ok",
-        "n_tokens": 269,
-        "strict": 86.62,
-        "monotonic_normalized": 86.62,
-        "accent_stripped": 86.99,
-        "equiv_adjusted": 86.99,
-        "inference_time_s": 0.2619,
-        "tokens_per_second": 1027.2
+        "n_tokens": 400,
+        "strict": 88.0,
+        "monotonic_normalized": 88.0,
+        "accent_stripped": 88.25,
+        "equiv_adjusted": 88.5,
+        "inference_time_s": 0.3858,
+        "tokens_per_second": 1036.8
       }
     }
   },
   "spaCy el": {
-    "load_time_s": 0.907,
+    "load_time_s": 1.108,
     "datasets": {
       "ag_classical": {
         "status": "N/A",
@@ -288,23 +383,23 @@
         "monotonic_normalized": 43.08,
         "accent_stripped": 44.65,
         "equiv_adjusted": 44.65,
-        "inference_time_s": 0.0863,
-        "tokens_per_second": 3682.9
+        "inference_time_s": 0.0884,
+        "tokens_per_second": 3596.2
       },
       "demotic": {
         "status": "ok",
-        "n_tokens": 269,
-        "strict": 76.95,
-        "monotonic_normalized": 79.55,
-        "accent_stripped": 79.93,
-        "equiv_adjusted": 79.93,
-        "inference_time_s": 0.0677,
-        "tokens_per_second": 3975.8
+        "n_tokens": 400,
+        "strict": 79.25,
+        "monotonic_normalized": 81.0,
+        "accent_stripped": 81.25,
+        "equiv_adjusted": 81.5,
+        "inference_time_s": 0.0951,
+        "tokens_per_second": 4204.6
       }
     }
   },
   "CLTK": {
-    "load_time_s": 3.381,
+    "load_time_s": 3.801,
     "datasets": {
       "ag_classical": {
         "status": "ok",
@@ -313,8 +408,8 @@
         "monotonic_normalized": 80.67,
         "accent_stripped": 80.95,
         "equiv_adjusted": 81.23,
-        "inference_time_s": 0.0013,
-        "tokens_per_second": 277353.3
+        "inference_time_s": 0.0014,
+        "tokens_per_second": 247365.6
       },
       "byzantine": {
         "status": "ok",
@@ -323,8 +418,8 @@
         "monotonic_normalized": 63.76,
         "accent_stripped": 65.01,
         "equiv_adjusted": 66.61,
-        "inference_time_s": 0.0158,
-        "tokens_per_second": 528802.1
+        "inference_time_s": 0.0249,
+        "tokens_per_second": 335445.2
       },
       "katharevousa": {
         "status": "ok",
@@ -333,8 +428,8 @@
         "monotonic_normalized": 74.21,
         "accent_stripped": 74.84,
         "equiv_adjusted": 74.84,
-        "inference_time_s": 0.0005,
-        "tokens_per_second": 682891.4
+        "inference_time_s": 0.0009,
+        "tokens_per_second": 371911.5
       },
       "demotic": {
         "status": "N/A",

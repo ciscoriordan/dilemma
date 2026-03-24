@@ -2588,8 +2588,14 @@ class Dilemma:
                     src, src_key_padding_mask=src_pad_mask, num_beams=num_beams)
 
         results = []
+        greedy = (num_beams == 1)
         for i, candidates in enumerate(beam_results):
-            decoded = [self._vocab.decode(ids) for ids, score in candidates]
+            if greedy:
+                # num_beams=1: beam_results is (batch, seq_len) tensor,
+                # each row is token IDs with no score
+                decoded = [self._vocab.decode(candidates)]
+            else:
+                decoded = [self._vocab.decode(ids) for ids, score in candidates]
             chosen = None
             for d in decoded:
                 # Check headword with normalization cascade

@@ -102,30 +102,33 @@ and lemma equivalence groups (see `data/benchmarks/bench_all.py`).
 | [Morpheus](https://github.com/perseids-tools/morpheus-perseids-api) (oracle) | -- | 71.1% | -- | -- |
 | [stanza](https://stanfordnlp.github.io/stanza/) `grc` | 92.2% | 71.3% | 85.2% | -- |
 | [Swaelens et al. (2025)](https://aclanthology.org/2025.acl-long.430/) | -- | ~74-75% | -- | -- |
-| **Dilemma** (default) | **96.1%** | **92.0%** | **93.1%** | 78.5%¹ |
-| **Dilemma** (default + gold POS) | -- | **92.0%** | -- | -- |
-| **Dilemma** (`triantafyllidis`) | -- | -- | 89.3% | **95.2%** |
+| **Dilemma** `lang="all"` | **96.1%** | **92.0%** | **93.1%** | 78.5%* |
+| **Dilemma** `lang="all"`, gold POS | -- | **92.5%** | -- | -- |
+| **Dilemma** `convention="triantafyllidis"` | -- | -- | 89.3% | **95.2%** |
 
-Dilemma is the only tool that covers all four periods. The three rows
-show different configurations: **default** uses Wiktionary headwords
-(polytonic, AG citation forms); **default + gold POS** replaces
-Dilemma's POS tagger with gold-standard POS tags, testing the ceiling
-for disambiguation; **`triantafyllidis`** uses `convention="triantafyllidis"`,
-which outputs monotonic MG lemma forms and is the recommended setting
-for Modern Greek text. ¹The default row scores 78.5% on Demotic MG
-because AG citation forms mismatch the MG gold standard - not a
-real accuracy gap (see [Lemma conventions](#lemma-conventions)).
-Morpheus "oracle" picks
-the best candidate from all its analyses, representing the ceiling for
-rule-based morphology. Cells marked `--` indicate the tool doesn't
-support that period or wasn't tested.
+All Dilemma rows use `lang="all"`, searching both AG and MG entries for
+every token. Other tools are locked to a single language. The first two
+rows output Wiktionary headwords (polytonic, AG citation forms). The
+third row outputs monotonic MG lemma forms and is the recommended
+setting for Modern Greek text (see [Lemma conventions](#lemma-conventions)).
 
-Dilemma's remaining ~8% errors on DBBE break down as 2.5% no
-lookup hit and 5.5% wrong lemma or convention difference. The eval
-scripts (`eval/eval_dbbe.py`, `eval/eval_digrec.py`,
+\*The 78.5% on Demotic MG is a convention mismatch, not a real accuracy
+gap: AG citation forms like `σπήλαιον` don't match the MG gold standard
+`σπήλαιο`. Using `convention="triantafyllidis"` fixes this (95.2%).
+
+The "gold POS" row feeds gold-standard POS tags from the DBBE dataset
+into Dilemma instead of letting it disambiguate on its own. The small
+gain (92.0% to 92.5%) confirms that POS ambiguity is not a major error
+source - remaining errors are from missing lookup entries (3.5%) and
+wrong lemma or convention differences (6.6%).
+
+Morpheus "oracle" picks the best candidate from all its analyses,
+representing the ceiling for rule-based morphology. Cells marked `--`
+indicate the tool doesn't support that period or wasn't tested.
+
+The eval scripts (`eval/eval_dbbe.py`, `eval/eval_digrec.py`,
 `eval/bench_dbbe.py`) provide per-POS breakdowns and error
-categorization. `eval/eval_dbbe.py --use-pos gold` evaluates with
-POS-aware disambiguation.
+categorization.
 
 On the [DiGreC treebank](https://github.com/mdm33/digrec) (119K tokens,
 Homer through 15th century Byzantine Greek), Dilemma reaches 94.0%
@@ -301,11 +304,11 @@ overrides in `data/convention_{name}.json`. Other tools (stanza, spaCy,
 CLTK) have fixed output conventions matching their training treebanks
 and cannot be remapped.
 
-In the benchmark table, the "Dilemma (default)" row uses the Wiktionary
-convention. The "Dilemma (`triantafyllidis`)" row uses
-`convention="triantafyllidis"`, which auto-enables article resolution
-(articles to `ο`, demonstratives to `αυτός`) and outputs monotonic MG
-lemma forms. This is the recommended setting for Modern Greek text.
+In the benchmark table, the first two Dilemma rows use the Wiktionary
+convention. The `convention="triantafyllidis"` row auto-enables article
+resolution (articles to `ο`, demonstratives to `αυτός`) and outputs
+monotonic MG lemma forms. This is the recommended setting for Modern
+Greek text.
 
 ### Verbose mode
 
