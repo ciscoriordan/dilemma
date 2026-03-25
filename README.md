@@ -127,16 +127,22 @@ and lemma equivalence groups (see `data/benchmarks/bench_all.py`).
 | [Morpheus](https://github.com/perseids-tools/morpheus-perseids-api) (oracle) | -- | 71.1% | -- | -- |
 | [stanza](https://stanfordnlp.github.io/stanza/) `grc` | 92.2% | 71.3% | 85.2% | -- |
 | [Swaelens et al. (2025)](https://aclanthology.org/2025.acl-long.430/) | -- | ~74-75% | -- | -- |
-| **Dilemma** `lang="all"` | 96.1% | 92.0% | 93.1% | 78.5%* |
-| **Dilemma** `lang="all"`, gold POS | -- | 92.5% | -- | -- |
-| **Dilemma** `convention="triantafyllidis"` | -- | -- | 89.3% | 95.2% |
 | **Dilemma** (best convention per period) | **96.1%** | **92.0%** | **93.1%** | **95.2%** |
 
+**Dilemma detail by convention:**
+
+| Setting | AG Classical | Byzantine | Katharevousa | Demotic MG |
+|---------|:--------:|:--------:|:--------:|:--------:|
+| `lang="all"` | 96.1% | 92.0% | 93.1% | 78.5%* |
+| `lang="all"`, gold POS | -- | 92.5% | -- | -- |
+| `convention="triantafyllidis"` | -- | -- | 89.3% | 95.2% |
+
 All Dilemma rows use `lang="all"`, searching both AG and MG entries for
-every token. Other tools are locked to a single language. The first two
-rows output Wiktionary headwords (polytonic, AG citation forms). The
-third row outputs monotonic MG lemma forms and is the recommended
-setting for Modern Greek text (see [Lemma conventions](#lemma-conventions)).
+every token. Other tools are locked to a single language. The first
+table's default row outputs Wiktionary headwords (polytonic, AG citation
+forms). The `triantafyllidis` row outputs monotonic MG lemma forms and
+is the recommended setting for Modern Greek text (see
+[Lemma conventions](#lemma-conventions)).
 
 \*The 78.5% on Demotic MG is a convention mismatch, not a real accuracy
 gap: AG citation forms like `σπήλαιον` don't match the MG gold standard
