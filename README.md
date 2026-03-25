@@ -127,9 +127,10 @@ and lemma equivalence groups (see `data/benchmarks/bench_all.py`).
 | [Morpheus](https://github.com/perseids-tools/morpheus-perseids-api) (oracle) | -- | 71.1% | -- | -- |
 | [stanza](https://stanfordnlp.github.io/stanza/) `grc` | 92.2% | 71.3% | 85.2% | -- |
 | [Swaelens et al. (2025)](https://aclanthology.org/2025.acl-long.430/) | -- | ~74-75% | -- | -- |
-| **Dilemma** `lang="all"` | **96.1%** | **92.0%** | **93.1%** | 78.5%* |
-| **Dilemma** `lang="all"`, gold POS | -- | **92.5%** | -- | -- |
-| **Dilemma** `convention="triantafyllidis"` | -- | -- | 89.3% | **95.2%** |
+| **Dilemma** `lang="all"` | 96.1% | 92.0% | 93.1% | 78.5%* |
+| **Dilemma** `lang="all"`, gold POS | -- | 92.5% | -- | -- |
+| **Dilemma** `convention="triantafyllidis"` | -- | -- | 89.3% | 95.2% |
+| **Dilemma** (best convention per period) | **96.1%** | **92.0%** | **93.1%** | **95.2%** |
 
 All Dilemma rows use `lang="all"`, searching both AG and MG entries for
 every token. Other tools are locked to a single language. The first two
