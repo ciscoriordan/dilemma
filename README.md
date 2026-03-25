@@ -30,6 +30,31 @@ table (which handles 95%+ of words) needs neither.
 Handles Standard Modern Greek (Demotic), Katharevousa, Cypriot, Cretan,
 and other regional varieties alongside Ancient and Medieval Greek.
 
+## Table of Contents
+
+- [Language codes and terminology](#language-codes-and-terminology)
+- [Lookup table sources](#lookup-table-sources)
+- [Orthographic normalizer](#orthographic-normalizer-byzantinepapyrological-texts)
+- [Evaluation](#evaluation)
+- [Modern Greek varieties](#modern-greek-varieties)
+- [Ancient Greek varieties](#ancient-greek-varieties)
+- [Language codes](#language-codes)
+- [Quick Start](#quick-start)
+  - [Lemma conventions](#lemma-conventions)
+  - [Verbose mode](#verbose-mode)
+  - [Batch processing](#batch-processing)
+  - [POS-aware disambiguation](#pos-aware-disambiguation)
+  - [Spelling correction](#spelling-correction)
+  - [Elision expansion](#elision-expansion)
+- [How It Works](#how-it-works)
+- [Installation](#installation)
+- [Training](#training)
+- [Architecture](#architecture)
+- [Data](#data)
+- [Credits](#credits)
+- [How to Cite](#how-to-cite)
+- [License](#license)
+
 ### Language codes and terminology
 
 Code and API calls use ISO 639 language codes: **`el`** for Modern Greek
