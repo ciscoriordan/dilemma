@@ -413,6 +413,7 @@ class LookupDB:
         self._conn.execute("PRAGMA mmap_size=268435456")  # 256MB mmap
         self._lang = lang
         self._dict = None  # lazy-loaded for batch ops
+        self._cache = None  # per-query result cache (enabled via enable_cache)
         self._query = (
             "SELECT l.text FROM lookup k JOIN lemmas l ON k.lemma_id = l.id "
             "WHERE k.form = ? AND k.lang = ? LIMIT 1"
@@ -422,26 +423,40 @@ class LookupDB:
         """Dict-compatible .get() backed by SQLite."""
         if self._dict is not None:
             return self._dict.get(key, default)
+        # Check per-query cache before hitting SQLite
+        if self._cache is not None:
+            _sentinel = object()
+            cached = self._cache.get(key, _sentinel)
+            if cached is not _sentinel:
+                return cached if cached is not None else default
         row = self._conn.execute(self._query, (key, self._lang)).fetchone()
         if row:
+            if self._cache is not None:
+                self._cache[key] = row[0]
             return row[0]
         # AG-only table ('grc') falls through to combined ('all') for entries
         # where AG agrees with combined (not stored separately to save space).
         # Same logic for MG-only ('el').
         if self._lang in ('grc', 'el'):
             row = self._conn.execute(self._query, (key, 'all')).fetchone()
-            return row[0] if row else default
+            result = row[0] if row else None
+            if self._cache is not None:
+                self._cache[key] = result
+            return result if result is not None else default
+        if self._cache is not None:
+            self._cache[key] = None
         return default
 
     def __contains__(self, key):
         if self._dict is not None:
             return key in self._dict
-        row = self._conn.execute(self._query, (key, self._lang)).fetchone()
-        if row:
-            return True
-        if self._lang in ('grc', 'el'):
-            return self._conn.execute(self._query, (key, 'all')).fetchone() is not None
-        return False
+        if self._cache is not None:
+            _sentinel = object()
+            cached = self._cache.get(key, _sentinel)
+            if cached is not _sentinel:
+                return cached is not None
+        # Delegate to .get() which handles caching
+        return self.get(key) is not None
 
     def __getitem__(self, key):
         val = self.get(key)
@@ -477,6 +492,22 @@ class LookupDB:
         self._dict = {}
         for form, lemma in self.items():
             self._dict[form] = lemma
+
+    def enable_cache(self):
+        """Enable per-query result caching for repeated lookups.
+
+        Unlike bulk_load() which loads the entire table into memory,
+        this only caches results for forms that are actually queried.
+        Useful for large tables (e.g. lang='all' with 12M+ entries)
+        where bulk_load would use too much memory but the working set
+        of queried forms is much smaller.
+        """
+        if self._dict is not None:
+            return  # already fully loaded, cache not needed
+        if self._cache is None:
+            self._cache = {}
+            # Boost SQLite page cache for the initial cold lookups
+            self._conn.execute("PRAGMA cache_size=-65536")  # 64MB
 
     def spell_lookup_stripped(self, candidates: set[str],
                              src_filter: str = None
@@ -647,6 +678,25 @@ class Dilemma:
             "pip install onnxruntime",
             stacklevel=3,
         )
+
+    def preload(self):
+        """Optimize lookup tables for batch processing.
+
+        Call this before processing a large corpus to avoid per-query
+        SQLite overhead. Enables per-query caching on all SQLite-backed
+        lookup tables so repeated lookups for the same form skip SQLite
+        entirely. The Iliad's working set (~20K unique forms) stays
+        small even though the full table has 12M+ entries.
+
+        Safe to call multiple times (idempotent). Does not affect the
+        public API - all existing methods work the same, just faster.
+        """
+        if not self._using_db:
+            return  # JSON fallback already uses dicts
+        for table in [self._lookup, self._ag_lookup,
+                      self._mg_lookup, self._med_lookup]:
+            if isinstance(table, LookupDB):
+                table.enable_cache()
 
     def _load_lookups(self):
         """Load lookup tables from SQLite (instant) or JSON (fallback).
