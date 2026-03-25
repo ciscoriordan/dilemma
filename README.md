@@ -345,6 +345,24 @@ Each `LemmaCandidate` has:
 - `via` - how it matched: `"exact"`, `"lower"`, `"elision:ε"`, `"θεο+φθόγγος"`, `"+case_alt"`, etc.
 - `score` - `1.0` for lookup, `0.5` for model, `0.0` for identity fallback
 
+### Batch processing
+
+When processing a large corpus (thousands of words), call `preload()` to
+enable query-level caching on the SQLite lookup tables. This avoids
+repeated SQLite round trips for forms that appear multiple times:
+
+```python
+d = Dilemma()
+d.preload()  # enable query cache - ~40x faster for repeated lookups
+
+for word in corpus:
+    d.lemmatize_verbose(word)  # second lookup of same form is instant
+```
+
+`preload()` is safe to call multiple times (idempotent) and does not
+change output - it only affects performance. It caches query results
+on demand rather than loading the full 12M-entry table into memory.
+
 ### POS-aware disambiguation
 
 When a POS tagger (e.g. [Opla](https://github.com/ciscoriordan/opla))
