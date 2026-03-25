@@ -131,11 +131,11 @@ and lemma equivalence groups (see `data/benchmarks/bench_all.py`).
 
 **Dilemma detail by convention:**
 
-| Setting | AG Classical | Byzantine | Katharevousa | Demotic MG |
-|---------|:--------:|:--------:|:--------:|:--------:|
-| `lang="all"` | 96.1% | 92.0% | 93.1% | 78.5%* |
-| `lang="all"`, gold POS | -- | 92.5% | -- | -- |
-| `convention="triantafyllidis"` | -- | -- | 89.3% | 95.2% |
+| Lang | Convention | POS | AG Classical | Byzantine | Katharevousa | Demotic MG |
+|------|------------|-----|:--------:|:--------:|:--------:|:--------:|
+| `all` | default | predicted | 96.1% | 92.0% | 93.1% | 78.5%* |
+| `all` | default | gold | -- | 92.5% | -- | -- |
+| `all` | `triantafyllidis` | predicted | -- | -- | 89.3% | 95.2% |
 
 All Dilemma rows use `lang="all"`, searching both AG and MG entries for
 every token. Other tools are locked to a single language. The first
