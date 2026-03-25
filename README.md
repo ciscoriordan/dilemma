@@ -113,10 +113,10 @@ evaluated with the same normalization (case-folded, accent-stripped)
 and lemma equivalence groups (see `data/benchmarks/bench_all.py`).
 
 **Test sets:**
-- **AG Classical**: Sextus Empiricus, *Pyrrhoniae Hypotyposes* 1.1-1.8 (323 tokens, [First1KGreek](https://opengreekandlatin.github.io/First1KGreek/), CC BY-SA). Not in any UD treebank or Gorman.
+- **AG Classical**: Sextus Empiricus, *Pyrrhoniae Hypotyposes* 1.1-1.8 (357 tokens, [First1KGreek](https://opengreekandlatin.github.io/First1KGreek/), CC BY-SA). Not in any UD treebank or Gorman.
 - **Byzantine**: [Swaelens et al. (2024)](https://aclanthology.org/2024.lrec-main.899/) DBBE gold standard (8,342 tokens of unedited Byzantine epigrams, CC BY 4.0). Not in any tool's training data.
-- **Katharevousa**: Konstantinos Sathas, *Neoelliniki Filologia* (1868), biography of Bessarion (283 tokens, [el.wikisource.org](https://el.wikisource.org/), public domain). No Katharevousa treebank exists.
-- **Demotic MG**: Greek Wikipedia articles "[Σπήλαιο Πετραλώνων](https://el.wikipedia.org/wiki/Σπήλαιο_Πετραλώνων)" and "[Ελαιόλαδο](https://el.wikipedia.org/wiki/Ελαιόλαδο)" (363 tokens, CC BY-SA). Not in any MG treebank. A separate dev set (251 tokens from "[Μέλισσα](https://el.wikipedia.org/wiki/Μέλισσα)" and "[Σαμοθράκη](https://el.wikipedia.org/wiki/Σαμοθράκη)") is also available.
+- **Katharevousa**: Konstantinos Sathas, *Neoelliniki Filologia* (1868), biography of Bessarion (318 tokens, [el.wikisource.org](https://el.wikisource.org/), public domain). No Katharevousa treebank exists.
+- **Demotic MG**: Greek Wikipedia articles "[Σπήλαιο Πετραλώνων](https://el.wikipedia.org/wiki/Σπήλαιο_Πετραλώνων)" and "[Ελαιόλαδο](https://el.wikipedia.org/wiki/Ελαιόλαδο)" (400 tokens, CC BY-SA). Not in any MG treebank. A separate dev set (251 tokens from "[Μέλισσα](https://el.wikipedia.org/wiki/Μέλισσα)" and "[Σαμοθράκη](https://el.wikipedia.org/wiki/Σαμοθράκη)") is also available.
 
 | Tool | AG Classical | Byzantine | Katharevousa | Demotic MG |
 |------|:--------:|:--------:|:--------:|:--------:|
@@ -127,26 +127,29 @@ and lemma equivalence groups (see `data/benchmarks/bench_all.py`).
 | [Morpheus](https://github.com/perseids-tools/morpheus-perseids-api) (oracle) | -- | 71.1% | -- | -- |
 | [stanza](https://stanfordnlp.github.io/stanza/) `grc` | 92.2% | 71.3% | 85.2% | -- |
 | [Swaelens et al. (2025)](https://aclanthology.org/2025.acl-long.430/) | -- | ~74-75% | -- | -- |
-| **Dilemma** (best convention per period) | **96.1%** | **92.0%** | **93.1%** | **95.2%** |
+| **Dilemma** (best convention per period) | **96.1%** | **92.6%** | **94.7%** | **95.2%** |
 
 **Dilemma detail by convention:**
 
 | Lang | Convention | POS | AG Classical | Byzantine | Katharevousa | Demotic MG |
 |------|------------|-----|:--------:|:--------:|:--------:|:--------:|
-| `all` | `wiktionary` (default) | predicted | 96.1% | 92.0% | 93.1% | 78.5%* |
+| `all` | `wiktionary` (default) | predicted | 96.1% | 92.6% | 94.7% | 79.0%* |
 | `all` | `wiktionary` (default) | gold | -- | 92.5% | -- | -- |
-| `all` | `triantafyllidis` | predicted | -- | -- | 89.3% | 95.2% |
+| `all` | `triantafyllidis` | predicted | -- | -- | -- | 95.2% |
+| `grc` | `wiktionary` (default) | predicted | 96.1% | 92.2% | 93.1% | 78.8%* |
+| `el` | `wiktionary` (default) | predicted | 93.0% | 86.3% | 92.1% | 72.8%* |
 
-All Dilemma rows use `lang="all"`, searching both AG and MG entries for
-every token. Other tools are locked to a single language. The first
-table's default row outputs Wiktionary headwords (polytonic, AG citation
-forms). The `triantafyllidis` row outputs monotonic MG lemma forms and
-is the recommended setting for Modern Greek text (see
+`lang="all"` searches both AG and MG lookup tables for every token.
+Other tools in the comparison table are locked to a single language.
+The `wiktionary` convention outputs polytonic AG citation forms. The
+`triantafyllidis` convention outputs monotonic MG lemma forms and is
+the recommended setting for Modern Greek text (see
 [Lemma conventions](#lemma-conventions)).
 
-\*The 78.5% on Demotic MG is a convention mismatch, not a real accuracy
-gap: AG citation forms like `σπήλαιον` don't match the MG gold standard
-`σπήλαιο`. Using `convention="triantafyllidis"` fixes this (95.2%).
+\*Demotic MG scores with `wiktionary` convention are convention mismatches,
+not real accuracy gaps: AG citation forms like `σπήλαιον` don't match
+the MG gold standard `σπήλαιο`. Using `convention="triantafyllidis"`
+fixes this (95.2%).
 
 The "gold POS" row feeds gold-standard POS tags from the DBBE dataset
 into Dilemma instead of letting it disambiguate on its own. The small
