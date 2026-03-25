@@ -133,8 +133,8 @@ and lemma equivalence groups (see `data/benchmarks/bench_all.py`).
 
 | Lang | Convention | POS | AG Classical | Byzantine | Katharevousa | Demotic MG |
 |------|------------|-----|:--------:|:--------:|:--------:|:--------:|
-| `all` | default | predicted | 96.1% | 92.0% | 93.1% | 78.5%* |
-| `all` | default | gold | -- | 92.5% | -- | -- |
+| `all` | `wiktionary` (default) | predicted | 96.1% | 92.0% | 93.1% | 78.5%* |
+| `all` | `wiktionary` (default) | gold | -- | 92.5% | -- | -- |
 | `all` | `triantafyllidis` | predicted | -- | -- | 89.3% | 95.2% |
 
 All Dilemma rows use `lang="all"`, searching both AG and MG entries for
