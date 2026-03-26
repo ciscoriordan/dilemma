@@ -158,8 +158,8 @@ the recommended setting for Modern Greek text (see
 
 POS column: `--` means Dilemma disambiguates on its own (default).
 `gold` means gold-standard POS tags from the dataset are fed in. Only
-DBBE provides gold POS; the small gain (92.7% to 92.5%) confirms POS
-ambiguity is not a major error source.
+DBBE provides gold POS; the negligible difference (92.7% vs 92.5%)
+confirms POS ambiguity is not a major error source.
 
 The eval scripts (`eval/eval_dbbe.py`, `eval/eval_digrec.py`,
 `eval/bench_dbbe.py`) provide per-POS breakdowns and error
