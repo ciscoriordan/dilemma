@@ -133,13 +133,18 @@ and lemma equivalence groups (see `data/benchmarks/bench_all.py`).
 
 | Lang | Convention | POS | AG Classical | Byzantine | Katharevousa | Demotic MG |
 |------|------------|-----|:--------:|:--------:|:--------:|:--------:|
-| `all` | `wiktionary` (default) | predicted | 96.1% | 92.7% | 94.7% | 79.0%* |
+| `all` | `wiktionary` (default) | -- | 96.1% | 92.7% | 94.7% | 79.0%* |
 | `all` | `wiktionary` (default) | gold | -- | 92.5% | -- | -- |
-| `all` | `triantafyllidis` | predicted | 85.4% | 83.4% | 90.9% | 96.0%† |
-| `grc` | `wiktionary` (default) | predicted | 96.1% | 92.2% | 93.1% | 79.0%* |
-| `grc` | `triantafyllidis` | predicted | 87.4% | 86.9% | 89.9% | 90.0% |
-| `el` | `wiktionary` (default) | predicted | 92.7% | 86.7% | 92.1% | 73.0%* |
-| `el` | `triantafyllidis` | predicted | 85.4% | 82.6% | 89.9% | 95.8% |
+| `all` | `triantafyllidis` | -- | 85.4% | 83.4% | 90.9% | 96.0%† |
+| `grc` | `wiktionary` (default) | -- | 96.1% | 92.2% | 93.1% | 79.0%* |
+| `grc` | `triantafyllidis` | -- | 87.4% | 86.9% | 89.9% | 90.0% |
+| `el` | `wiktionary` (default) | -- | 92.7% | 86.7% | 92.1% | 73.0%* |
+| `el` | `triantafyllidis` | -- | 85.4% | 82.6% | 89.9% | 95.8% |
+
+The POS column indicates whether Dilemma disambiguates on its own
+(--) or receives gold-standard POS tags from the dataset (gold). Only
+DBBE provides gold POS tags; all other rows use Dilemma's built-in
+disambiguation.
 
 `lang="all"` searches both AG and MG lookup tables for every token.
 Other tools in the comparison table are locked to a single language.
