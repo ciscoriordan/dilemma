@@ -1779,7 +1779,12 @@ class Dilemma:
 
         # Fall back to model
         self._load_model()
-        pred = self._predict([word])[0]
+        try:
+            pred = self._predict([word])[0]
+        except (RuntimeError, IndexError):
+            # Model inference can fail on unusual inputs (empty tensors,
+            # single-char forms, etc.). Fall through to identity fallback.
+            return self._apply_convention(word)
 
         # Fallback strategies when the model returns identity
         # (model couldn't lemmatize). Uses accent-stripped comparison since
@@ -2316,7 +2321,10 @@ class Dilemma:
 
         if model_words:
             self._load_model()
-            predictions = self._predict(model_words)
+            try:
+                predictions = self._predict(model_words)
+            except (RuntimeError, IndexError):
+                predictions = model_words  # identity fallback
             for idx, word, pred in zip(model_indices, model_words, predictions):
                 # Fallback strategies when model returns identity
                 if strip_accents(pred.lower()) == strip_accents(word.lower()):
