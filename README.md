@@ -129,6 +129,10 @@ and lemma equivalence groups (see `data/benchmarks/bench_all.py`).
 | [Swaelens et al. (2025)](https://aclanthology.org/2025.acl-long.430/) | -- | ~74-75% | -- | -- |
 | **Dilemma** (best convention per period) | **96.1%** | **92.7%** | **94.7%** | **96.0%**† |
 
+Cells marked `--` indicate the tool doesn't support that period or
+wasn't tested. Morpheus "oracle" picks the best candidate from all
+its analyses, representing the ceiling for rule-based morphology.
+
 **Dilemma detail by convention:**
 
 | Lang | Convention | POS | AG Classical | Byzantine | Katharevousa | Demotic MG |
@@ -141,11 +145,6 @@ and lemma equivalence groups (see `data/benchmarks/bench_all.py`).
 | `el` | `wiktionary` (default) | -- | 92.7% | 86.7% | 92.1% | 73.0%* |
 | `el` | `triantafyllidis` | -- | 85.4% | 82.6% | 89.9% | 95.8% |
 
-The POS column indicates whether Dilemma disambiguates on its own
-(--) or receives gold-standard POS tags from the dataset (gold). Only
-DBBE provides gold POS tags; all other rows use Dilemma's built-in
-disambiguation.
-
 `lang="all"` searches both AG and MG lookup tables for every token.
 Other tools in the comparison table are locked to a single language.
 The `wiktionary` convention outputs polytonic AG citation forms. The
@@ -153,24 +152,19 @@ The `wiktionary` convention outputs polytonic AG citation forms. The
 the recommended setting for Modern Greek text (see
 [Lemma conventions](#lemma-conventions)).
 
-\*Demotic MG scores with `wiktionary` convention are convention mismatches,
-not real accuracy gaps: AG citation forms like `σπήλαιον` don't match
-the MG gold standard `σπήλαιο`. Using `convention="triantafyllidis"`
-fixes this.
+POS column: `--` means Dilemma disambiguates on its own (default).
+`gold` means gold-standard POS tags from the dataset are fed in. Only
+DBBE provides gold POS; the small gain (92.7% to 92.5%) confirms POS
+ambiguity is not a major error source.
+
+\*Demotic MG scores with `wiktionary` convention are convention
+mismatches, not real accuracy gaps: AG citation forms like `σπήλαιον`
+don't match the MG gold standard `σπήλαιο`. Using
+`convention="triantafyllidis"` fixes this.
 
 †`lang="el"` with `triantafyllidis` scores 95.8%, nearly matching
 `lang="all"` (96.0%). For MG-only workloads, `lang="el"` with
 `triantafyllidis` is recommended since it avoids AG false matches.
-
-The "gold POS" row feeds gold-standard POS tags from the DBBE dataset
-into Dilemma instead of letting it disambiguate on its own. The small
-gain (92.0% to 92.5%) confirms that POS ambiguity is not a major error
-source - remaining errors are from missing lookup entries (1.6%) and
-wrong lemma or convention differences (6.2%).
-
-Morpheus "oracle" picks the best candidate from all its analyses,
-representing the ceiling for rule-based morphology. Cells marked `--`
-indicate the tool doesn't support that period or wasn't tested.
 
 The eval scripts (`eval/eval_dbbe.py`, `eval/eval_digrec.py`,
 `eval/bench_dbbe.py`) provide per-POS breakdowns and error
