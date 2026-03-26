@@ -127,17 +127,19 @@ and lemma equivalence groups (see `data/benchmarks/bench_all.py`).
 | [Morpheus](https://github.com/perseids-tools/morpheus-perseids-api) (oracle) | -- | 71.1% | -- | -- |
 | [stanza](https://stanfordnlp.github.io/stanza/) `grc` | 92.2% | 71.3% | 85.2% | -- |
 | [Swaelens et al. (2025)](https://aclanthology.org/2025.acl-long.430/) | -- | ~74-75% | -- | -- |
-| **Dilemma** (best convention per period) | **96.1%** | **92.6%** | **94.7%** | **95.2%** |
+| **Dilemma** (best convention per period) | **96.1%** | **92.7%** | **94.7%** | **96.0%**† |
 
 **Dilemma detail by convention:**
 
 | Lang | Convention | POS | AG Classical | Byzantine | Katharevousa | Demotic MG |
 |------|------------|-----|:--------:|:--------:|:--------:|:--------:|
-| `all` | `wiktionary` (default) | predicted | 96.1% | 92.6% | 94.7% | 79.0%* |
+| `all` | `wiktionary` (default) | predicted | 96.1% | 92.7% | 94.7% | 79.0%* |
 | `all` | `wiktionary` (default) | gold | -- | 92.5% | -- | -- |
-| `all` | `triantafyllidis` | predicted | -- | -- | -- | 95.2% |
-| `grc` | `wiktionary` (default) | predicted | 96.1% | 92.2% | 93.1% | 78.8%* |
-| `el` | `wiktionary` (default) | predicted | 93.0% | 86.3% | 92.1% | 72.8%* |
+| `all` | `triantafyllidis` | predicted | 85.4% | 83.4% | 90.9% | 96.0%† |
+| `grc` | `wiktionary` (default) | predicted | 96.1% | 92.2% | 93.1% | 79.0%* |
+| `grc` | `triantafyllidis` | predicted | 87.4% | 86.9% | 89.9% | 90.0% |
+| `el` | `wiktionary` (default) | predicted | 92.7% | 86.7% | 92.1% | 73.0%* |
+| `el` | `triantafyllidis` | predicted | 85.4% | 82.6% | 89.9% | 95.8% |
 
 `lang="all"` searches both AG and MG lookup tables for every token.
 Other tools in the comparison table are locked to a single language.
@@ -149,7 +151,11 @@ the recommended setting for Modern Greek text (see
 \*Demotic MG scores with `wiktionary` convention are convention mismatches,
 not real accuracy gaps: AG citation forms like `σπήλαιον` don't match
 the MG gold standard `σπήλαιο`. Using `convention="triantafyllidis"`
-fixes this (95.2%).
+fixes this.
+
+†`lang="el"` with `triantafyllidis` scores 95.8%, nearly matching
+`lang="all"` (96.0%). For MG-only workloads, `lang="el"` with
+`triantafyllidis` is recommended since it avoids AG false matches.
 
 The "gold POS" row feeds gold-standard POS tags from the DBBE dataset
 into Dilemma instead of letting it disambiguate on its own. The small

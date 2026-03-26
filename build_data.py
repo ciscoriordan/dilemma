@@ -270,6 +270,9 @@ def extract_pairs(jsonl_path: Path, lang: str,
     pairs = []
     page_headwords = set()
     lookup = {}
+    # form_of/alt_of targets: {key_variant: target_lemma}
+    # Used in pass 2 to resolve self-map artifacts.
+    form_of_targets = {}
     pos_map = {}  # {form: {upos: lemma}} for POS disambiguation
     skip_tags = {"romanization", "table-tags", "inflection-template", "class"}
     # Articles dump all genders/persons into each headword.
@@ -367,8 +370,8 @@ def extract_pairs(jsonl_path: Path, lang: str,
             # Headword self-mapping. True lemma entries (their own
             # dictionary definition) get confidence 3 so they can't be
             # overridden by another entry's inflection table. Form-of
-            # pages (e.g. θεοί saying "plural of θεός") get confidence 1
-            # so the parent entry's table can set the correct mapping.
+            # pages (e.g. θεοί saying "plural of θεός") get confidence 1;
+            # these are resolved in pass 2 using form_of/alt_of targets.
             is_form_of_page = bool(entry.get("form_of") or entry.get("alt_of"))
             if not is_form_of_page:
                 # Check gloss for "X of Y" pattern (kaikki often doesn't
@@ -377,11 +380,34 @@ def extract_pairs(jsonl_path: Path, lang: str,
                 if senses:
                     gloss = (senses[0].get("glosses") or [""])[0].lower()
                     _form_of_patterns = (
+                        # EN Wiktionary patterns
                         " of ", " singular of ", " plural of ",
                         " form of ", " active of ", " passive of ",
                         " participle of ", " indicative of ",
+                        # EL case/number
                         " πρόσωπο ", " ενικού ", " πληθυντικού ",
                         " γενική ", " αιτιατική ", " ονομαστική ",
+                        " κλητική ", " δοτική ",
+                        # EL gender
+                        " αρσενικού ", " θηλυκού ", " ουδέτερου ",
+                        # EL tense
+                        " αορίστου ", " ενεστώτα ", " μέλλοντα ",
+                        " παρατατικού ", " παρακειμένου ",
+                        " στιγμιαίου ", " εξαρτημένου ", " συντελεσμένου ",
+                        # EL mood
+                        " οριστικής ", " υποτακτικής ", " προστακτικής ",
+                        # EL voice
+                        " ενεργητικού ", " παθητικού ",
+                        " ρήματος ",
+                        # EL verb/participle forms
+                        " μετοχή ", " απαρέμφατο ",
+                        # EL voice descriptions (gloss-initial)
+                        "παθητική φωνή ", "μεσοπαθητική φωνή ",
+                        "ενεργητική φωνή ",
+                        # EL variant/alternative form
+                        "μορφή του ", "μορφή τού ",
+                        # EL diminutive/augmentative
+                        "υποκοριστικό του ", "μεγεθυντικό του ",
                     )
                     if any(p in gloss for p in _form_of_patterns):
                         is_form_of_page = True
@@ -406,6 +432,14 @@ def extract_pairs(jsonl_path: Path, lang: str,
                     continue
                 # This entry (lemma) is a form of ref_word
                 _add_lookup(lookup, lemma, ref_word)
+                # Record for pass-2 self-map resolution (skip proper nouns
+                # since variant names like Βησσαρίων should self-map)
+                if pos != "name" and lemma != ref_word:
+                    for key in (lemma, lemma.lower(),
+                                to_monotonic(lemma), to_monotonic(lemma).lower(),
+                                strip_accents(lemma.lower())):
+                        if key and key not in form_of_targets:
+                            form_of_targets[key] = ref_word
                 _add_pos_map(pos_map, lemma, ref_word, pos)
                 pairs.append({
                     "form": lemma,
@@ -424,6 +458,12 @@ def extract_pairs(jsonl_path: Path, lang: str,
                 if " " in ref_word:
                     continue
                 _add_lookup(lookup, lemma, ref_word)
+                if pos != "name" and lemma != ref_word:
+                    for key in (lemma, lemma.lower(),
+                                to_monotonic(lemma), to_monotonic(lemma).lower(),
+                                strip_accents(lemma.lower())):
+                        if key and key not in form_of_targets:
+                            form_of_targets[key] = ref_word
                 _add_pos_map(pos_map, lemma, ref_word, pos)
                 pairs.append({
                     "form": lemma,
@@ -552,6 +592,32 @@ def extract_pairs(jsonl_path: Path, lang: str,
                         "tags": morph_tags,
                     })
 
+    # --- Pass 2: resolve self-map artifacts using form_of/alt_of targets ---
+    # For each lookup entry that is BOTH a self-map AND was detected as a
+    # form-of page (confidence 1), replace it with the form_of/alt_of target.
+    # This fixes processing-order artifacts where form-of pages self-map
+    # because they're processed before their parent's inflection table.
+    #
+    # Safety: only overrides self-maps (key == lemma) at confidence 1
+    # (form-of pages). True headwords at confidence 3 are protected.
+    # Non-self mappings (correct table entries like λέγεται -> λέω)
+    # are never touched. Proper nouns are excluded via form_of_targets.
+    selfmap_resolved = 0
+    for key in list(lookup.keys()):
+        lemma, conf = lookup[key]
+        if key != lemma:
+            continue  # not a self-map, already has a correct mapping
+        if conf >= 3:
+            continue  # true headword, protected
+        if key in closed_class_headwords or key in article_forms:
+            continue  # pronoun/article headwords always self-map
+        if key not in form_of_targets:
+            continue  # no form_of/alt_of target available
+        target = form_of_targets[key]
+        if target != key:
+            lookup[key] = (target, conf)
+            selfmap_resolved += 1
+
     print(f"  {lang}: scanned {scanned:,} entries, "
           f"{entries_with_data:,} with data, "
           f"{len(pairs):,} pairs, {len(lookup):,} lookup entries")
@@ -561,6 +627,8 @@ def extract_pairs(jsonl_path: Path, lang: str,
         print(f"    alt_of: {alt_of_count:,} pairs")
     if dialect_tagged:
         print(f"    dialect-tagged forms: {dialect_tagged:,}")
+    if selfmap_resolved:
+        print(f"    self-maps resolved via form_of/alt_of: {selfmap_resolved:,}")
     return pairs, lookup, page_headwords, pos_map
 
 
