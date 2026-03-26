@@ -140,7 +140,7 @@ its analyses, representing the ceiling for rule-based morphology.
 | Lang | Convention | POS | AG Classical | Byzantine | Katharevousa | Demotic MG |
 |------|------------|-----|:--------:|:--------:|:--------:|:--------:|
 | `all` | `wiktionary` (default) | -- | 96.1% | 92.7% | 94.7% | 79.0%* |
-| `all` | `wiktionary` (default) | gold | -- | 92.5% | -- | -- |
+| `all` | `wiktionary` (default) | gold | -- | 92.6% | -- | -- |
 | `all` | `triantafyllidis` | -- | 85.4% | 83.4% | 90.9% | 96.0%† |
 | `grc` | `wiktionary` (default) | -- | 96.1% | 92.2% | 93.1% | 79.0%* |
 | `grc` | `triantafyllidis` | -- | 87.4% | 86.9% | 89.9% | 90.0% |
@@ -158,8 +158,8 @@ the recommended setting for Modern Greek text (see
 
 POS column: `--` means Dilemma disambiguates on its own (default).
 `gold` means gold-standard POS tags from the dataset are fed in. Only
-DBBE provides gold POS; the negligible difference (92.7% vs 92.5%)
-confirms POS ambiguity is not a major error source.
+DBBE provides gold POS; the negligible difference (92.7% vs 92.6%)
+confirms POS ambiguity is not a significant error source.
 
 The eval scripts (`eval/eval_dbbe.py`, `eval/eval_digrec.py`,
 `eval/bench_dbbe.py`) provide per-POS breakdowns and error
