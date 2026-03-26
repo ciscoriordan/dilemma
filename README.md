@@ -147,6 +147,8 @@ its analyses, representing the ceiling for rule-based morphology.
 | `el` | `wiktionary` (default) | -- | 92.7% | 86.7% | 92.1% | 73.0%* |
 | `el` | `triantafyllidis` | -- | 85.4% | 82.6% | 89.9% | 95.8% |
 
+<sub>\*Demotic MG scores with `wiktionary` convention are convention mismatches, not real accuracy gaps: AG citation forms like `σπήλαιον` don't match the MG gold standard `σπήλαιο`. Using `convention="triantafyllidis"` fixes this.</sub>
+
 `lang="all"` searches both AG and MG lookup tables for every token.
 Other tools in the comparison table are locked to a single language.
 The `wiktionary` convention outputs polytonic AG citation forms. The
@@ -158,8 +160,6 @@ POS column: `--` means Dilemma disambiguates on its own (default).
 `gold` means gold-standard POS tags from the dataset are fed in. Only
 DBBE provides gold POS; the small gain (92.7% to 92.5%) confirms POS
 ambiguity is not a major error source.
-
-<sub>\*Demotic MG scores with `wiktionary` convention are convention mismatches, not real accuracy gaps: AG citation forms like `σπήλαιον` don't match the MG gold standard `σπήλαιο`. Using `convention="triantafyllidis"` fixes this.</sub>
 
 The eval scripts (`eval/eval_dbbe.py`, `eval/eval_digrec.py`,
 `eval/bench_dbbe.py`) provide per-POS breakdowns and error
