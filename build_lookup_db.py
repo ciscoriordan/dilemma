@@ -24,6 +24,7 @@ DB_PATH = DATA_DIR / "lookup.db"
 RAW_DB_PATH = DATA_DIR / "raw_lookups.db"
 
 AG_PATH = DATA_DIR / "ag_lookup.json"
+AG_HEADWORDS_PATH = DATA_DIR / "ag_headwords.json"
 MG_PATH = DATA_DIR / "mg_lookup.json"
 MED_PATH = DATA_DIR / "med_lookup.json"
 GLAUX_PAIRS_PATH = DATA_DIR / "glaux_pairs.json"
@@ -171,19 +172,38 @@ def build():
               f"{dior_skipped_el:,} el conflicts skipped "
               f"({time.time()-t_d:.1f}s)")
 
+    # Load AG headwords to protect AG self-maps from EL overrides.
+    # AG headwords that self-map (e.g. καθάπερ -> καθάπερ) are correct
+    # citation forms and should not be replaced by EL form-of redirects.
+    ag_headwords = set()
+    if AG_HEADWORDS_PATH.exists():
+        with open(AG_HEADWORDS_PATH, encoding="utf-8") as f:
+            ag_headwords = set(json.load(f))
+        ag_headwords |= {h.lower() for h in ag_headwords}
+        ag_headwords |= {strip_accents(h.lower()) for h in ag_headwords}
+        print(f"  AG headwords: {len(ag_headwords):,} (for self-map protection)")
+
     # Build combined lookup (AG-first priority)
     print("\nBuilding combined lookup (AG-first)...")
     combined = {}
+    ag_protected = 0
     for data in [ag, el]:
         for k, v in data.items():
             if k not in combined:
                 combined[k] = v
             elif _is_self_map(k, combined[k]) and not _is_self_map(k, v):
-                combined[k] = v
+                # EL non-self-map overrides AG self-map, UNLESS the AG
+                # self-map is a known AG headword (correct citation form).
+                if k in ag_headwords or combined[k] in ag_headwords:
+                    ag_protected += 1
+                else:
+                    combined[k] = v
             elif (_is_self_map(k, combined[k])
                   and _is_self_map(k, v) and v == k
                   and combined[k] != k):
                 combined[k] = v
+    if ag_protected:
+        print(f"  AG headword self-maps protected: {ag_protected:,}")
     print(f"  Combined: {len(combined):,} entries")
 
     # Write SQLite database
