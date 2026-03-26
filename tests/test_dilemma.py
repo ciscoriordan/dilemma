@@ -17,7 +17,7 @@ from pathlib import Path
 DATA_DIR = Path(__file__).parent.parent / "data"
 
 
-def test_lookup_no_chains(lookup: dict) -> tuple[int, int, list[str]]:
+def check_lookup_no_chains(lookup: dict) -> tuple[int, int, list[str]]:
     """Verify no chained lookups: every lemma should map to itself."""
     failures = 0
     total = 0
@@ -32,7 +32,7 @@ def test_lookup_no_chains(lookup: dict) -> tuple[int, int, list[str]]:
     return failures, total, examples
 
 
-def test_lookup_lemmas_are_headwords(lookup: dict) -> tuple[int, int, list[str]]:
+def check_lookup_lemmas_are_headwords(lookup: dict) -> tuple[int, int, list[str]]:
     """Verify every lemma in the lookup is itself a headword (maps to itself)."""
     lemmas = set(lookup.values())
     headwords = {k for k, v in lookup.items() if k == v}
@@ -41,7 +41,7 @@ def test_lookup_lemmas_are_headwords(lookup: dict) -> tuple[int, int, list[str]]
     return len(missing), len(lemmas), examples
 
 
-def test_known_pairs() -> list[dict]:
+def get_known_pairs() -> list[dict]:
     """Curated test cases across varieties. Returns list of {form, lemma, variety}."""
     return [
         # ── SMG ──
@@ -96,7 +96,7 @@ def test_known_pairs() -> list[dict]:
     ]
 
 
-def test_dilemma_e2e() -> list[dict]:
+def get_e2e_cases() -> list[dict]:
     """End-to-end test cases using the Dilemma class (lookup + crasis + model).
 
     Returns list of {form, lemma, variety, source} where source indicates
@@ -127,7 +127,7 @@ def test_dilemma_e2e() -> list[dict]:
     ]
 
 
-def test_no_greek_junk(pairs: list[dict]) -> tuple[int, int, list[str]]:
+def check_no_greek_junk(pairs: list[dict]) -> tuple[int, int, list[str]]:
     """Check that all training forms contain only Greek characters."""
     failures = 0
     total = len(pairs)
@@ -164,7 +164,7 @@ def run_lookup_tests():
         print(f"\n  {name} lookup: {len(lookup):,} entries")
 
         # Test: no chains
-        fail, total, ex = test_lookup_no_chains(lookup)
+        fail, total, ex = check_lookup_no_chains(lookup)
         status = "PASS" if fail == 0 else "FAIL"
         results.append((status, f"{name} no chains"))
         print(f"  [{status}] No chained lookups: {fail}/{total} failures")
@@ -172,7 +172,7 @@ def run_lookup_tests():
             print(f"         {e}")
 
         # Test: lemmas are headwords
-        fail, total, ex = test_lookup_lemmas_are_headwords(lookup)
+        fail, total, ex = check_lookup_lemmas_are_headwords(lookup)
         status = "PASS" if fail == 0 else "WARN"
         results.append((status, f"{name} lemma headwords"))
         print(f"  [{status}] Lemmas are headwords: {fail}/{total} missing")
@@ -207,7 +207,7 @@ def run_lookup_tests():
         if not path.exists():
             continue
         pairs = json.load(open(path, encoding="utf-8"))
-        fail, total, ex = test_no_greek_junk(pairs)
+        fail, total, ex = check_no_greek_junk(pairs)
         status = "PASS" if fail == 0 else "FAIL"
         results.append((status, f"{name} Greek-only"))
         print(f"\n  [{status}] {name} pairs Greek-only: {fail}/{total} failures")
@@ -234,7 +234,7 @@ def run_known_pair_tests():
                     lookup[k] = v
 
     results = []
-    cases = test_known_pairs()
+    cases = get_known_pairs()
     for case in cases:
         form = case["form"]
         expected = case["lemma"]
@@ -272,7 +272,7 @@ def run_e2e_tests(scale=None):
     d = Dilemma(scale=scale)
 
     results = []
-    cases = test_dilemma_e2e()
+    cases = get_e2e_cases()
 
     # Group by variety for display
     from collections import defaultdict

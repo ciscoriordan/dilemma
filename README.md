@@ -454,6 +454,26 @@ missing breathing mark) are corrected for free, while letter-level errors
 (θ/δ, ρ/ν) use standard edit distance. The spell index is built lazily on
 first call.
 
+By default, suggestions include all forms in the lookup table (inflected
+forms and lemmata from all sources). Two filtering options reduce false
+positives when resolving to a specific dictionary:
+
+```python
+# Only return known LSJ headwords (strictest - 152K entries)
+d.suggest_spelling("ἀγωνιστήριον", max_distance=1, headwords_only="lsj")
+
+# Only return lemmata/citation forms (less strict - ~700K entries)
+d.suggest_spelling("ἀγωνιστήριον", max_distance=1, lemmata_only=True)
+```
+
+You can also check headword membership directly:
+
+```python
+d.is_headword("θεός")              # True  (LSJ headword)
+d.is_headword("θεοί")              # False (inflected form, not a headword)
+d.is_headword("θεός", "cunliffe")  # check against Cunliffe headwords
+```
+
 ### Elision expansion
 
 Ancient Greek texts frequently elide final vowels before a following

@@ -645,6 +645,9 @@ class Dilemma:
         # Headword frequency table (lazy-loaded from lsj9_frequency.json)
         self._hw_frequency: dict[str, int] | None = None
 
+        # Headword sets by convention name (lazy-loaded)
+        self._headword_sets: dict[str, set[str]] = {}
+
         # GLAUx corpus frequency: stripped_form -> token_count (lazy-loaded)
         self._glaux_freq: dict[str, int] | None = None
 
@@ -969,6 +972,67 @@ class Dilemma:
         if self._convention_monotonic:
             lemma = to_monotonic(lemma)
         return lemma
+
+    def _get_headword_set(self, convention: str = "lsj") -> set[str]:
+        """Lazy-load and cache the headword set for a given convention.
+
+        Returns a set of headword strings. Strips vowel-length marks
+        (macron/breve) so matching works against plain forms.
+        """
+        if convention in self._headword_sets:
+            return self._headword_sets[convention]
+
+        hw_path = _CONVENTION_HEADWORDS.get(convention)
+        headwords: set[str] = set()
+        if hw_path and hw_path.exists():
+            with open(hw_path, encoding="utf-8") as f:
+                raw = json.load(f)
+            headwords = set(raw)
+            # Strip vowel-length marks (macron U+0304, breve U+0306)
+            for h in raw:
+                nfd = unicodedata.normalize("NFD", h)
+                stripped = "".join(
+                    c for c in nfd if ord(c) not in (0x0304, 0x0306))
+                stripped = unicodedata.normalize("NFC", stripped)
+                if stripped != h:
+                    headwords.add(stripped)
+
+        self._headword_sets[convention] = headwords
+        return headwords
+
+    def is_headword(self, word: str, convention: str = "lsj") -> bool:
+        """Check if a word is a known headword in the given convention.
+
+        Args:
+            word: The Greek word to check.
+            convention: Which headword list to check against.
+                "lsj" (default), "cunliffe", or "triantafyllidis".
+
+        Returns:
+            True if the word is in the convention's headword list.
+        """
+        return word in self._get_headword_set(convention)
+
+    def _get_lemma_set(self) -> set[str]:
+        """Get the set of all lemmata (citation forms) in the lookup table.
+
+        Unlike headword sets which come from specific dictionaries, this
+        returns all unique lemma values from the lookup table itself -
+        the right-hand side of form->lemma mappings. Cached after first call.
+        """
+        if hasattr(self, "_lemma_set"):
+            return self._lemma_set
+
+        lemmas: set[str] = set()
+        if self._using_db:
+            cursor = self._lookup._conn.execute(
+                "SELECT DISTINCT text FROM lemmas")
+            lemmas = {row[0] for row in cursor}
+        else:
+            lemmas = set(self._lookup.values()) if self._lookup else set()
+
+        self._lemma_set = lemmas
+        return self._lemma_set
 
     def _find_model_dir(self):
         """Find the best available model directory.
@@ -2396,7 +2460,9 @@ class Dilemma:
         return set(deletes + transposes + replaces + inserts)
 
     def suggest_spelling(self, word: str, max_distance: int = 2,
-                         ocr_mode: bool = False
+                         ocr_mode: bool = False,
+                         headwords_only: str | None = None,
+                         lemmata_only: bool = False,
                          ) -> list[tuple[str, int | float]]:
         """Suggest spelling corrections for an unknown Greek word.
 
@@ -2420,6 +2486,16 @@ class Dilemma:
                 gives lower cost to OCR-common confusions (Greek/Latin
                 script mixing, Cyrillic contamination, θ/δ, ο/σ).
                 This produces better rankings for OCR post-correction.
+            headwords_only: If set to a convention name (e.g. "lsj",
+                "cunliffe"), only return forms that are known headwords
+                in that dictionary. This filters out inflected forms and
+                headwords from other dictionaries, reducing false
+                positives when resolving to a specific lexicon.
+            lemmata_only: If True, only return forms that are lemmata
+                (citation forms) in the lookup table, filtering out
+                inflected forms. Less restrictive than headwords_only
+                since it includes all lemmata, not just those in a
+                specific dictionary.
 
         Returns:
             List of (corrected_form, distance) tuples. Empty if no
@@ -2429,10 +2505,22 @@ class Dilemma:
         query_stripped = strip_accents(word.lower())
 
         if self._using_db:
-            return self._suggest_spelling_db(word, query_stripped,
-                                             max_distance, ocr_mode)
-        return self._suggest_spelling_mem(word, query_stripped,
-                                          max_distance, ocr_mode)
+            results = self._suggest_spelling_db(word, query_stripped,
+                                                max_distance, ocr_mode)
+        else:
+            results = self._suggest_spelling_mem(word, query_stripped,
+                                                 max_distance, ocr_mode)
+
+        if headwords_only:
+            hw_set = self._get_headword_set(headwords_only)
+            results = [(form, dist) for form, dist in results
+                       if form in hw_set]
+        elif lemmata_only:
+            lemma_set = self._get_lemma_set()
+            results = [(form, dist) for form, dist in results
+                       if form in lemma_set]
+
+        return results
 
     def _suggest_spelling_db(self, word: str, query_stripped: str,
                              max_distance: int, ocr_mode: bool = False
