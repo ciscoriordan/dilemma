@@ -5,7 +5,10 @@ Reads from raw_lookups.db (SQLite, written by build_data.py) when available,
 falling back to JSON files. Combines AG, MG, and Medieval lookups with
 AG-first priority merging.
 
-Output: data/lookup.db (~1.5 GB with stripped column for spell checking)
+Output:
+    data/lookup.db       - main form->lemma lookup (~1.1 GB)
+    data/spell_index.db  - stripped form->original form index for spell checking
+
 Startup: near-instant via mmap (vs ~11s for JSON loading)
 
 Usage:
@@ -21,6 +24,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 DATA_DIR = SCRIPT_DIR / "data"
 DB_PATH = DATA_DIR / "lookup.db"
+SPELL_DB_PATH = DATA_DIR / "spell_index.db"
 RAW_DB_PATH = DATA_DIR / "raw_lookups.db"
 
 AG_PATH = DATA_DIR / "ag_lookup.json"
@@ -266,35 +270,73 @@ def build():
     conn.execute("CREATE INDEX idx_lookup_form_lang ON lookup (form, lang)")
     conn.execute("CREATE INDEX idx_lemmas_text ON lemmas (text)")
 
-    # Add stripped column for spell-checking (accent-stripped form)
-    print("Adding stripped column for spell-checking...", end=" ", flush=True)
-    conn.execute("ALTER TABLE lookup ADD COLUMN stripped TEXT")
-    conn.create_function("strip_accents", 1, strip_accents)
-    # Batch the update to avoid huge transactions
-    conn.execute("PRAGMA journal_mode=WAL")
-    batch_size = 500_000
-    total = conn.execute("SELECT COUNT(*) FROM lookup").fetchone()[0]
-    for offset in range(0, total, batch_size):
-        conn.execute(
-            "UPDATE lookup SET stripped = strip_accents(form) "
-            "WHERE rowid IN (SELECT rowid FROM lookup LIMIT ? OFFSET ?)",
-            (batch_size, offset))
-        conn.commit()
-        print(f"{min(offset + batch_size, total)}/{total}...", end=" ", flush=True)
-    conn.execute("CREATE INDEX idx_lookup_stripped ON lookup (stripped)")
+    # Compact main DB
+    print("\nOptimizing lookup.db...")
     conn.commit()
-    print("done")
-
-    # Compact
-    print("\nOptimizing...")
     conn.execute("ANALYZE")
     conn.execute("VACUUM")
     conn.commit()
     conn.close()
 
     size_mb = DB_PATH.stat().st_size / 1e6
+    print(f"  lookup.db: {size_mb:.1f} MB")
+
+    # Build separate spell index (stripped form -> original forms)
+    # Groups all polytonic variants under each stripped form, with src
+    # tags for AG-mode filtering. Uses a compact single-row-per-stripped
+    # format to minimize size.
+    print("\nBuilding spell_index.db...")
+    if SPELL_DB_PATH.exists():
+        SPELL_DB_PATH.unlink()
+
+    spell_conn = sqlite3.connect(str(SPELL_DB_PATH))
+    spell_conn.execute("PRAGMA journal_mode=DELETE")
+    spell_conn.execute("PRAGMA page_size=4096")
+    # Each stripped form gets one row. `forms` is newline-separated list
+    # of "form\tsrc" pairs (or just "form" when src is empty).
+    spell_conn.execute("""CREATE TABLE spell (
+        stripped TEXT PRIMARY KEY,
+        forms TEXT NOT NULL
+    ) WITHOUT ROWID""")
+
+    # Read all forms from main DB and group by stripped form
+    main_conn = sqlite3.connect(str(DB_PATH))
+    main_conn.execute("PRAGMA mmap_size=268435456")
+    rows = main_conn.execute(
+        "SELECT DISTINCT form, src FROM lookup").fetchall()
+    main_conn.close()
+
+    grouped: dict[str, list[tuple[str, str]]] = {}
+    for form, src in rows:
+        stripped = strip_accents(form.lower())
+        if stripped not in grouped:
+            grouped[stripped] = []
+        grouped[stripped].append((form, src))
+
+    # Deduplicate within each group
+    spell_rows = []
+    for stripped, pairs in grouped.items():
+        seen: set[str] = set()
+        parts = []
+        for form, src in pairs:
+            if form not in seen:
+                seen.add(form)
+                parts.append(f"{form}\t{src}" if src else form)
+        spell_rows.append((stripped, "\n".join(parts)))
+
+    spell_conn.executemany(
+        "INSERT INTO spell (stripped, forms) VALUES (?, ?)", spell_rows)
+    print(f"  unique stripped forms: {len(spell_rows):,}")
+
+    spell_conn.commit()
+    spell_conn.execute("ANALYZE")
+    spell_conn.execute("VACUUM")
+    spell_conn.close()
+
+    spell_mb = SPELL_DB_PATH.stat().st_size / 1e6
     elapsed = time.time() - t0
-    print(f"\nDone: {DB_PATH} ({size_mb:.1f} MB, {elapsed:.1f}s)")
+    print(f"  spell_index.db: {spell_mb:.1f} MB")
+    print(f"\nDone ({elapsed:.1f}s, total: {size_mb + spell_mb:.1f} MB)")
 
 
 if __name__ == "__main__":

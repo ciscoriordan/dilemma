@@ -15,3 +15,4 @@ data/glaux_freq.json filter=lfs diff=lfs merge=lfs -text
 data/diorisis_pairs.json filter=lfs diff=lfs merge=lfs -text
 data/corpus_freq.json filter=lfs diff=lfs merge=lfs -text
 data/diorisis_freq.json filter=lfs diff=lfs merge=lfs -text
+data/spell_index.db filter=lfs diff=lfs merge=lfs -text

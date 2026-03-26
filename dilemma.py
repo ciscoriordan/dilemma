@@ -39,6 +39,7 @@ from pathlib import Path
 
 MODEL_DIR = Path(__file__).parent / "model"
 LOOKUP_DB_PATH = Path(__file__).parent / "data" / "lookup.db"
+SPELL_INDEX_PATH = Path(__file__).parent / "data" / "spell_index.db"
 LSJ9_POS_LOOKUP_PATH = Path(__file__).parent / "data" / "lsj9_pos_lookup.json"
 LSJ9_FREQUENCY_PATH = (Path(__file__).parent.parent / "lsjpre" / "output"
                        / "lsj9" / "lsj9_frequency.json")
@@ -418,6 +419,11 @@ class LookupDB:
             "SELECT l.text FROM lookup k JOIN lemmas l ON k.lemma_id = l.id "
             "WHERE k.form = ? AND k.lang = ? LIMIT 1"
         )
+        # Separate spell index (stripped -> form mapping)
+        self._spell_conn = None
+        if SPELL_INDEX_PATH.exists():
+            self._spell_conn = sqlite3.connect(str(SPELL_INDEX_PATH))
+            self._spell_conn.execute("PRAGMA mmap_size=134217728")  # 128MB mmap
 
     def get(self, key, default=None):
         """Dict-compatible .get() backed by SQLite."""
@@ -509,12 +515,33 @@ class LookupDB:
             # Boost SQLite page cache for the initial cold lookups
             self._conn.execute("PRAGMA cache_size=-65536")  # 64MB
 
+    @staticmethod
+    def _parse_spell_forms(forms_blob: str,
+                           src_filter: str | None = None) -> list[str]:
+        """Parse the compact forms blob from spell_index.db.
+
+        Each line is "form\\tsrc" or just "form". Returns the form
+        strings, optionally filtered by src.
+        """
+        results = []
+        for line in forms_blob.split("\n"):
+            if "\t" in line:
+                form, src = line.split("\t", 1)
+                if src_filter and src != src_filter:
+                    continue
+            else:
+                form = line
+            results.append(form)
+        return results
+
     def spell_lookup_stripped(self, candidates: set[str],
                              src_filter: str = None
                              ) -> dict[str, list[str]]:
-        """Look up stripped forms in the DB, return {stripped: [original_forms]}.
+        """Look up stripped forms, return {stripped: [original_forms]}.
 
-        Uses the indexed 'stripped' column for fast batch lookup.
+        Queries the separate spell_index.db for fast batch lookup.
+        Falls back to the main lookup table if spell_index.db is
+        not available (legacy DBs with a stripped column).
 
         Args:
             candidates: Set of accent-stripped forms to look up.
@@ -525,6 +552,23 @@ class LookupDB:
             return {}
         result: dict[str, list[str]] = {}
         candidate_list = list(candidates)
+
+        if self._spell_conn is not None:
+            for i in range(0, len(candidate_list), 900):
+                batch = candidate_list[i:i + 900]
+                placeholders = ",".join("?" * len(batch))
+                query = (
+                    f"SELECT stripped, forms FROM spell "
+                    f"WHERE stripped IN ({placeholders})"
+                )
+                for stripped, forms_blob in self._spell_conn.execute(
+                        query, batch):
+                    forms = self._parse_spell_forms(forms_blob, src_filter)
+                    if forms:
+                        result[stripped] = forms
+            return result
+
+        # Legacy: stripped column in main lookup table
         for i in range(0, len(candidate_list), 900):
             batch = candidate_list[i:i + 900]
             placeholders = ",".join("?" * len(batch))
@@ -553,8 +597,12 @@ class LookupDB:
         return result
 
     def has_stripped(self, stripped: str) -> bool:
-        """Check if a stripped form exists in the DB."""
-        if self._lang in ('grc', 'el'):
+        """Check if a stripped form exists."""
+        if self._spell_conn is not None:
+            row = self._spell_conn.execute(
+                "SELECT 1 FROM spell WHERE stripped = ? LIMIT 1",
+                (stripped,)).fetchone()
+        elif self._lang in ('grc', 'el'):
             row = self._conn.execute(
                 "SELECT 1 FROM lookup WHERE stripped = ? AND lang IN (?, 'all') LIMIT 1",
                 (stripped, self._lang)).fetchone()
@@ -700,6 +748,22 @@ class Dilemma:
                       self._mg_lookup, self._med_lookup]:
             if isinstance(table, LookupDB):
                 table.enable_cache()
+
+    def export_cache(self) -> dict[str, str]:
+        """Export the full lookup table as a {form: lemma} dict.
+
+        Useful for passing to downstream tools (e.g. Opla's lemma_cache
+        parameter) so they can skip Dilemma calls for known forms.
+        Convention remapping is applied if a convention is set.
+        """
+        cache: dict[str, str] = {}
+        if self._using_db:
+            for form, lemma in self._lookup.items():
+                cache[form] = self._apply_convention(lemma)
+        else:
+            for form, lemma in self._lookup.items():
+                cache[form] = self._apply_convention(lemma)
+        return cache
 
     def _load_lookups(self):
         """Load lookup tables from SQLite (instant) or JSON (fallback).

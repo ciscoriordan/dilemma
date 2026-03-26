@@ -2,6 +2,7 @@
 data/*.jsonl
 data/*.db
 !data/lookup.db
+!data/spell_index.db
 data/*.tar.gz
 data/*.xml
 data/*.xml.bz2
