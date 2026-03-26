@@ -166,7 +166,7 @@ The eval scripts (`eval/eval_dbbe.py`, `eval/eval_digrec.py`,
 categorization.
 
 On the [DiGreC treebank](https://github.com/mdm33/digrec) (119K tokens,
-Homer through 15th century Byzantine Greek), Dilemma reaches 94.0%
+Homer through 15th century Byzantine Greek), Dilemma reaches 93.7%
 equiv-adjusted (90.3% strict). The gap accounts for convention
 differences between annotation schemes (e.g. `εἶπον`/`λέγω`,
 `ἐγώ`/`ἡμεῖς`).
