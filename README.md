@@ -129,6 +129,8 @@ and lemma equivalence groups (see `data/benchmarks/bench_all.py`).
 | [Swaelens et al. (2025)](https://aclanthology.org/2025.acl-long.430/) | -- | ~74-75% | -- | -- |
 | **Dilemma** (best convention per period) | **96.1%** | **92.7%** | **94.7%** | **96.0%**† |
 
+<sub>†`lang="el"` with `triantafyllidis` scores 95.8%, nearly matching `lang="all"` (96.0%). For MG-only workloads, `lang="el"` with `triantafyllidis` is recommended since it avoids AG false matches.</sub>
+
 Cells marked `--` indicate the tool doesn't support that period or
 wasn't tested. Morpheus "oracle" picks the best candidate from all
 its analyses, representing the ceiling for rule-based morphology.
@@ -157,14 +159,7 @@ POS column: `--` means Dilemma disambiguates on its own (default).
 DBBE provides gold POS; the small gain (92.7% to 92.5%) confirms POS
 ambiguity is not a major error source.
 
-\*Demotic MG scores with `wiktionary` convention are convention
-mismatches, not real accuracy gaps: AG citation forms like `σπήλαιον`
-don't match the MG gold standard `σπήλαιο`. Using
-`convention="triantafyllidis"` fixes this.
-
-†`lang="el"` with `triantafyllidis` scores 95.8%, nearly matching
-`lang="all"` (96.0%). For MG-only workloads, `lang="el"` with
-`triantafyllidis` is recommended since it avoids AG false matches.
+<sub>\*Demotic MG scores with `wiktionary` convention are convention mismatches, not real accuracy gaps: AG citation forms like `σπήλαιον` don't match the MG gold standard `σπήλαιο`. Using `convention="triantafyllidis"` fixes this.</sub>
 
 The eval scripts (`eval/eval_dbbe.py`, `eval/eval_digrec.py`,
 `eval/bench_dbbe.py`) provide per-POS breakdowns and error
