@@ -23,6 +23,17 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 DATA_DIR = SCRIPT_DIR / "data"
 DB_PATH = DATA_DIR / "lookup.db"
 
+# Manual corrections for ambiguous forms where Wiktionary lists multiple
+# form_of targets and first-write-wins picks the wrong one. These are
+# cases where both mappings are technically valid but one is clearly
+# more common/expected.
+# Format: {form: correct_lemma}
+AMBIGUOUS_CORRECTIONS = {
+    # δοῖεν is 3pl aor opt of δίδωμι ("to give"), not pres opt of δέω
+    # ("to bind"). Both verbs list it, but δίδωμι is the standard reading.
+    "δοῖεν": "δίδωμι",
+}
+
 # Import helpers from build_data
 from build_data import (
     strip_length_marks, to_monotonic, strip_accents, _is_greek,
@@ -223,47 +234,74 @@ def main():
             print(f"  {form} -> {resolved} (lang={lang})")
         if len(fixes) > 20:
             print(f"  ... and {len(fixes) - 20} more")
-        return
 
-    if not fixes:
+    if not fixes and not AMBIGUOUS_CORRECTIONS:
         print("Nothing to fix!")
         return
 
-    # Apply fixes
-    print(f"\nApplying {len(fixes):,} fixes to lookup.db...")
+    # Apply self-map fixes
+    if fixes and not args.dry_run:
+        print(f"\nApplying {len(fixes):,} self-map fixes to lookup.db...")
 
     # Ensure all target lemmas exist in the lemmas table
     existing_lemmas = {row[0]: row[1] for row in
                        conn.execute("SELECT text, id FROM lemmas")}
     max_id = conn.execute("SELECT MAX(id) FROM lemmas").fetchone()[0] or 0
 
-    new_lemmas = set()
-    for _, _, resolved, _ in fixes:
-        if resolved not in existing_lemmas:
-            new_lemmas.add(resolved)
+    if fixes and not args.dry_run:
+        new_lemmas = set()
+        for _, _, resolved, _ in fixes:
+            if resolved not in existing_lemmas:
+                new_lemmas.add(resolved)
 
-    for lemma in sorted(new_lemmas):
-        max_id += 1
-        conn.execute("INSERT INTO lemmas (id, text) VALUES (?, ?)",
-                      (max_id, lemma))
-        existing_lemmas[lemma] = max_id
+        for lemma in sorted(new_lemmas):
+            max_id += 1
+            conn.execute("INSERT INTO lemmas (id, text) VALUES (?, ?)",
+                          (max_id, lemma))
+            existing_lemmas[lemma] = max_id
 
-    # Update lookup entries
-    for rowid, form, resolved, lang in fixes:
-        lemma_id = existing_lemmas[resolved]
-        conn.execute("UPDATE lookup SET lemma_id = ? WHERE rowid = ?",
-                      (lemma_id, rowid))
+        # Update lookup entries
+        for rowid, form, resolved, lang in fixes:
+            lemma_id = existing_lemmas[resolved]
+            conn.execute("UPDATE lookup SET lemma_id = ? WHERE rowid = ?",
+                          (lemma_id, rowid))
 
-    conn.commit()
+        conn.commit()
+
+    # --- Pass 2: apply manual corrections for ambiguous form_of entries ---
+    if AMBIGUOUS_CORRECTIONS and not args.dry_run:
+        correction_count = 0
+        for form, correct_lemma in AMBIGUOUS_CORRECTIONS.items():
+            if correct_lemma not in existing_lemmas:
+                max_id += 1
+                conn.execute("INSERT INTO lemmas (id, text) VALUES (?, ?)",
+                              (max_id, correct_lemma))
+                existing_lemmas[correct_lemma] = max_id
+
+            lemma_id = existing_lemmas[correct_lemma]
+            # Update all entries for this form (all lang variants)
+            updated = conn.execute(
+                "UPDATE lookup SET lemma_id = ? WHERE form = ?",
+                (lemma_id, form)).rowcount
+            if updated:
+                correction_count += 1
+                print(f"  Corrected: {form} -> {correct_lemma} "
+                      f"({updated} entries)")
+
+        if correction_count:
+            conn.commit()
+            print(f"Ambiguous corrections applied: {correction_count}")
 
     # Verify
-    test_form = "ἐρίσαντε"
-    result = conn.execute("""
-        SELECT le.text FROM lookup l JOIN lemmas le ON l.lemma_id = le.id
-        WHERE l.form = ? AND l.lang = 'all'
-    """, (test_form,)).fetchone()
-    if result:
-        print(f"  Verification: {test_form} -> {result[0]}")
+    for test_form, expected in [("ἐρίσαντε", "ἐρίζω"),
+                                ("δοῖεν", "δίδωμι")]:
+        result = conn.execute("""
+            SELECT le.text FROM lookup l JOIN lemmas le ON l.lemma_id = le.id
+            WHERE l.form = ? AND l.lang = 'all'
+        """, (test_form,)).fetchone()
+        if result:
+            status = "ok" if result[0] == expected else "WRONG"
+            print(f"  Verify: {test_form} -> {result[0]} ({status})")
 
     conn.execute("ANALYZE")
     conn.close()
