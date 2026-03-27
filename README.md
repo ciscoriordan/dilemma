@@ -127,7 +127,7 @@ and lemma equivalence groups (see `data/benchmarks/bench_all.py`).
 | [Morpheus](https://github.com/perseids-tools/morpheus-perseids-api) (oracle) | -- | 71.1% | -- | -- |
 | [stanza](https://stanfordnlp.github.io/stanza/) `grc` | 92.2% | 71.3% | 85.2% | -- |
 | [Swaelens et al. (2025)](https://aclanthology.org/2025.acl-long.430/) | -- | ~74-75% | -- | -- |
-| **Dilemma** (best convention per period) | **96.1%** | **92.7%** | **94.7%** | **96.0%**† |
+| **Dilemma** (best convention per period) | **96.6%** | **92.7%** | **95.0%** | **96.0%**† |
 
 <sub>†`lang="el"` with `triantafyllidis` scores 95.8%, nearly matching `lang="all"` (96.0%). For MG-only workloads, `lang="el"` with `triantafyllidis` is recommended since it avoids AG false matches.</sub>
 
@@ -139,12 +139,12 @@ its analyses, representing the ceiling for rule-based morphology.
 
 | Lang | Convention | POS | AG Classical | Byzantine | Katharevousa | Demotic MG |
 |------|------------|-----|:--------:|:--------:|:--------:|:--------:|
-| `all` | `wiktionary` (default) | -- | 96.1% | 92.7% | 94.7% | 79.0%* |
+| `all` | `wiktionary` (default) | -- | 96.6% | 92.7% | 95.0% | 79.0%* |
 | `all` | `wiktionary` (default) | gold | -- | 92.6% | -- | -- |
 | `all` | `triantafyllidis` | -- | 85.4% | 83.4% | 90.9% | 96.0%† |
-| `grc` | `wiktionary` (default) | -- | 96.1% | 92.2% | 93.1% | 79.0%* |
+| `grc` | `wiktionary` (default) | -- | 96.6% | 92.3% | 93.4% | 79.0%* |
 | `grc` | `triantafyllidis` | -- | 87.4% | 86.9% | 89.9% | 90.0% |
-| `el` | `wiktionary` (default) | -- | 92.7% | 86.7% | 92.1% | 73.0%* |
+| `el` | `wiktionary` (default) | -- | 93.3% | 86.7% | 92.5% | 73.0%* |
 | `el` | `triantafyllidis` | -- | 85.4% | 82.6% | 89.9% | 95.8% |
 
 <sub>\*Demotic MG scores with `wiktionary` convention are convention mismatches, not real accuracy gaps: AG citation forms like `σπήλαιον` don't match the MG gold standard `σπήλαιο`. Using `convention="triantafyllidis"` fixes this.</sub>
@@ -560,6 +560,7 @@ git clone https://github.com/ciscoriordan/dilemma.git && cd dilemma
 pip install onnxruntime                # ~50 MB, lightweight
 python build_data.py --download        # downloads Wiktionary dumps, builds lookup tables
 python build_lookup_db.py              # builds SQLite DB for instant startup (optional)
+python fix_selfmaps.py                 # fixes inflected forms that self-map (optional)
 ```
 
 The lookup table handles 95%+ of words with no model at all. The SQLite
@@ -621,6 +622,7 @@ git clone https://github.com/ciscoriordan/dilemma.git && cd dilemma
 pip install -r requirements.txt
 python build_data.py --download
 python build_lookup_db.py              # SQLite for instant startup
+python fix_selfmaps.py                 # fixes inflected forms that self-map
 python train.py                        # full scale (~45 min on RTX 2080)
 python export_onnx.py                  # optional: enable PyTorch-free inference
 ```
