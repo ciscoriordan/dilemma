@@ -33,6 +33,10 @@ MG_PATH = DATA_DIR / "mg_lookup.json"
 MED_PATH = DATA_DIR / "med_lookup.json"
 GLAUX_PAIRS_PATH = DATA_DIR / "glaux_pairs.json"
 DIORISIS_PAIRS_PATH = DATA_DIR / "diorisis_pairs.json"
+ETYMOLOGY_BRIDGES_PATH = DATA_DIR / "etymology_bridges.json"
+LSJGR_BRIDGES_PATH = Path.home() / "Documents" / "lsjpre" / "data" / "lsjgr_bridges.json"
+RELATED_LEMMAS_PATH = DATA_DIR / "related_lemmas.json"
+HNC_PAIRS_PATH = DATA_DIR / "hnc_pairs.json"
 
 
 def strip_accents(s):
@@ -102,6 +106,23 @@ def build():
             el[k] = v
             med_merged += 1
     print(f"  Merged {med_merged:,} med entries into el ({len(el):,} total)")
+
+    # Add HNC Golden Corpus pairs (gold-standard MG annotations).
+    # Lower priority than Wiktionary: only add where form is not already present.
+    hnc_added = 0
+    if HNC_PAIRS_PATH.exists():
+        t_h = time.time()
+        with open(HNC_PAIRS_PATH, encoding="utf-8") as f:
+            hnc_pairs = json.load(f)
+        for form, lemma in hnc_pairs.items():
+            if form not in el:
+                el[form] = lemma
+                hnc_added += 1
+        print(f"  HNC: +{hnc_added:,} to el "
+              f"({len(hnc_pairs):,} total, {len(hnc_pairs) - hnc_added:,} already present) "
+              f"({time.time()-t_h:.1f}s)")
+    else:
+        print(f"  HNC: no hnc_pairs.json found, skipping")
 
     # Expand AG and Med with GLAUx corpus pairs (644K forms from
     # 8th c. BC - 4th c. AD Greek texts). These are corpus-derived
@@ -269,6 +290,103 @@ def build():
 
     conn.execute("CREATE INDEX idx_lookup_form_lang ON lookup (form, lang)")
     conn.execute("CREATE INDEX idx_lemmas_text ON lemmas (text)")
+
+    # Etymology bridges: MG lemma -> AG ancestor lemma
+    conn.execute("""CREATE TABLE bridges (
+        el_lemma_id INTEGER NOT NULL,
+        grc_lemma_id INTEGER NOT NULL,
+        FOREIGN KEY (el_lemma_id) REFERENCES lemmas(id),
+        FOREIGN KEY (grc_lemma_id) REFERENCES lemmas(id)
+    )""")
+    bridge_pairs = set()
+    bridge_skipped = 0
+    if ETYMOLOGY_BRIDGES_PATH.exists():
+        with open(ETYMOLOGY_BRIDGES_PATH, encoding="utf-8") as f:
+            bridges = json.load(f)
+        for mg_lemma, ag_ancestors in bridges.items():
+            el_id = lemma_to_id.get(mg_lemma)
+            if el_id is None:
+                bridge_skipped += 1
+                continue
+            for ag_lemma in ag_ancestors:
+                grc_id = lemma_to_id.get(ag_lemma)
+                if grc_id is None:
+                    bridge_skipped += 1
+                    continue
+                bridge_pairs.add((el_id, grc_id))
+        etym_count = len(bridge_pairs)
+        print(f"  etymology bridges: {etym_count:,} pairs ({bridge_skipped:,} skipped)")
+    else:
+        etym_count = 0
+        print(f"  etymology bridges: not found")
+
+    lsjgr_new = 0
+    lsjgr_skipped = 0
+    lsjgr_dup = 0
+    if LSJGR_BRIDGES_PATH.exists():
+        with open(LSJGR_BRIDGES_PATH, encoding="utf-8") as f:
+            lsjgr_bridges = json.load(f)
+        for mg_lemma, ag_ancestors in lsjgr_bridges.items():
+            el_id = lemma_to_id.get(mg_lemma)
+            if el_id is None:
+                lsjgr_skipped += 1
+                continue
+            for ag_lemma in ag_ancestors:
+                grc_id = lemma_to_id.get(ag_lemma)
+                if grc_id is None:
+                    lsjgr_skipped += 1
+                    continue
+                pair = (el_id, grc_id)
+                if pair in bridge_pairs:
+                    lsjgr_dup += 1
+                else:
+                    bridge_pairs.add(pair)
+                    lsjgr_new += 1
+        print(f"  lsjgr bridges: {lsjgr_new:,} new, {lsjgr_dup:,} dup, {lsjgr_skipped:,} skipped")
+    else:
+        print(f"  lsjgr bridges: not found")
+
+    for el_id, grc_id in bridge_pairs:
+        conn.execute("INSERT INTO bridges (el_lemma_id, grc_lemma_id) VALUES (?, ?)",
+                     (el_id, grc_id))
+    print(f"  bridges total: {len(bridge_pairs):,} (etymology: {etym_count:,}, lsjgr: {lsjgr_new:,})")
+    conn.execute("CREATE INDEX idx_bridges_el ON bridges (el_lemma_id)")
+    conn.execute("CREATE INDEX idx_bridges_grc ON bridges (grc_lemma_id)")
+
+    # Related lemmas
+    conn.execute("""CREATE TABLE related_lemmas (
+        lemma_id INTEGER NOT NULL,
+        related_id INTEGER NOT NULL,
+        FOREIGN KEY (lemma_id) REFERENCES lemmas(id),
+        FOREIGN KEY (related_id) REFERENCES lemmas(id)
+    )""")
+    related_count = 0
+    related_skipped = 0
+    if RELATED_LEMMAS_PATH.exists():
+        with open(RELATED_LEMMAS_PATH, encoding="utf-8") as f:
+            related_data = json.load(f)
+        seen_pairs = set()
+        for lemma, related_list in related_data.items():
+            lemma_id = lemma_to_id.get(lemma)
+            if lemma_id is None:
+                related_skipped += 1
+                continue
+            for related in related_list:
+                related_id = lemma_to_id.get(related)
+                if related_id is None:
+                    related_skipped += 1
+                    continue
+                pair = (lemma_id, related_id)
+                if pair not in seen_pairs:
+                    seen_pairs.add(pair)
+                    conn.execute("INSERT INTO related_lemmas (lemma_id, related_id) VALUES (?, ?)",
+                                 (lemma_id, related_id))
+                    related_count += 1
+        print(f"  related_lemmas: {related_count:,} pairs ({related_skipped:,} skipped)")
+    else:
+        print(f"  related_lemmas: not found")
+    conn.execute("CREATE INDEX idx_related_lemma ON related_lemmas (lemma_id)")
+    conn.execute("CREATE INDEX idx_related_related ON related_lemmas (related_id)")
 
     # Compact main DB
     print("\nOptimizing lookup.db...")

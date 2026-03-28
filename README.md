@@ -77,6 +77,7 @@ The lookup table combines forms from multiple sources:
 | **Sophocles Lexicon** (Byzantine/Patristic) | 1.0M | 13.5K nouns, 4.6K verbs, 1.5K adverbs from OCR'd TEI data |
 | **[GLAUx](https://github.com/alekkeersmaekers/glaux)** (Keersmaekers, 2021) | 557K | 17M-token corpus, 8th c. BC - 4th c. AD, 98.8% lemma accuracy |
 | **[Diorisis](https://figshare.com/articles/dataset/The_Diorisis_Ancient_Greek_Corpus/6187256)** (Vatri & McGillivray, 2018) | 76K new | 10M-token corpus, Homer - 5th c. AD, 91.4% lemma accuracy. Low-priority pairs (only added when no conflict with existing sources). Also provides frequency data (27M combined tokens with GLAUx). |
+| **[HNC Golden Corpus](https://inventory.clarin.gr/corpus/870)** (CLARIN:EL) | 1K new | 88K-token gold-standard MG corpus, 11K unique form-lemma pairs. Low priority (only added when not in Wiktionary). Also used for MG evaluation. |
 | **UD Treebanks** (Perseus, PROIEL, DiGreC) | 27K | Gold form-lemma pairs from annotated treebanks |
 | Closed-class fixes | ~500 | Articles, pronouns, prepositions mapped to canonical lemmas |
 
@@ -162,8 +163,10 @@ DBBE provides gold POS; the negligible difference (92.7% vs 92.6%)
 confirms POS ambiguity is not a significant error source.
 
 The eval scripts (`eval/eval_dbbe.py`, `eval/eval_digrec.py`,
-`eval/bench_dbbe.py`) provide per-POS breakdowns and error
-categorization.
+`eval/eval_hnc.py`, `eval/bench_dbbe.py`) provide per-POS breakdowns
+and error categorization. `eval_hnc.py` evaluates against the
+[HNC Golden Corpus](https://inventory.clarin.gr/corpus/870) (88K tokens
+of gold-standard Modern Greek from CLARIN:EL).
 
 On the [DiGreC treebank](https://github.com/mdm33/digrec) (119K tokens,
 Homer through 15th century Byzantine Greek), Dilemma reaches 93.7%
@@ -749,6 +752,7 @@ vocabulary (~160 tokens), so the same word is ~10 steps. Combined with
 | UD Treebanks (AG) | 27K | Gold annotations from Perseus, PROIEL, DiGreC |
 | GLAUx corpus | 557K | 17M tokens, 98.8% accuracy ([Keersmaekers 2021](https://github.com/alekkeersmaekers/glaux)) |
 | Diorisis corpus | 76K new | 10M tokens, 91.4% accuracy ([Vatri & McGillivray 2018](https://figshare.com/articles/dataset/The_Diorisis_Ancient_Greek_Corpus/6187256)) |
+| HNC Golden Corpus | 1K new | 88K-token gold MG corpus ([CLARIN:EL](https://inventory.clarin.gr/corpus/870), openUnder-PSI) |
 | **Total lookup** | **12.3M** | |
 
 All Wiktionary data is extracted automatically from
@@ -913,6 +917,7 @@ will propagate into Dilemma via kaikki dumps.
 - Sophocles lexicon TEI from [Ionian University / Internet Archive](https://archive.org/details/pateres)
 - [GLAUx](https://github.com/alekkeersmaekers/glaux) corpus data (Keersmaekers, 2021) (CC BY-SA 4.0)
 - [Diorisis](https://figshare.com/articles/dataset/The_Diorisis_Ancient_Greek_Corpus/6187256) corpus data (Vatri & McGillivray, 2018) (CC BY-SA 3.0)
+- [HNC Golden Corpus](https://inventory.clarin.gr/corpus/870) from CLARIN:EL (openUnder-PSI)
 - DBBE evaluation data from [Swaelens et al.](https://github.com/coswaele/ByzantineGreekDatasets) (CC BY 4.0)
 - Flag icons by [svg-flags](https://github.com/ciscoriordan/svg-flags)
 
