@@ -34,7 +34,7 @@ MED_PATH = DATA_DIR / "med_lookup.json"
 GLAUX_PAIRS_PATH = DATA_DIR / "glaux_pairs.json"
 DIORISIS_PAIRS_PATH = DATA_DIR / "diorisis_pairs.json"
 ETYMOLOGY_BRIDGES_PATH = DATA_DIR / "etymology_bridges.json"
-LSJGR_BRIDGES_PATH = Path.home() / "Documents" / "lsjpre" / "data" / "lsjgr_bridges.json"
+LSJGR_BRIDGES_PATH = DATA_DIR / "lsjgr_bridges.json"
 RELATED_LEMMAS_PATH = DATA_DIR / "related_lemmas.json"
 HNC_PAIRS_PATH = DATA_DIR / "hnc_pairs.json"
 
