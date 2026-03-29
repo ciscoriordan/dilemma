@@ -49,12 +49,21 @@ datasets = {
     'Demotic MG': load_tsv(BENCH_DIR / 'demotic_gold.tsv'),
 }
 
-for lang in ['all', 'grc', 'el']:
-    d = Dilemma(lang=lang, resolve_articles=True)
+configs = [
+    # (label, kwargs, datasets_to_run)
+    ('all/wikt', dict(lang='all', resolve_articles=True), ['AG Classical', 'Katharevousa']),
+    ('grc/wikt', dict(lang='grc', resolve_articles=True), ['AG Classical', 'Katharevousa']),
+    ('el/triant', dict(lang='el', convention='triantafyllidis'), ['Demotic MG']),
+    ('all/triant', dict(lang='all', convention='triantafyllidis'), ['Demotic MG']),
+]
+
+for label, kwargs, ds_names in configs:
+    d = Dilemma(**kwargs)
     d.preload()
     results = []
-    for name, pairs in datasets.items():
+    for name in ds_names:
+        pairs = datasets[name]
         correct = sum(1 for form, gold in pairs if are_equivalent(safe_lemmatize(d, form), gold))
         pct = 100 * correct / len(pairs)
         results.append(f'{name}: {pct:5.1f}%')
-    print(f'lang={lang:<4}  ' + '  '.join(results))
+    print(f'{label:<12}  ' + '  '.join(results))
