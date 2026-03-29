@@ -1474,27 +1474,40 @@ class Dilemma:
         all_candidates = [(v, v) for v in all_vowels]
         all_candidates += [(acc, v) for v, acc in accented.items()]
 
-        for table, lang in tables:
-            for suffix, vowel_name in all_candidates:
-                expanded = stem + suffix
-                # Try full normalization cascade
-                lemma = None
-                for variant in (expanded, expanded.lower(),
-                                grave_to_acute(expanded),
-                                to_monotonic(expanded.lower()),
-                                strip_accents(expanded.lower())):
-                    lemma = table.get(variant)
-                    if lemma:
-                        break
-                if lemma and lemma not in seen_lemmas:
-                    seen_lemmas.add(lemma)
-                    results.append((expanded, lemma, suffix))
+        # Consonant de-assimilation: before rough breathing, Greek
+        # assimilates voiceless stops to aspirates (τ->θ, π->φ, κ->χ).
+        # Reverse this to recover the original stem for prepositions:
+        # καθ' -> κατ' (κατά), ἐφ' -> ἐπ' (ἐπί), ἀφ' -> ἀπ' (ἀπό)
+        _DEASSIMILATE = {"θ": "τ", "φ": "π", "χ": "κ"}
+        stems_to_try = [stem]
+        if stem and stem[-1] in _DEASSIMILATE:
+            stems_to_try.append(stem[:-1] + _DEASSIMILATE[stem[-1]])
+
+        for try_stem in stems_to_try:
+            for table, lang in tables:
+                for suffix, vowel_name in all_candidates:
+                    expanded = try_stem + suffix
+                    # Try full normalization cascade
+                    lemma = None
+                    for variant in (expanded, expanded.lower(),
+                                    grave_to_acute(expanded),
+                                    to_monotonic(expanded.lower()),
+                                    strip_accents(expanded.lower())):
+                        lemma = table.get(variant)
+                        if lemma:
+                            break
+                    if lemma and lemma not in seen_lemmas:
+                        seen_lemmas.add(lemma)
+                        results.append((expanded, lemma, suffix))
 
         # Common elided function words - these should always win over
-        # content words when ambiguous. Maps stem -> expected lemma.
+        # content words when ambiguous. Includes both original stems
+        # and assimilated forms (καθ from κατά, αφ from ἀπό, etc.)
         _ELISION_PRIORITY = {
             "αλλ", "μετ", "παρ", "κατ", "δι", "απ", "επ",
             "υπ", "αφ", "εφ", "υφ", "μηδ", "ουδ", "αντ", "περ",
+            # Assimilated forms (θ<-τ, φ<-π, χ<-κ before rough breathing)
+            "καθ", "εφ", "αφ", "υφ", "μεθ", "παρ", "ανθ",
         }
         stem_lower = strip_accents(stem.lower())
 
@@ -1517,8 +1530,12 @@ class Dilemma:
                                 and lemma in _FUNCTION_LEMMAS) else 1
             # Deprioritize proper nouns
             is_proper = 1 if lemma and lemma[0].isupper() else 0
+            # Use corpus frequency: more frequent lemmas are more likely
+            # to be the correct resolution (κατά >> κάθω)
+            freq = self._get_glaux_freq(strip_accents(lemma.lower()))
+            neg_freq = -freq  # negate so higher frequency sorts first
             vrank = _ACC_VOWEL_RANK.get(vowel, _VOWEL_RANK.get(vowel, 10))
-            return (is_function, is_proper, vrank, len(lemma))
+            return (is_function, is_proper, neg_freq, vrank, len(lemma))
 
         results.sort(key=_rank)
         return results
