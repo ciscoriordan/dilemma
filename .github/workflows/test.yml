@@ -21,7 +21,7 @@ jobs:
       - name: Pull LFS data files
         run: |
           git lfs install --force
-          git lfs pull --include="data/lookup.db,data/spell_index.db"
+          git lfs pull
 
       - name: Run all tests
         run: python3 -m pytest tests/ -x -v
