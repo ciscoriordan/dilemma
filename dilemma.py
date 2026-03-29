@@ -77,7 +77,7 @@ _POLYTONIC_TO_ACUTE = {0x0300, 0x0342}
 # Elision mark: U+0313 COMBINING COMMA ABOVE (repurposed as apostrophe
 # in polytonic Greek text). Also handle right single quote U+2019 and
 # modifier letter apostrophe U+02BC.
-_ELISION_MARKS = {"\u0313", "\u2019", "\u02BC", "'", "\u1FBD", "\u02B9"}
+_ELISION_MARKS = {"\u0313", "\u2019", "\u02BC", "'", "\u1FBD", "\u02B9", "\u1FBF"}
 
 # Vowels to try when expanding elision (ordered by frequency in AG text)
 _GREEK_VOWELS = "αεοιηυω"
@@ -1318,8 +1318,11 @@ class Dilemma:
             # prepositions/particles. Fall through to AG article
             # resolution only for polytonic article forms.
 
+        lower = word.lower()
         if (word in _ARTICLE_FORMS
-                or to_monotonic(word) in _ARTICLE_FORMS):
+                or lower in _ARTICLE_FORMS
+                or to_monotonic(word) in _ARTICLE_FORMS
+                or to_monotonic(lower) in _ARTICLE_FORMS):
             # Don't use strip_accents here - it's too aggressive for short
             # words (e.g. ἤ "or" becomes η which matches the article)
             return _ARTICLE_LEMMA
