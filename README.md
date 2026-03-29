@@ -17,6 +17,13 @@ like *ByT5-small* (300M params) which take hours to train. Greek lemmatization i
 pattern-based - a small specialized model matches a large general-purpose
 one, and the 12.3M lookup table handles the rest.
 
+**Note on methodology:** Dilemma is a supervised system. The transformer
+trains on 3.4M explicit form-to-lemma pairs from Wiktionary inflection
+tables, and the lookup table (which handles 95%+ of words) is literally a
+dictionary of correct answers. This is not unsupervised learning (pattern
+discovery from raw text with no labels). Some evaluations have incorrectly
+categorized Dilemma alongside unsupervised tools.
+
 **SQLite backend:** The lookup table loads from a pre-built SQLite database
 (instant startup, ~0.3s) instead of parsing 600MB of JSON (~11s). Falls
 back to JSON if the database isn't present.
