@@ -74,6 +74,7 @@ and other regional varieties alongside Ancient and Medieval Greek.
   - [Spelling correction](#spelling-correction)
   - [Elision expansion](#elision-expansion)
 - [How It Works](#how-it-works)
+- [Why surgical rules?](#why-surgical-rules)
 - [Installation](#installation)
 - [Training](#training)
 - [Architecture](#architecture)
@@ -626,6 +627,32 @@ not in Wiktionary. Training on MG + AG + Medieval data means the model
 sees AG augment patterns (`ἔλυσε` → `λύω`) alongside MG stem
 transformations (`σκότωσε` → `σκοτώνω`). For Katharevousa forms like
 `εσκότωσε`, it has both signals to draw from.
+
+## Why surgical rules?
+
+The rule-based morphological analysis fills the gap between the lookup
+table and the transformer:
+
+**Particle stripping** (-περ, -γε, -δε, -ι): These are appended particles
+that create forms the lookup table may never have seen. `ὅσπερ` is not a
+separate word in Wiktionary - it is `ὅς` + `-περ`. The lookup table would
+need to store every word x every enclitic particle combination. Stripping
+is simpler.
+
+**Augment/reduplication stripping**: A rare verb's aorist (e.g.,
+`ἐμόρμυρσεν`) might not appear in any corpus or Wiktionary table, but the
+present stem `μορμύρω` is there. Stripping the augment and tense markers
+recovers the connection. The transformer might learn this pattern, but an
+explicit rule is more reliable for rare verbs it has never trained on.
+
+**Elision/crasis**: `δ'` needs to expand to `δέ`, `κἀγώ` needs to
+decompose to `καὶ ἐγώ`. These are mechanical text artifacts, not
+morphology - the transformer would waste capacity learning them.
+
+In short: the rules handle systematic, predictable transformations that the
+lookup table cannot enumerate exhaustively and the transformer might not
+generalize to for rare forms. They are the cheap, reliable middle layer
+between brute-force lookup and expensive ML inference.
 
 ## Installation
 
