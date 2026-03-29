@@ -120,6 +120,55 @@ _MG_ARTICLE_FORMS = {
 }
 _MG_ARTICLE_LEMMA = "ο"
 
+# ---- Feature: Particle/enclitic suffix stripping ----
+# Ancient Greek appends particles like -περ, -γε, -δε, and deictic -ι to
+# words without changing the lemma. Ordered longest-first for greedy match.
+_PARTICLE_SUFFIXES = ["περ", "γε", "δε"]
+
+# Deictic -ι is only stripped from demonstrative pronoun stems.
+# These are accent-stripped stems of common demonstratives (οὗτος, ὅδε, etc.)
+_DEICTIC_STEMS = {
+    "τουτο", "τουτω", "τουτοισ", "τουτου", "τουτων", "τουτοι",
+    "ταυτη", "ταυτα", "ταυτησ", "ταυτων", "ταυται", "ταυταισ",
+    "τουτουσ", "τουτοισι", "ταυτασ", "ταυτησι",
+    "τοδ", "τηδ", "τωδ", "τονδ", "τηνδ",
+    "ενθαδ",  # ἐνθάδε is a real word but ἐνθαδί also exists
+}
+
+# ---- Feature: Article-agreement disambiguation ----
+# Maps article forms to (gender, number, case) features for ranking
+# ambiguous lemma candidates. "m"=masculine, "f"=feminine, "n"=neuter;
+# "s"=singular, "p"=plural, "d"=dual; case abbreviated.
+_ARTICLE_FEATURES = {
+    # Masculine
+    "ὁ": ("m", "s", "nom"), "τοῦ": ("m", "s", "gen"),
+    "τῷ": ("m", "s", "dat"), "τόν": ("m", "s", "acc"),
+    "οἱ": ("m", "p", "nom"), "τῶν": ("m", "p", "gen"),
+    "τοῖς": ("m", "p", "dat"), "τούς": ("m", "p", "acc"),
+    # Feminine
+    "ἡ": ("f", "s", "nom"), "τῆς": ("f", "s", "gen"),
+    "τῇ": ("f", "s", "dat"), "τήν": ("f", "s", "acc"),
+    "αἱ": ("f", "p", "nom"),
+    "ταῖς": ("f", "p", "dat"), "τάς": ("f", "p", "acc"),
+    # Neuter
+    "τό": ("n", "s", "nom"), "τά": ("n", "p", "nom"),
+    # Grave variants
+    "τὸ": ("n", "s", "nom"), "τὰ": ("n", "p", "nom"),
+    "τὸν": ("m", "s", "acc"), "τὴν": ("f", "s", "acc"),
+    "τοὺς": ("m", "p", "acc"), "τὰς": ("f", "p", "acc"),
+}
+
+# Gender of common lemma endings (heuristic for AG nouns/adjectives)
+_LEMMA_GENDER_HINTS = {
+    # Masculine endings
+    "ος": "m", "ής": "m", "εύς": "m", "ηρ": "m", "ων": "m",
+    "ας": "m", "ής": "m",
+    # Feminine endings
+    "η": "f", "α": "f", "ις": "f", "ύς": "f",
+    # Neuter endings
+    "ον": "n", "ος": "m", "μα": "n", "ον": "n",
+}
+
 _MG_CLOSED_CLASS = {
     # Preposition contractions σε + article -> σε
     "στη": "σε", "στην": "σε", "στο": "σε", "στον": "σε",
@@ -1856,6 +1905,199 @@ class Dilemma:
 
         return results
 
+    # ---- Feature: Particle/enclitic suffix stripping ----
+
+    def _strip_particle_suffix(self, word: str) -> str | None:
+        """Try stripping enclitic particles (-per, -ge, -de, deictic -i).
+
+        Only fires as a fallback when the full form is not in the lookup
+        table. Returns the base form's lemma (not the base form itself),
+        or None if no valid stripping is found.
+
+        Suffix priority: -per (safest, most common), then -ge, then -de.
+        Deictic -i is only stripped from known demonstrative pronoun stems.
+        For -de, only strips if the resulting base form is found in lookup
+        (since -de is also a real word ending in many cases).
+        """
+        lower = word.lower()
+        stripped_word = strip_accents(lower)
+
+        # Try -per, -ge, -de suffixes
+        for suffix in _PARTICLE_SUFFIXES:
+            suffix_stripped = strip_accents(suffix)
+            if not stripped_word.endswith(suffix_stripped):
+                continue
+            base = stripped_word[:-len(suffix_stripped)]
+            if len(base) < 2:
+                continue
+
+            # For the original (accented) form, try cutting the suffix
+            # from the actual word. We try multiple cuts since accent
+            # position may shift.
+            candidates = set()
+            # Cut from the accent-stripped form and look up
+            candidates.add(base)
+            # Also try cutting the suffix from the original lowercase
+            for suf_len in (len(suffix), len(suffix_stripped)):
+                if len(lower) > suf_len:
+                    candidates.add(lower[:-suf_len])
+
+            for candidate in candidates:
+                lemma = self._lookup_word(candidate)
+                if lemma:
+                    return lemma
+
+        # Deictic -i: only strip from demonstrative pronoun forms
+        if stripped_word.endswith("ι") and len(stripped_word) > 2:
+            base = stripped_word[:-1]
+            if base in _DEICTIC_STEMS:
+                # Try looking up the base (without the deictic -i)
+                # Try the accent-stripped base and original minus last char
+                for candidate in (base, lower[:-1] if len(lower) > 1 else ""):
+                    if not candidate:
+                        continue
+                    lemma = self._lookup_word(candidate)
+                    if lemma:
+                        return lemma
+
+        return None
+
+    # ---- Feature: Verb morphology stripping (augment, reduplication) ----
+
+    # Temporal augment mappings: augmented vowel -> original stem-initial vowel(s)
+    _TEMPORAL_AUGMENT = {
+        "η": ["ε", "α"],     # η- can be augment of ε- or α-initial stems
+        "ω": ["ο"],           # ω- augment of ο-initial stems
+        "ηυ": ["ευ"],         # ηυ- augment of ευ-initial stems
+        "ῃ": ["ε", "α"],     # with iota subscript
+        "ει": ["ε"],          # spurious diphthong augment
+        "ηι": ["αι"],         # ηι- augment of αι-initial stems (rare)
+    }
+
+    def _strip_verb_morphology(self, word: str) -> str | None:
+        """Try decomposing unknown verb forms by stripping augment or reduplication.
+
+        Handles three patterns:
+        1. Syllabic augment (ε-prefix): strip leading ε- and look up
+        2. Temporal augment (η- for ε-stems, ω- for ο-stems, etc.)
+        3. Reduplication (λε-λυ- type perfect forms): strip the reduplicated
+           consonant+vowel prefix
+
+        Only returns a result if the transformed form matches a known lemma
+        in the lookup table. This is a conservative heuristic - it won't
+        catch everything but avoids false positives.
+        """
+        lower = word.lower()
+        stripped = strip_accents(lower)
+
+        # Skip very short words
+        if len(stripped) < 4:
+            return None
+
+        # 1. Syllabic augment: strip leading ε- (most common augment)
+        # The augmented form starts with ε and the unaugmented stem
+        # should be a recognizable verb form.
+        nfd = unicodedata.normalize("NFD", lower)
+        base_chars = [ch for ch in nfd if unicodedata.category(ch) != "Mn"]
+        if base_chars and base_chars[0] == "ε":
+            # Strip the initial epsilon (with any diacritics)
+            # Find the end of the first character cluster (base + combiners)
+            idx = 0
+            for i, ch in enumerate(nfd):
+                if unicodedata.category(ch) != "Mn":
+                    if idx > 0:
+                        break
+                    idx = 1
+                    cut_point = i + 1
+                else:
+                    cut_point = i + 1
+            remainder = unicodedata.normalize("NFC", nfd[cut_point:])
+            if len(remainder) >= 3:
+                lemma = self._lookup_word(remainder)
+                if lemma and not _is_self_map(remainder, lemma):
+                    return lemma
+
+        # 2. Temporal augment: try replacing augmented initial vowel
+        # with the original stem vowel(s)
+        for augmented, originals in self._TEMPORAL_AUGMENT.items():
+            aug_stripped = strip_accents(augmented)
+            if not stripped.startswith(aug_stripped):
+                continue
+            remainder_stripped = stripped[len(aug_stripped):]
+            if len(remainder_stripped) < 3:
+                continue
+            for original in originals:
+                candidate = original + remainder_stripped
+                lemma = self._lookup_word(candidate)
+                if lemma and not _is_self_map(candidate, lemma):
+                    return lemma
+
+        # 3. Reduplication: perfect forms have consonant+vowel prefix
+        # that duplicates the stem-initial consonant. Pattern: CV-stem
+        # where C matches the first consonant of the stem.
+        if len(stripped) >= 5:
+            # Check if first two chars look like reduplication (C + ε/vowel)
+            first_char = stripped[0]
+            if first_char.isalpha() and stripped[1] in "εα":
+                rest = stripped[2:]
+                # The stem should start with the same consonant
+                if rest and rest[0] == first_char:
+                    lemma = self._lookup_word(rest)
+                    if lemma and not _is_self_map(rest, lemma):
+                        return lemma
+
+        return None
+
+    # ---- Feature: Article-agreement disambiguation ----
+
+    def _rank_by_article_agreement(self, candidates: list[LemmaCandidate],
+                                   prev_word: str | None) -> list[LemmaCandidate]:
+        """Re-rank candidates using article gender/number agreement.
+
+        If prev_word is a Greek article, boost candidates whose lemma
+        gender matches the article's gender. This only re-ranks, never
+        excludes candidates.
+
+        Args:
+            candidates: List of LemmaCandidate objects to rank.
+            prev_word: The preceding word (may be an article or None).
+
+        Returns:
+            Re-ranked list of candidates (same elements, possibly reordered).
+        """
+        if not prev_word or not candidates or len(candidates) < 2:
+            return candidates
+
+        # Normalize the article form (try exact, then grave-to-acute)
+        features = _ARTICLE_FEATURES.get(prev_word)
+        if not features:
+            features = _ARTICLE_FEATURES.get(grave_to_acute(prev_word))
+        if not features:
+            return candidates
+
+        article_gender = features[0]  # "m", "f", or "n"
+
+        def _guess_gender(lemma: str) -> str | None:
+            """Guess gender from lemma ending (heuristic)."""
+            # Check longest suffixes first
+            for suffix, gender in sorted(_LEMMA_GENDER_HINTS.items(),
+                                         key=lambda x: -len(x[0])):
+                if lemma.endswith(suffix):
+                    return gender
+            return None
+
+        # Score each candidate: 0 if gender matches, 1 if not
+        def _gender_score(c: LemmaCandidate) -> int:
+            g = _guess_gender(strip_accents(c.lemma.lower()))
+            if g == article_gender:
+                return 0
+            return 1
+
+        # Stable sort: preserve original order within same gender score
+        candidates_sorted = sorted(candidates,
+                                   key=lambda c: (_gender_score(c), c.proper, -c.score))
+        return candidates_sorted
+
     def lemmatize(self, word: str) -> str:
         """Lemmatize a single Greek word.
 
@@ -1864,9 +2106,11 @@ class Dilemma:
           2. Crasis table (small, hand-curated)
           3. Lookup table (instant, 5M+ forms)
           4. Elision expansion (strip mark, try vowels against lookup)
-          5. Normalizer (orthographic variants)
-          6. Compound decomposition (split at linking vowel, look up base)
-          7. Model with beam search + headword filter
+          5. Particle suffix stripping (-per, -ge, -de, deictic -i)
+          6. Verb morphology stripping (augment, reduplication)
+          7. Normalizer (orthographic variants)
+          8. Compound decomposition (split at linking vowel, look up base)
+          9. Model with beam search + headword filter
 
         If a convention is set, the output lemma is remapped accordingly.
         """
@@ -1896,6 +2140,17 @@ class Dilemma:
         elision_lemma = self._expand_elision(word)
         if elision_lemma:
             return self._apply_convention(elision_lemma)
+
+        # Particle suffix stripping (after lookup, before model)
+        particle_lemma = self._strip_particle_suffix(word)
+        if particle_lemma:
+            return self._apply_convention(particle_lemma)
+
+        # Verb morphology stripping (augment, reduplication - after
+        # particle stripping, before model)
+        verb_morph_lemma = self._strip_verb_morphology(word)
+        if verb_morph_lemma:
+            return self._apply_convention(verb_morph_lemma)
 
         # Normalizer: try orthographic variants against lookup
         if self._normalizer:
@@ -2196,13 +2451,22 @@ class Dilemma:
 
         return results
 
-    def lemmatize_verbose(self, word: str) -> list[LemmaCandidate]:
+    def lemmatize_verbose(self, word: str,
+                          prev_word: str | None = None,
+                          ) -> list[LemmaCandidate]:
         """Return all candidate lemmas with metadata.
 
         Unlike lemmatize(), this returns multiple candidates for
         ambiguous forms, tagged with language, proper noun status,
         and source. Useful for downstream tools that can use context
         to disambiguate.
+
+        Args:
+            word: The Greek word to lemmatize.
+            prev_word: Optional preceding word. If this is a Greek article
+                (e.g. ὁ, τήν, τῶν), it is used to rank candidates by
+                gender/number agreement. Only affects ranking, not
+                filtering - all candidates are still returned.
 
         Examples:
             lemmatize_verbose("ἔριδι")
@@ -2291,7 +2555,23 @@ class Dilemma:
                              via=via + "+case_alt")
                     break  # first matching variant wins per language
 
-        # 5. Normalizer: try orthographic variants against all tables
+        # 5. Particle suffix stripping (after lookup, before model)
+        if not candidates:
+            particle_lemma = self._strip_particle_suffix(word)
+            if particle_lemma:
+                lang = self._lang_of(particle_lemma) or "grc"
+                _add(particle_lemma, lang=lang, source="particle_strip",
+                     via="suffix_strip", score=0.9)
+
+        # 6. Verb morphology stripping (augment, reduplication)
+        if not candidates:
+            verb_morph_lemma = self._strip_verb_morphology(word)
+            if verb_morph_lemma:
+                lang = self._lang_of(verb_morph_lemma) or "grc"
+                _add(verb_morph_lemma, lang=lang, source="verb_morphology",
+                     via="augment_strip", score=0.85)
+
+        # 7. Normalizer: try orthographic variants against all tables
         if not candidates and self._normalizer:
             for norm_candidate in self._normalizer.normalize(word):
                 norm_lower = norm_candidate.lower()
@@ -2314,7 +2594,7 @@ class Dilemma:
                             _add(lemma, lang=lang, source="normalize", via=via)
                             break
 
-        # 6. Model fallback (if no candidates yet)
+        # 8. Model fallback (if no candidates yet)
         model_identity = False
         if not candidates:
             try:
@@ -2327,25 +2607,25 @@ class Dilemma:
             except (FileNotFoundError, RuntimeError):
                 model_identity = True
 
-        # 7. Light Byzantine normalization (only when model returned identity)
+        # 9. Light Byzantine normalization (only when model returned identity)
         if model_identity and not candidates:
             byz = self._normalize_byzantine(word, use_normalizer=False)
             if byz:
                 _add(byz, source="byzantine_norm", score=0.7)
 
-        # 8. Compound decomposition (only when model returned identity)
+        # 10. Compound decomposition (only when model returned identity)
         if model_identity:
             for compound, base_lemma, prefix in self._decompose_compound_all(word):
                 _add(compound, source="compound",
                      via=f"{prefix}+{base_lemma}", score=0.65)
 
-        # 9. Prefix stripping (only when model returned identity)
+        # 11. Prefix stripping (only when model returned identity)
         if model_identity and not candidates:
             prefix_hit = self._prefix_strip_lookup(word)
             if prefix_hit:
                 _add(prefix_hit, source="prefix_strip", score=0.6)
 
-        # 10. Heavy Byzantine normalization with normalizer
+        # 12. Heavy Byzantine normalization with normalizer
         if model_identity and not candidates:
             byz_heavy = self._normalize_byzantine(
                 word, use_normalizer=True)
@@ -2393,6 +2673,11 @@ class Dilemma:
                     remapped.append(c)
             candidates = remapped
 
+        # Article-agreement disambiguation: if prev_word is a Greek article,
+        # re-rank candidates by gender agreement (only re-ranks, never excludes)
+        if prev_word is not None and len(candidates) > 1:
+            candidates = self._rank_by_article_agreement(candidates, prev_word)
+
         return candidates
 
     def lemmatize_batch(self, words: list[str]) -> list[str]:
@@ -2429,6 +2714,18 @@ class Dilemma:
             lemma = self._lookup_word(word)
             if lemma:
                 results.append(lemma)
+                continue
+
+            # Particle suffix stripping
+            particle_lemma = self._strip_particle_suffix(word)
+            if particle_lemma:
+                results.append(particle_lemma)
+                continue
+
+            # Verb morphology stripping (augment, reduplication)
+            verb_morph_lemma = self._strip_verb_morphology(word)
+            if verb_morph_lemma:
+                results.append(verb_morph_lemma)
                 continue
 
             # Normalizer: try orthographic variants against lookup
