@@ -74,7 +74,7 @@ and other regional varieties alongside Ancient and Medieval Greek.
   - [Spelling correction](#spelling-correction)
   - [Elision expansion](#elision-expansion)
 - [How It Works](#how-it-works)
-- [Why surgical rules?](#why-surgical-rules)
+- [Rule-based fallback layer](#why-surgical-rules)
 - [Installation](#installation)
 - [Training](#training)
 - [Architecture](#architecture)
@@ -628,7 +628,7 @@ sees AG augment patterns (`ἔλυσε` → `λύω`) alongside MG stem
 transformations (`σκότωσε` → `σκοτώνω`). For Katharevousa forms like
 `εσκότωσε`, it has both signals to draw from.
 
-## Why surgical rules?
+## Rule-based fallback layer
 
 The rule-based morphological analysis fills the gap between the lookup
 table and the transformer:
