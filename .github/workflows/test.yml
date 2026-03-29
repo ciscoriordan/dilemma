@@ -1,0 +1,34 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout (without LFS)
+        uses: actions/checkout@v4
+        with:
+          lfs: false
+
+      - name: Pull LFS data files (lookup.db + spell_index.db)
+        run: |
+          git lfs install
+          git lfs pull --include="data/lookup.db,data/spell_index.db"
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install pytest
+
+      - name: Run tests
+        run: python -m pytest tests/ -x -v --ignore=tests/test_dilemma.py

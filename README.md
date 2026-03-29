@@ -1,4 +1,4 @@
-# Dilemma <img src="https://raw.githubusercontent.com/ciscoriordan/svg-flags/main/circle/historical/ancient-greece.svg" width="28" alt="Ancient Greece"> <img src="https://raw.githubusercontent.com/ciscoriordan/svg-flags/main/circle/languages/el.svg" width="28" alt="Greek"> <img src="https://raw.githubusercontent.com/ciscoriordan/svg-flags/main/circle/countries/cy.svg" width="28" alt="Cyprus"> <img src="https://raw.githubusercontent.com/ciscoriordan/svg-flags/main/circle/historical/byzantine.svg" width="28" alt="Byzantine">
+# Dilemma <img src="https://raw.githubusercontent.com/ciscoriordan/svg-flags/main/circle/historical/ancient-greece.svg" width="28" alt="Ancient Greece"> <img src="https://raw.githubusercontent.com/ciscoriordan/svg-flags/main/circle/languages/el.svg" width="28" alt="Greek"> <img src="https://raw.githubusercontent.com/ciscoriordan/svg-flags/main/circle/countries/cy.svg" width="28" alt="Cyprus"> <img src="https://raw.githubusercontent.com/ciscoriordan/svg-flags/main/circle/historical/byzantine.svg" width="28" alt="Byzantine"> [![Tests](https://github.com/ciscoriordan/dilemma/actions/workflows/test.yml/badge.svg)](https://github.com/ciscoriordan/dilemma/actions/workflows/test.yml)
 
 <p align="center">
   <img width="500" alt="dilemma" src="dilemma.png">
@@ -696,6 +696,10 @@ python build_data.py --download
 ```
 
 ### Testing
+
+Tests run automatically via GitHub Actions on push and pull request to
+`main`. CI pulls only the LFS data files needed for tests (`lookup.db`,
+`spell_index.db`) and skips model-weight-dependent checks.
 
 ```bash
 python -m pytest tests/ -v                  # run all tests via pytest (recommended)
