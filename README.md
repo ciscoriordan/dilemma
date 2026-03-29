@@ -698,8 +698,8 @@ python build_data.py --download
 ### Testing
 
 Tests run automatically via GitHub Actions on push and pull request to
-`main`. CI pulls only the LFS data files needed for tests (`lookup.db`,
-`spell_index.db`) and skips model-weight-dependent checks.
+`main`, using a self-hosted runner with GPU access. CI pulls only the
+LFS data files needed for tests (`lookup.db`, `spell_index.db`).
 
 ```bash
 python -m pytest tests/ -v                  # run all tests via pytest (recommended)
