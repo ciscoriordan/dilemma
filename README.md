@@ -375,12 +375,24 @@ candidates = d.lemmatize_verbose("δ̓")
 #     LemmaCandidate(lemma="δή", source="elision", via="elision:η"), ...]
 ```
 
+**Article-agreement disambiguation:** When multiple candidates exist, pass
+the preceding word to rank by gender/number agreement with a Greek article:
+
+```python
+# Prefer candidates matching masculine article τόν
+candidates = d.lemmatize_verbose("λόγου", prev_word="τοῦ")
+# -> masculine λόγος ranked before proper Λόγος
+```
+
+This only re-ranks candidates, never excludes them. If the preceding word is
+not a recognized article form, it has no effect.
+
 Each `LemmaCandidate` has:
 - `lemma` - the lemma string
 - `lang` - `"el"` (MG, including medieval), `"grc"` (AG), `"med"` (medieval provenance label in output)
 - `proper` - `True` if lemma is a proper noun (capitalized headword)
-- `source` - `"lookup"`, `"elision"`, `"crasis"`, `"compound"`, `"model"`, `"identity"`
-- `via` - how it matched: `"exact"`, `"lower"`, `"elision:ε"`, `"θεο+φθόγγος"`, `"+case_alt"`, etc.
+- `source` - `"lookup"`, `"elision"`, `"crasis"`, `"particle_strip"`, `"verb_morphology"`, `"compound"`, `"model"`, `"identity"`
+- `via` - how it matched: `"exact"`, `"lower"`, `"elision:ε"`, `"suffix_strip"`, `"augment_strip"`, `"θεο+φθόγγος"`, `"+case_alt"`, etc.
 - `score` - `1.0` for lookup, `0.5` for model, `0.0` for identity fallback
 
 ### Batch processing
@@ -510,6 +522,8 @@ in elision contexts (ε, α, ο most common).
 | **Normalizer** | k candidates `O(k)` | Byzantine orthographic variants | Rule-based candidate generation |
 | **Elision expansion** | v=7 vowels `O(v)` | AG elided forms | Vowel expansion against lookup |
 | **Crasis table** | hash lookup `O(1)` | ~50 common crasis forms | Hand-curated |
+| **Particle suffix stripping** | suffix check `O(1)` | AG enclitic forms (-per, -ge, -de, deictic -i) | Strip suffix, re-lookup base form |
+| **Verb morphology stripping** | prefix check `O(1)` | Unseen augmented/reduplicated verb forms | Strip augment/reduplication, re-lookup |
 | **Compound decomposition** | n=word length `O(n)` | Byzantine compound words | Split at linking vowel, look up base |
 | **Spelling correction** | BK-tree `O(d·m)` | ED0-2 suggestions for unknown words | Accent-stripped edit distance |
 | **Transformer** | beam search `O(b·n²)` | generalizes to unseen forms | Trained on Wiktionary pairs |
