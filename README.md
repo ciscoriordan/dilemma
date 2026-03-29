@@ -5,8 +5,8 @@
 </p>
 
 Dilemma is a holistic Greek lemmatizer spanning Ancient Greek (Classical,
-Homeric, Hellenistic), Medieval/Byzantine Greek, and Modern Greek (Demotic
-and Katharevousa). It combines multiple strategies into a unified pipeline:
+Homeric, Hellenistic), Medieval/Byzantine Greek (both vernacular and
+literary), and Modern Greek (Demotic and Katharevousa). It combines multiple strategies into a unified pipeline:
 
 - A 12.3M-form lookup table built from Wiktionary inflection tables,
   Wiktionary's Lua morphological modules applied to LSJ and Sophocles
@@ -91,8 +91,10 @@ shorthands **MG** (Modern Greek) and **AG** (Ancient Greek).
 
 For Dilemma's purposes, MG (`el`) includes Katharevousa, even though
 Katharevousa often benefits from AG lemmatization due to its archaizing
-vocabulary and morphology. Medieval/Byzantine Greek is treated as AG
-(`grc`) by default.
+vocabulary and morphology. Medieval/Byzantine Greek has two components:
+vernacular medieval Greek (ancestor of Modern Greek, merged into `el`)
+and literary Byzantine Greek (classicizing, Atticist-influenced, resolved
+via the AG lookup under `grc`).
 
 ### Lookup table sources
 
@@ -243,7 +245,7 @@ differences between annotation schemes (e.g. `εἶπον`/`λέγω`,
 | **Cypriot** | 199 |
 | **Heptanesian (Ionian)** | 18 |
 | **Maniot** | 3 |
-| **Medieval/Byzantine** | 3K ([merged into MG](#why-medieval-is-mg) - vernacular medieval is the ancestor of MG; Byzantine literary Greek is Atticist-influenced and resolved via AG-first lookup, then MG fallback) |
+| **Medieval/Byzantine (vernacular)** | 3K ([merged into MG](#why-medieval-is-mg) - vernacular medieval is the ancestor of MG; literary Byzantine is Atticist-influenced and resolves via the AG lookup, not this table) |
 
 ### Ancient Greek varieties
 
@@ -253,7 +255,7 @@ differences between annotation schemes (e.g. `εἶπον`/`λέγω`,
 | **Ionic** | 1,638 |
 | **Attic** | 1,279 |
 | **Koine** | 1,209 |
-| **Byzantine** | 496 |
+| **Byzantine (literary)** | 496 |
 | **Doric** | 456 |
 | **Aeolic** | 163 |
 | **Laconian** | 52 |
@@ -281,8 +283,11 @@ plus extensive GLAUx corpus data) is directly relevant for literary
 texts based on Homer.
 
 <a id="why-medieval-is-mg"></a>
-Medieval/Byzantine Greek forms are merged into Modern Greek (`el`),
-not treated as a separate language. EL Wiktionary's "Medieval Greek"
+Medieval/Byzantine Greek has two distinct registers that Dilemma handles
+differently. Vernacular medieval forms are merged into Modern Greek
+(`el`) since they are the direct ancestor of MG. Literary Byzantine
+forms are classicizing and resolve via the AG (`grc`) lookup.
+EL Wiktionary's "Medieval Greek"
 category (6,735 entries, 2,685 headwords) is roughly 71% vernacular
 and 29% literary Byzantine, based on presence of polytonic diacritics:
 
