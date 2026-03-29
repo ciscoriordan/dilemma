@@ -252,12 +252,32 @@ def build():
         ag_headwords |= {strip_accents(h.lower()) for h in ag_headwords}
         print(f"  AG headwords: {len(ag_headwords):,} (for self-map protection)")
 
+    # Article and pronoun forms excluded from the lookup so that
+    # resolve_articles=True/False in Dilemma controls their resolution.
+    # Without this, fresh Wiktionary data maps τοῦ -> ὁ etc. in the
+    # lookup itself, bypassing the resolve_articles flag.
+    _EXCLUDED_ARTICLE_MAPS = {
+        "ὁ", "ἡ", "τό", "τοῦ", "τῆς", "τῶν", "τόν", "τήν",
+        "τά", "τοῖς", "ταῖς", "τῷ", "τῇ", "τούς", "τάς", "τοῖν", "ταῖν",
+        "οἱ", "αἱ", "τώ",
+        "τὸ", "τοὺς", "τὰ", "τὸν", "τὴν", "τὰς", "αἵ", "οἵ",
+    }
+    _ARTICLE_LEMMA = "ὁ"
+
+    def _is_article_map(form, lemma):
+        return (strip_accents(form.lower()) in {strip_accents(a.lower()) for a in _EXCLUDED_ARTICLE_MAPS}
+                and strip_accents(lemma.lower()) == strip_accents(_ARTICLE_LEMMA.lower()))
+
     # Build combined lookup (AG-first priority)
     print("\nBuilding combined lookup (AG-first)...")
     combined = {}
     ag_protected = 0
+    article_excluded = 0
     for data in [ag, el]:
         for k, v in data.items():
+            if _is_article_map(k, v):
+                article_excluded += 1
+                continue
             if k not in combined:
                 combined[k] = v
             elif _is_self_map(k, combined[k]) and not _is_self_map(k, v):
@@ -271,6 +291,8 @@ def build():
                   and _is_self_map(k, v) and v == k
                   and combined[k] != k):
                 combined[k] = v
+    if article_excluded:
+        print(f"  Article forms excluded (controlled by resolve_articles): {article_excluded:,}")
     if ag_protected:
         print(f"  AG headword self-maps protected: {ag_protected:,}")
     print(f"  Combined: {len(combined):,} entries")
