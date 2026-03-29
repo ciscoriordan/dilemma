@@ -10,6 +10,8 @@ jobs:
   test:
     runs-on: self-hosted
     timeout-minutes: 15
+    env:
+      HOME: /root
 
     steps:
       - uses: actions/checkout@v4
@@ -18,7 +20,7 @@ jobs:
 
       - name: Pull LFS data files
         run: |
-          git lfs install
+          git lfs install --force
           git lfs pull --include="data/lookup.db,data/spell_index.db"
 
       - name: Run all tests
