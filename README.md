@@ -598,10 +598,17 @@ python build_data.py --download
 ### Testing
 
 ```bash
+python -m pytest tests/ -v                  # run all tests via pytest (recommended)
 python tests/test_integrity.py              # data integrity + model inference checks
 python tests/test_dilemma.py                # lookup table + end-to-end lemmatization tests
 python tests/test_dilemma.py --lookup-only  # skip model tests
 ```
+
+`tests/test_comprehensive.py` is the main pytest test suite (128 tests)
+covering core lemmatization, particle suffix stripping, verb morphology
+stripping, article-agreement disambiguation, crasis resolution, elision
+handling, orthographic normalization, convention switching, language
+filtering, spelling suggestions, batch operations, and edge cases.
 
 `tests/test_integrity.py` runs 7 structural checks: ONNX/vocab dimension
 match, DB table presence, model load, inference, and ONNX/PyTorch
