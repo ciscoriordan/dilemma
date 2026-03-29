@@ -563,6 +563,7 @@ in elision contexts (ε, α, ο most common).
 | **Crasis table** | hash lookup `O(1)` | ~50 common crasis forms | Hand-curated |
 | **Particle suffix stripping** | suffix check `O(1)` | AG enclitic forms (-per, -ge, -de, deictic -i) | Strip suffix, re-lookup base form |
 | **Verb morphology stripping** | prefix check `O(1)` | Unseen augmented/reduplicated verb forms | Strip augment/reduplication, re-lookup |
+| **Dialect normalization** | k candidates `O(k)` | Ionic, Doric, Aeolic, Koine dialect forms | Map dialect forms to Attic equivalents |
 | **Compound decomposition** | n=word length `O(n)` | Byzantine compound words | Split at linking vowel, look up base |
 | **Spelling correction** | BK-tree `O(d·m)` | ED0-2 suggestions for unknown words | Accent-stripped edit distance |
 | **Transformer** | beam search `O(b·n²)` | generalizes to unseen forms | Trained on Wiktionary pairs |
@@ -571,7 +572,7 @@ The lookup table is built from Wiktionary [kaikki dumps](https://kaikki.org/)
 (EN and EL editions for MG and AG, plus EL Medieval Greek), expanded with
 inflected forms from LSJ (via Wiktionary Lua modules) and the Sophocles
 lexicon of Roman and Byzantine Greek, then augmented with form-lemma pairs
-from gold-standard treebanks (Gorman, AGDT). Each form is indexed under
+from gold-standard treebanks (PROIEL, Gorman, AGDT). Each form is indexed under
 its original, monotonic, and accent-stripped variants, so `θεοὶ` (polytonic
 with grave), `θεοί` (monotonic with acute), and `θεοι` (stripped) all
 resolve to `θεός`. Input can be polytonic, monotonic, or unaccented. AG
@@ -643,11 +644,13 @@ python tests/test_dilemma.py                # lookup table + end-to-end lemmatiz
 python tests/test_dilemma.py --lookup-only  # skip model tests
 ```
 
-`tests/test_comprehensive.py` is the main pytest test suite (128 tests)
+`tests/test_comprehensive.py` is the main pytest test suite (263 tests)
 covering core lemmatization, particle suffix stripping, verb morphology
 stripping, article-agreement disambiguation, crasis resolution, elision
-handling, orthographic normalization, convention switching, language
-filtering, spelling suggestions, batch operations, and edge cases.
+handling, orthographic normalization, dialect normalization (Ionic, Doric,
+Aeolic, Koine), convention switching, language filtering, spelling
+suggestions, batch operations, PROIEL/Gorman treebank pairs, and edge
+cases.
 
 `tests/test_integrity.py` runs 7 structural checks: ONNX/vocab dimension
 match, DB table presence, model load, inference, and ONNX/PyTorch
@@ -811,6 +814,8 @@ vocabulary (~160 tokens), so the same word is ~10 steps. Combined with
 | LSJ noun/verb/adj expansion | 4.2M | Via Wiktionary Lua modules |
 | Sophocles lexicon expansion | 1.0M | Byzantine/Patristic vocabulary |
 | UD Treebanks (AG) | 27K | Gold annotations from Perseus, PROIEL, DiGreC |
+| [PROIEL](https://github.com/proiel/proiel-treebank) (gold) | 33K | Herodotus gold-standard form-lemma pairs (single annotator, high accuracy) |
+| [Gorman Treebanks](https://github.com/UD-Greek/UD_Ancient_Greek-Gorman) | 79K | 687K tokens across Herodotus, Thucydides, Xenophon, Demosthenes, Lysias, Polybius, etc. |
 | GLAUx corpus | 557K | 17M tokens, 98.8% accuracy ([Keersmaekers 2021](https://github.com/alekkeersmaekers/glaux)) |
 | Diorisis corpus | 76K new | 10M tokens, 91.4% accuracy ([Vatri & McGillivray 2018](https://figshare.com/articles/dataset/The_Diorisis_Ancient_Greek_Corpus/6187256)) |
 | HNC Golden Corpus | 1K new | 88K-token gold MG corpus ([CLARIN:EL](https://inventory.clarin.gr/corpus/870), openUnder-PSI) |
@@ -978,6 +983,8 @@ will propagate into Dilemma via kaikki dumps.
 - Sophocles lexicon TEI from [Ionian University / Internet Archive](https://archive.org/details/pateres)
 - [GLAUx](https://github.com/alekkeersmaekers/glaux) corpus data (Keersmaekers, 2021) (CC BY-SA 4.0)
 - [Diorisis](https://figshare.com/articles/dataset/The_Diorisis_Ancient_Greek_Corpus/6187256) corpus data (Vatri & McGillivray, 2018) (CC BY-SA 3.0)
+- [PROIEL Treebank](https://github.com/proiel/proiel-treebank) gold-standard annotations (CC BY-NC-SA 4.0)
+- [Gorman Treebanks](https://github.com/UD-Greek/UD_Ancient_Greek-Gorman) (Gorman) (CC BY-NC-SA 4.0)
 - [HNC Golden Corpus](https://inventory.clarin.gr/corpus/870) from CLARIN:EL (openUnder-PSI)
 - DBBE evaluation data from [Swaelens et al.](https://github.com/coswaele/ByzantineGreekDatasets) (CC BY 4.0)
 - Flag icons by [svg-flags](https://github.com/ciscoriordan/svg-flags)
