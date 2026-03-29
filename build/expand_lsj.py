@@ -27,7 +27,7 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = SCRIPT_DIR / "data"
-LSJ9_DIR = Path.home() / "Documents" / "lsjpre" / "output" / "lsj9"
+LSJ9_DIR = Path.home() / "Documents" / "lsj9"
 LSJ9_FORMS = LSJ9_DIR / "lsj9_forms.tsv"
 LSJ9_HEADWORDS = LSJ9_DIR / "lsj9_headwords.json"
 KAIKKI_DIR = Path(os.environ.get(
