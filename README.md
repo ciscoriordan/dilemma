@@ -4,18 +4,34 @@
   <img width="500" alt="dilemma" src="dilemma.png">
 </p>
 
-Greek lemmatizer with a **12.3 million form** lookup table and a ~4M
-parameter character-level transformer trained on 3.4 million Wiktionary
-inflection pairs spanning Modern Greek, Ancient Greek, and Medieval Greek.
+Dilemma is a holistic Greek lemmatizer spanning Ancient Greek (Classical,
+Homeric, Hellenistic), Medieval/Byzantine Greek, and Modern Greek (Demotic
+and Katharevousa). It combines multiple strategies into a unified pipeline:
+
+- A 12.3M-form lookup table built from Wiktionary inflection tables,
+  Wiktionary's Lua morphological modules applied to LSJ and Sophocles
+  lexicon headwords, gold-standard treebanks (Perseus, PROIEL, Gorman,
+  DiGreC), and annotated corpora (GLAUx, Diorisis, HNC)
+- Dialect normalization for Ionic, Doric, Aeolic, and Koine orthographic
+  variants, mapping dialectal forms to their Attic equivalents for lookup
+- Rule-based morphological analysis including augment stripping,
+  reduplication removal, particle suffix resolution, elision expansion,
+  and crasis decomposition
+- A small supervised character-level transformer (~4M parameters) trained
+  on 3.4M explicit form-lemma pairs, used only for the ~5% of words not
+  resolved by lookup or rules
+- Convention remapping to match output lemmas to target dictionaries (LSJ,
+  Cunliffe, Triantafyllidis, Wiktionary)
 
 Most Greek words resolve instantly via the lookup table. For unseen forms,
-Dilemma uses a small encoder-decoder transformer that learns morphological
+Dilemma falls back through rule-based morphological analysis and dialect
+normalization before reaching the transformer, which learns morphological
 patterns at the character level, the standard architecture from
 [SIGMORPHON](https://sigmorphon.github.io/) shared tasks. At 4M parameters
 it trains from scratch in minutes, compared to fine-tuning approaches
-like *ByT5-small* (300M params) which take hours to train. Greek lemmatization is highly
-pattern-based - a small specialized model matches a large general-purpose
-one, and the 12.3M lookup table handles the rest.
+like *ByT5-small* (300M params) which take hours to train. Greek
+lemmatization is highly pattern-based - a small specialized model matches
+a large general-purpose one, and the 12.3M lookup table handles the rest.
 
 **Note on methodology:** Dilemma is a supervised system. The transformer
 trains on 3.4M explicit form-to-lemma pairs from Wiktionary inflection
