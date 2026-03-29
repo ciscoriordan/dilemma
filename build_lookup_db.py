@@ -339,7 +339,7 @@ def build():
     # AG-only entries where AG differs from combined (for polytonic-first lookup)
     ag_extra = 0
     for k, v in ag.items():
-        if combined.get(k) != v:
+        if combined.get(k) != v and not _is_article_map(k, v):
             conn.execute("INSERT INTO lookup (form, lemma_id, src, lang) VALUES (?, ?, 'grc', 'grc')",
                          (k, lemma_to_id[v]))
             ag_extra += 1
@@ -348,7 +348,7 @@ def build():
     # MG-only entries where MG differs from combined (for lang="el" mode)
     mg_extra = 0
     for k, v in el.items():
-        if combined.get(k) != v:
+        if combined.get(k) != v and not _is_article_map(k, v):
             conn.execute("INSERT INTO lookup (form, lemma_id, src, lang) VALUES (?, ?, 'el', 'el')",
                          (k, lemma_to_id[v]))
             mg_extra += 1
