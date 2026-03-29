@@ -450,23 +450,24 @@ def setup_wtp():
                     continue
                 body = f.read().decode("utf-8", errors="replace")
                 title = tar_to_title(member.name, ns_name)
-                wtp.add_page(title, ns_id, body, model=model)
+                wtp.add_page(model, title, body)
                 count += 1
         print(f"  Loaded {count:,} {ns_name.lower()}s")
 
-    wtp.db_conn.commit()
     print("  Database ready.")
     return wtp
 
 
+_WTP_INSTANCE = None
+
+
 def get_wtp():
     """Get wikitextprocessor instance, setting up if needed."""
-    from wikitextprocessor import Wtp
-
-    if WTP_DB.exists():
-        wtp = Wtp(cache_file=str(WTP_DB))
-        return wtp
-    return setup_wtp()
+    global _WTP_INSTANCE
+    if _WTP_INSTANCE is not None:
+        return _WTP_INSTANCE
+    _WTP_INSTANCE = setup_wtp()
+    return _WTP_INSTANCE
 
 
 MACRON = "\u0304"  # combining macron
