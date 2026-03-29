@@ -33,6 +33,8 @@ MG_PATH = DATA_DIR / "mg_lookup.json"
 MED_PATH = DATA_DIR / "med_lookup.json"
 GLAUX_PAIRS_PATH = DATA_DIR / "glaux_pairs.json"
 DIORISIS_PAIRS_PATH = DATA_DIR / "diorisis_pairs.json"
+PROIEL_PAIRS_PATH = DATA_DIR / "proiel_pairs.json"
+GORMAN_PAIRS_PATH = DATA_DIR / "gorman_pairs.json"
 ETYMOLOGY_BRIDGES_PATH = DATA_DIR / "etymology_bridges.json"
 LSJGR_BRIDGES_PATH = DATA_DIR / "lsjgr_bridges.json"
 RELATED_LEMMAS_PATH = DATA_DIR / "related_lemmas.json"
@@ -123,6 +125,48 @@ def build():
               f"({time.time()-t_h:.1f}s)")
     else:
         print(f"  HNC: no hnc_pairs.json found, skipping")
+
+    # Expand AG with PROIEL gold-standard pairs (33K forms from
+    # Herodotus' Histories, manually annotated). Higher priority
+    # than corpus-derived pairs (GLAUx, Diorisis) since every
+    # lemma assignment is expert-verified.
+    proiel_added_ag = 0
+    if PROIEL_PAIRS_PATH.exists():
+        t_p = time.time()
+        with open(PROIEL_PAIRS_PATH, encoding="utf-8") as f:
+            proiel_pairs = json.load(f)
+        for p in proiel_pairs:
+            form, lemma = p["form"], p["lemma"]
+            if form not in ag:
+                ag[form] = lemma
+                proiel_added_ag += 1
+        print(f"  PROIEL: +{proiel_added_ag:,} to AG "
+              f"({len(proiel_pairs):,} total, "
+              f"{len(proiel_pairs) - proiel_added_ag:,} already present) "
+              f"({time.time()-t_p:.1f}s)")
+    else:
+        print(f"  PROIEL: no proiel_pairs.json found, skipping")
+
+    # Expand AG with Gorman treebank pairs (79K unique form-lemma pairs
+    # from 687K tokens of annotated Ancient Greek across multiple authors:
+    # Herodotus, Thucydides, Xenophon, Demosthenes, Lysias, Polybius, etc.)
+    # Gold-standard single annotator, same priority tier as PROIEL.
+    gorman_added_ag = 0
+    if GORMAN_PAIRS_PATH.exists():
+        t_gr = time.time()
+        with open(GORMAN_PAIRS_PATH, encoding="utf-8") as f:
+            gorman_pairs = json.load(f)
+        for p in gorman_pairs:
+            form, lemma = p["form"], p["lemma"]
+            if form not in ag:
+                ag[form] = lemma
+                gorman_added_ag += 1
+        print(f"  Gorman: +{gorman_added_ag:,} to AG "
+              f"({len(gorman_pairs):,} total, "
+              f"{len(gorman_pairs) - gorman_added_ag:,} already present) "
+              f"({time.time()-t_gr:.1f}s)")
+    else:
+        print(f"  Gorman: no gorman_pairs.json found, skipping")
 
     # Expand AG and Med with GLAUx corpus pairs (644K forms from
     # 8th c. BC - 4th c. AD Greek texts). These are corpus-derived
