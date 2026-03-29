@@ -1042,8 +1042,7 @@ will propagate into Dilemma via kaikki dumps.
 ## Credits
 
 - Training data from [English Wiktionary](https://en.wiktionary.org/) and [Greek Wiktionary](https://el.wiktionary.org/) via [kaikki.org](https://kaikki.org/) JSONL dumps
-- LSJ headwords and forms from [LSJ9](https://github.com/ciscoriordan/lsj9) (OCR-corrected LSJ base text, CC BY 4.0)
-- LSJ grammar and indeclinables data from [LSJ9](https://github.com/ciscoriordan/lsj9) exports (`lsj9_headwords.json`, `lsj9_forms.tsv`, `lsj9_indeclinables.json`)
+- LSJ headwords, forms, and POS data from [LSJ9](https://github.com/ciscoriordan/lsj9) processed exports (`lsj9_headwords_flat.json`, `lsj9_headword_pos.json`, `lsj9_frequency.json`, `lsj9_indeclinables.json`)
 - Sophocles lexicon TEI from [Ionian University / Internet Archive](https://archive.org/details/pateres)
 - [GLAUx](https://github.com/alekkeersmaekers/glaux) corpus data (Keersmaekers, 2021) (CC BY-SA 4.0)
 - [Diorisis](https://figshare.com/articles/dataset/The_Diorisis_Ancient_Greek_Corpus/6187256) corpus data (Vatri & McGillivray, 2018) (CC BY-SA 3.0)
