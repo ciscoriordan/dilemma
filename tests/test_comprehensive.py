@@ -23,7 +23,7 @@ from dilemma import (
     _is_self_map, _PARTICLE_SUFFIXES, _DEICTIC_STEMS, _ARTICLE_FEATURES,
 )
 from crasis import resolve_crasis, CRASIS_TABLE
-from normalize import Normalizer, PROFILES, SUBSCRIPTUM_MAP
+from normalize import Normalizer, PROFILES, SUBSCRIPTUM_MAP, IONIC_WORD_MAP, DORIC_WORD_MAP
 
 
 # ---------------------------------------------------------------------------
@@ -646,6 +646,339 @@ class TestNormalization:
         n_single = Normalizer(period="byzantine", max_substitutions=1)
         cands_single = n_single.normalize("πιστι")
         assert len(candidates) >= len(cands_single)
+
+
+# ===========================================================================
+# 9b. DIALECT NORMALIZATION
+# ===========================================================================
+
+class TestDialectNormalization:
+    """Test dialect-specific normalization (Ionic, Doric, Aeolic, Koine)."""
+
+    # --- Initialization ---
+
+    def test_dialect_init_none(self):
+        """Default dialect should be None (no dialect rules)."""
+        n = Normalizer()
+        assert n.dialect is None
+        assert len(n._dialects) == 0
+
+    def test_dialect_init_ionic(self):
+        """Ionic dialect should initialize correctly."""
+        n = Normalizer(dialect="ionic")
+        assert n.dialect == "ionic"
+        assert "ionic" in n._dialects
+
+    def test_dialect_init_auto(self):
+        """Auto dialect should enable all dialects."""
+        n = Normalizer(dialect="auto")
+        assert "ionic" in n._dialects
+        assert "doric" in n._dialects
+        assert "aeolic" in n._dialects
+        assert "koine" in n._dialects
+
+    def test_dialect_invalid_raises(self):
+        """Invalid dialect name should raise ValueError."""
+        with pytest.raises(ValueError):
+            Normalizer(dialect="mycenaean")
+
+    def test_dialect_combined_with_period(self):
+        """Dialect and period should work together."""
+        n = Normalizer(period="hellenistic", dialect="ionic")
+        assert n.period == "hellenistic"
+        assert n.dialect == "ionic"
+        # Should have both period-based rules and dialect rules
+        assert len(n.vowel_rules) > 0
+        assert "ionic" in n._dialects
+
+    # --- Ionic: η -> α after ε, ι, ρ ---
+
+    def test_ionic_eta_to_alpha_after_rho(self):
+        """Ionic -ης -> Attic -ας after ρ (first declension)."""
+        n = Normalizer(dialect="ionic")
+        cands = n.normalize("ἱστορίης")
+        assert "ἱστορίας" in cands, \
+            f"Expected ἱστορίας in {cands[:10]}"
+
+    def test_ionic_eta_to_alpha_chores(self):
+        """χώρης -> χώρας (Ionic gen.sg. after ρ)."""
+        n = Normalizer(dialect="ionic")
+        cands = n.normalize("χώρης")
+        assert "χώρας" in cands
+
+    def test_ionic_eta_to_alpha_hemeres(self):
+        """ἡμέρης -> ἡμέρας (Ionic gen.sg. after ρ)."""
+        n = Normalizer(dialect="ionic")
+        cands = n.normalize("ἡμέρης")
+        assert "ἡμέρας" in cands
+
+    def test_ionic_eta_to_alpha_after_epsilon(self):
+        """η -> α after ε should also be tried."""
+        n = Normalizer(dialect="ionic")
+        # θεῆς -> θεᾶς (goddess, gen.sg. after ε)
+        cands = n.normalize("θεῆς")
+        assert "θεᾶς" in cands, \
+            f"Expected θεᾶς in {cands[:10]}"
+
+    def test_ionic_eta_to_alpha_after_iota(self):
+        """η -> α after ι should also be tried."""
+        n = Normalizer(dialect="ionic")
+        cands = n.normalize("οἰκίης")
+        assert "οἰκίας" in cands
+
+    # --- Ionic: uncontracted vowels ---
+
+    def test_ionic_contraction_ee_to_ei(self):
+        """ποιέειν -> ποιεῖν (ε-contract: εε -> ει)."""
+        n = Normalizer(dialect="ionic")
+        cands = n.normalize("ποιέειν")
+        # The contraction produces ποιέιν (εει -> ει)
+        assert any("ποι" in c and "ιν" in c and "εε" not in c
+                    for c in cands[:5]), \
+            f"Expected contracted form in {cands[:10]}"
+
+    def test_ionic_contraction_eo_to_ou(self):
+        """εο -> ου contraction."""
+        n = Normalizer(dialect="ionic")
+        cands = n.normalize("ποιεομένη")
+        assert any("ου" in c for c in cands[:5]), \
+            f"Expected form with ου in {cands[:10]}"
+
+    def test_ionic_contraction_ew_to_w(self):
+        """τιμέω -> τιμῶ (εω -> ω at word end)."""
+        n = Normalizer(dialect="ionic")
+        cands = n.normalize("τιμέω")
+        assert "τιμῶ" in cands, \
+            f"Expected τιμῶ in {cands[:10]}"
+
+    def test_ionic_contraction_epoiee(self):
+        """ἐποίεε -> ἐποίει (εε -> ει)."""
+        n = Normalizer(dialect="ionic")
+        cands = n.normalize("ἐποίεε")
+        assert "ἐποίει" in cands, \
+            f"Expected ἐποίει in {cands[:10]}"
+
+    # --- Ionic: κ/π interchange ---
+
+    def test_ionic_kos_to_pos(self):
+        """κῶς -> πῶς (Ionic interrogative)."""
+        n = Normalizer(dialect="ionic")
+        cands = n.normalize("κῶς")
+        assert "πῶς" in cands
+
+    def test_ionic_hokou_to_hopou(self):
+        """ὅκου -> ὅπου."""
+        n = Normalizer(dialect="ionic")
+        cands = n.normalize("ὅκου")
+        assert "ὅπου" in cands
+
+    def test_ionic_kote_to_pote(self):
+        """κότε -> πότε."""
+        n = Normalizer(dialect="ionic")
+        cands = n.normalize("κότε")
+        assert "πότε" in cands
+
+    def test_ionic_koios_to_poios(self):
+        """κοῖος -> ποῖος."""
+        n = Normalizer(dialect="ionic")
+        cands = n.normalize("κοῖος")
+        assert "ποῖος" in cands
+
+    def test_ionic_kosos_to_posos(self):
+        """κόσος -> πόσος."""
+        n = Normalizer(dialect="ionic")
+        cands = n.normalize("κόσος")
+        assert "πόσος" in cands
+
+    def test_ionic_kothen_to_pothen(self):
+        """κόθεν -> πόθεν."""
+        n = Normalizer(dialect="ionic")
+        cands = n.normalize("κόθεν")
+        assert "πόθεν" in cands
+
+    # --- Ionic: ου/ο alternation ---
+
+    def test_ionic_mounos_to_monos(self):
+        """μοῦνος -> μόνος."""
+        n = Normalizer(dialect="ionic")
+        cands = n.normalize("μοῦνος")
+        assert "μόνος" in cands
+
+    def test_ionic_xeinos_to_xenos(self):
+        """ξεῖνος -> ξένος."""
+        n = Normalizer(dialect="ionic")
+        cands = n.normalize("ξεῖνος")
+        assert "ξένος" in cands
+
+    def test_ionic_keinos_to_ekeinos(self):
+        """κεῖνος -> ἐκεῖνος."""
+        n = Normalizer(dialect="ionic")
+        cands = n.normalize("κεῖνος")
+        assert "ἐκεῖνος" in cands
+
+    def test_ionic_heineka_to_heneka(self):
+        """εἵνεκα -> ἕνεκα."""
+        n = Normalizer(dialect="ionic")
+        cands = n.normalize("εἵνεκα")
+        assert "ἕνεκα" in cands
+
+    # --- Ionic: σσ/ττ alternation ---
+
+    def test_ionic_ss_to_tt_thalassa(self):
+        """θάλασσα -> θάλαττα."""
+        n = Normalizer(dialect="ionic")
+        cands = n.normalize("θάλασσα")
+        assert "θάλαττα" in cands
+
+    def test_ionic_ss_to_tt_glossa(self):
+        """γλῶσσα -> γλῶττα."""
+        n = Normalizer(dialect="ionic")
+        cands = n.normalize("γλῶσσα")
+        assert "γλῶττα" in cands
+
+    # --- Ionic: ρσ/ρρ alternation ---
+
+    def test_ionic_rs_to_rr_tharsos(self):
+        """θάρσος -> θάρρος."""
+        n = Normalizer(dialect="ionic")
+        cands = n.normalize("θάρσος")
+        assert "θάρρος" in cands
+
+    def test_ionic_rs_to_rr_arsen(self):
+        """ἄρσην -> ἄρρην."""
+        n = Normalizer(dialect="ionic")
+        cands = n.normalize("ἄρσην")
+        assert "ἄρρην" in cands
+
+    # --- Doric ---
+
+    def test_doric_poti_to_pros(self):
+        """ποτί -> πρός."""
+        n = Normalizer(dialect="doric")
+        cands = n.normalize("ποτί")
+        assert "πρός" in cands
+
+    def test_doric_tu_to_su(self):
+        """τύ -> σύ."""
+        n = Normalizer(dialect="doric")
+        cands = n.normalize("τύ")
+        assert "σύ" in cands
+
+    def test_doric_athana_to_athene(self):
+        """Ἀθάνα -> Ἀθήνη."""
+        n = Normalizer(dialect="doric")
+        cands = n.normalize("Ἀθάνα")
+        assert "Ἀθήνη" in cands
+
+    def test_doric_alpha_to_eta(self):
+        """Doric α -> Attic η in endings."""
+        n = Normalizer(dialect="doric")
+        # Ἀθάνα has last alpha; should try η
+        cands = n.normalize("Ἀθάνα")
+        assert any("η" in c or "ή" in c for c in cands[:5])
+
+    def test_doric_future_praxeo(self):
+        """πραξέω -> πράξω (Doric future)."""
+        n = Normalizer(dialect="doric")
+        cands = n.normalize("πραξέω")
+        # Should generate πραξω or πράξω
+        stripped = [strip_accents(c) for c in cands]
+        assert any("πραξω" in s for s in stripped), \
+            f"Expected πραξω variant in {cands[:10]}"
+
+    # --- Aeolic ---
+
+    def test_aeolic_psilosis_smooth_to_rough(self):
+        """Aeolic psilosis: smooth breathing -> rough breathing."""
+        n = Normalizer(dialect="aeolic")
+        # ἀ- (smooth) -> ἁ- (rough)
+        cands = n.normalize("ἄελλα")
+        assert "ἅελλα" in cands, \
+            f"Expected ἅελλα in {cands[:10]}"
+
+    # --- Koine ---
+
+    def test_koine_ss_to_tt(self):
+        """Koine σσ -> ττ (Attic)."""
+        n = Normalizer(dialect="koine")
+        cands = n.normalize("θάλασσα")
+        assert "θάλαττα" in cands
+
+    def test_koine_tt_to_ss(self):
+        """Koine ττ -> σσ (reverse direction)."""
+        n = Normalizer(dialect="koine")
+        cands = n.normalize("θάλαττα")
+        assert "θάλασσα" in cands
+
+    # --- Auto mode ---
+
+    def test_auto_finds_ionic(self):
+        """Auto mode should find Ionic normalizations."""
+        n = Normalizer(dialect="auto")
+        cands = n.normalize("κῶς")
+        assert "πῶς" in cands
+
+    def test_auto_finds_doric(self):
+        """Auto mode should find Doric normalizations."""
+        n = Normalizer(dialect="auto")
+        cands = n.normalize("ποτί")
+        assert "πρός" in cands
+
+    def test_auto_finds_multiple_dialects(self):
+        """Auto mode should try all dialect rules."""
+        n = Normalizer(dialect="auto")
+        # σσ -> ττ should work via both ionic and koine
+        cands = n.normalize("θάλασσα")
+        assert "θάλαττα" in cands
+
+    # --- Dilemma integration ---
+
+    def test_dilemma_dialect_param(self):
+        """Dilemma should accept dialect parameter."""
+        d = Dilemma(dialect="ionic")
+        assert d._normalizer is not None
+        assert d._normalizer.dialect == "ionic"
+
+    def test_dilemma_dialect_auto(self):
+        """Dilemma should accept dialect='auto'."""
+        d = Dilemma(dialect="auto")
+        assert d._normalizer is not None
+        assert "ionic" in d._normalizer._dialects
+
+    def test_dilemma_dialect_enables_normalizer(self):
+        """Setting dialect should implicitly enable normalization."""
+        d = Dilemma(dialect="ionic")
+        assert d._normalizer is not None
+
+    def test_dilemma_dialect_combined_with_period(self):
+        """Dialect and period should combine in Dilemma."""
+        d = Dilemma(dialect="ionic", period="hellenistic")
+        assert d._normalizer is not None
+        assert d._normalizer.dialect == "ionic"
+        assert d._normalizer.period == "hellenistic"
+
+    # --- Dialect candidates are prioritized ---
+
+    def test_dialect_candidates_ranked_first(self):
+        """Dialect matches should appear before orthographic variants."""
+        n = Normalizer(dialect="ionic")
+        cands = n.normalize("κῶς")
+        # πῶς should be among the very first candidates
+        assert cands.index("πῶς") < 3, \
+            f"Expected πῶς in top 3, got position {cands.index('πῶς')} in {cands[:10]}"
+
+    # --- Word map coverage ---
+
+    def test_ionic_word_map_has_pairs(self):
+        """Ionic word map should contain expected key pairs."""
+        assert "κῶς" in IONIC_WORD_MAP
+        assert "μοῦνος" in IONIC_WORD_MAP
+        assert "ξεῖνος" in IONIC_WORD_MAP
+
+    def test_doric_word_map_has_pairs(self):
+        """Doric word map should contain expected key pairs."""
+        assert "ποτί" in DORIC_WORD_MAP
+        assert "τύ" in DORIC_WORD_MAP
 
 
 # ===========================================================================

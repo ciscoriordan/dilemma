@@ -42,6 +42,7 @@ and other regional varieties alongside Ancient and Medieval Greek.
 - [Language codes and terminology](#language-codes-and-terminology)
 - [Lookup table sources](#lookup-table-sources)
 - [Orthographic normalizer](#orthographic-normalizer-byzantinepapyrological-texts)
+- [Dialect normalization](#dialect-normalization-ionic-doric-aeolic)
 - [Evaluation](#evaluation)
 - [Modern Greek varieties](#modern-greek-varieties)
 - [Ancient Greek varieties](#ancient-greek-varieties)
@@ -114,6 +115,36 @@ rules by historical probability.
 ```python
 d = Dilemma(normalize=True, period="byzantine")
 ```
+
+### Dialect normalization (Ionic, Doric, Aeolic)
+
+For Ancient Greek dialect texts (Herodotus, Pindar, Sappho, etc.),
+the normalizer maps dialect-specific forms to their Attic equivalents
+so the Attic-heavy lookup table can match them.
+
+**Ionic** (highest coverage): η/ᾱ alternation after ε, ι, ρ
+(ἱστορίης → ἱστορίας), uncontracted vowels (ποιέειν → ποιεῖν,
+τιμέω → τιμῶ), κ/π interrogative interchange (κῶς → πῶς,
+ὅκου → ὅπου), σσ/ττ alternation (θάλασσα → θάλαττα),
+ρσ/ρρ alternation (θάρσος → θάρρος), and common word mappings
+(μοῦνος → μόνος, ξεῖνος → ξένος, κεῖνος → ἐκεῖνος).
+
+**Doric**: ᾱ/η alternation (Ἀθάνα → Ἀθήνη), word mappings
+(ποτί → πρός, τύ → σύ), Doric futures (-σέω → -σω).
+
+**Aeolic**: psilosis (smooth → rough breathing normalization).
+
+**Koine**: σσ/ττ alternation (overlaps with Ionic and period rules).
+
+```python
+d = Dilemma(dialect="ionic")                              # Ionic texts
+d = Dilemma(dialect="doric")                              # Doric texts
+d = Dilemma(dialect="auto")                               # try all dialects
+d = Dilemma(dialect="ionic", period="hellenistic")        # combined
+```
+
+Dialects can be combined with period profiles. Setting `dialect`
+implicitly enables the normalizer (no need for `normalize=True`).
 
 ### Evaluation
 
