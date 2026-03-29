@@ -16,7 +16,10 @@ and Katharevousa). It combines multiple strategies into a unified pipeline:
   variants, mapping dialectal forms to their Attic equivalents for lookup
 - Rule-based morphological analysis including augment stripping,
   reduplication removal, particle suffix resolution, elision expansion,
-  and crasis decomposition
+  and crasis decomposition - these handle systematic transformations that
+  the lookup table cannot enumerate exhaustively (every word x every
+  enclitic particle) and that a transformer might not generalize to for
+  rare forms it has never trained on
 - A small supervised character-level transformer (~4M parameters) trained
   on 3.4M explicit form-lemma pairs, used only for the ~5% of words not
   resolved by lookup or rules
