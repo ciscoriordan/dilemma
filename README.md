@@ -235,7 +235,7 @@ differences between annotation schemes (e.g. `εἶπον`/`λέγω`,
 
 ### Modern Greek varieties
 
-| Variety | Tagged entries |
+| Variety | Wiktionary-tagged headwords |
 |---------|---------------|
 | **Standard Modern Greek (SMG/Demotic)** | 877K entries (core) |
 | **Katharevousa** | 283+ tagged, hundreds more formal/place terms |
@@ -247,7 +247,7 @@ differences between annotation schemes (e.g. `εἶπον`/`λέγω`,
 
 ### Ancient Greek varieties
 
-| Variety | Tagged entries |
+| Variety | Wiktionary-tagged headwords |
 |---------|---------------|
 | **Epic/Homeric** | 3,755 |
 | **Ionic** | 1,638 |
@@ -260,16 +260,25 @@ differences between annotation schemes (e.g. `εἶπον`/`λέγω`,
 | **Boeotian** | 15 |
 | **Arcadocypriot** | 11 |
 
-The tagged entry counts above are Wiktionary headwords explicitly labeled
-with a variety. Each headword generates a full inflection paradigm (10-40
-forms for verbs, 4-8 for nouns), so the actual form coverage is much
-larger.
+The counts above are Wiktionary headwords explicitly labeled with a
+dialect tag. Each headword generates a full inflection paradigm (10-40
+forms for verbs, 4-8 for nouns), so Wiktionary-derived form coverage is
+much larger than the headword count suggests.
 
-Beyond the lookup, the transformer model generalizes to forms not in
-Wiktionary. Katharevousa forms are the primary non-SMG target - they mix
-AG morphology (augments, 3rd declension genitives) with MG vocabulary.
-The strong Epic/Homeric coverage (3,755 entries) is directly relevant for
-literary texts based on Homer.
+However, Wiktionary tags are only a fraction of Dilemma's actual dialect
+coverage. Corpus-derived form-lemma pairs add substantially more:
+GLAUx contributes 76K Ionic pairs from Herodotus and the Hippocratic
+corpus, PROIEL adds 33K gold-standard Herodotus pairs, and Gorman adds
+79K pairs across Herodotus, Thucydides, Xenophon, Demosthenes, and
+others. The dialect normalization layer (Ionic, Doric, Aeolic, Koine)
+then maps remaining dialectal forms to their Attic equivalents for
+lookup, catching forms that no corpus or dictionary has catalogued.
+
+Katharevousa forms are the primary non-SMG target for Modern Greek -
+they mix AG morphology (augments, 3rd declension genitives) with MG
+vocabulary. The strong Epic/Homeric coverage (3,755 tagged headwords
+plus extensive GLAUx corpus data) is directly relevant for literary
+texts based on Homer.
 
 <a id="why-medieval-is-mg"></a>
 Medieval/Byzantine Greek forms are merged into Modern Greek (`el`),
