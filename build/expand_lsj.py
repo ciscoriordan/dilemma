@@ -422,7 +422,7 @@ def setup_wtp():
     if WTP_DB.exists():
         WTP_DB.unlink()
 
-    wtp = Wtp(db_path=str(WTP_DB))
+    wtp = Wtp(cache_file=str(WTP_DB))
 
     NS_MODULE = 828
     NS_TEMPLATE = 10
@@ -464,7 +464,7 @@ def get_wtp():
     from wikitextprocessor import Wtp
 
     if WTP_DB.exists():
-        wtp = Wtp(db_path=str(WTP_DB))
+        wtp = Wtp(cache_file=str(WTP_DB))
         return wtp
     return setup_wtp()
 
