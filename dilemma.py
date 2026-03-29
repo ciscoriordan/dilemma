@@ -3106,12 +3106,15 @@ class Dilemma:
 
         results = []
         greedy = (num_beams == 1)
+        onnx_mode = getattr(self, '_use_onnx', False)
         for i, candidates in enumerate(beam_results):
-            if greedy:
-                # num_beams=1: beam_results is (batch, seq_len) tensor,
-                # each row is token IDs with no score
+            if greedy and not onnx_mode:
+                # num_beams=1 with PyTorch: beam_results is (batch, seq_len)
+                # tensor, each row is token IDs with no score
                 decoded = [self._vocab.decode(candidates)]
             else:
+                # ONNX always returns list of (ids, score) tuples;
+                # PyTorch beam search (num_beams>1) does the same
                 decoded = [self._vocab.decode(ids) for ids, score in candidates]
             chosen = None
             for d in decoded:

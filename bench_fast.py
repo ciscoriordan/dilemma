@@ -50,7 +50,7 @@ datasets = {
 }
 
 for lang in ['all', 'grc', 'el']:
-    d = Dilemma(lang=lang)
+    d = Dilemma(lang=lang, resolve_articles=True)
     d.preload()
     results = []
     for name, pairs in datasets.items():
