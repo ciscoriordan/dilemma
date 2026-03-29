@@ -566,9 +566,9 @@ d.is_headword("θεός", "cunliffe")  # check against Cunliffe headwords
 
 Ancient Greek texts frequently elide final vowels before a following
 vowel, marking the elision with an apostrophe (U+0313 in polytonic
-encoding, U+02B9/U+02BC/U+2019 in other encodings). Dilemma resolves
-these by stripping the elision mark and trying each Greek vowel against
-the lookup table:
+encoding, U+02B9/U+02BC/U+1FBF/U+2019 in other encodings). Dilemma
+resolves these by stripping the elision mark and trying each Greek vowel
+against the lookup table:
 
 | Elided | Expanded | Lemma |
 |--------|----------|-------|
@@ -578,14 +578,23 @@ the lookup table:
 | `ἐπ̓` | `ἐπί` | `ἐπί` |
 | `ἔφατ̓` | `ἔφατο` | `φημί` |
 | `κατ̓` | `κατά` | `κατά` |
+| `καθ᾿` | `κατά` | `κατά` |
+| `ἀφ᾿` | `ἀπό` | `ἀπό` |
 | `βάλλ̓` | `βάλλε` | `βάλλω` |
 
+**Consonant de-assimilation:** Before rough breathing, Greek assimilates
+voiceless stops to aspirates (τ->θ, π->φ, κ->χ). The elision expander
+reverses this: `καθ᾿` tries both `καθ-` and `κατ-`, `ἀφ᾿` tries both
+`ἀφ-` and `ἀπ-`, recovering prepositions like κατά and ἀπό.
+
+**Frequency ranking:** When multiple expansions match the lookup table,
+candidates are ranked by corpus frequency (from GLAUx), so common
+prepositions like κατά always beat obscure verbs like κάθω. Function
+words are further prioritized when the stem matches a known elision
+pattern, and proper nouns are deprioritized.
+
 Polytonic input automatically restricts expansion to the AG lookup
-table, avoiding false matches from MG monotonic forms. Common function
-words (prepositions, particles, conjunctions like ἀλλά, μετά, παρά, κατά,
-διά) are prioritized over content words when disambiguating, and proper
-nouns are deprioritized. Remaining candidates are ranked by vowel frequency
-in elision contexts (ε, α, ο most common).
+table, avoiding false matches from MG monotonic forms.
 
 ## How It Works
 
