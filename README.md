@@ -86,6 +86,7 @@ The lookup table combines forms from multiple sources:
 | **[Diorisis](https://figshare.com/articles/dataset/The_Diorisis_Ancient_Greek_Corpus/6187256)** (Vatri & McGillivray, 2018) | 76K new | 10M-token corpus, Homer - 5th c. AD, 91.4% lemma accuracy. Low-priority pairs (only added when no conflict with existing sources). Also provides frequency data (27M combined tokens with GLAUx). |
 | **[HNC Golden Corpus](https://inventory.clarin.gr/corpus/870)** (CLARIN:EL) | 1K new | 88K-token gold-standard MG corpus, 11K unique form-lemma pairs. Low priority (only added when not in Wiktionary). Also used for MG evaluation. |
 | **UD Treebanks** (Perseus, PROIEL, DiGreC) | 27K | Gold form-lemma pairs from annotated treebanks |
+| **[Gorman Treebanks](https://github.com/UD-Greek/UD_Ancient_Greek-Gorman)** (Gorman) | 79K | 687K-token corpus across Herodotus, Thucydides, Xenophon, Demosthenes, Lysias, Polybius, etc. Gold-standard single annotator. |
 | Closed-class fixes | ~500 | Articles, pronouns, prepositions mapped to canonical lemmas |
 
 The LSJ and Sophocles expansions use Wiktionary's own
