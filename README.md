@@ -14,7 +14,7 @@ and Katharevousa). It combines multiple strategies into a unified pipeline:
   DiGreC), and annotated corpora (GLAUx, Diorisis, HNC)
 - Dialect normalization for Ionic, Doric, Aeolic, and Koine orthographic
   variants, mapping dialectal forms to their Attic equivalents for lookup
-- Rule-based morphological analysis including augment stripping,
+- Precision rule-based morphological analysis including augment stripping,
   reduplication removal, particle suffix resolution, elision expansion,
   and crasis decomposition - these handle systematic transformations that
   the lookup table cannot enumerate exhaustively (every word x every
