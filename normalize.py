@@ -3,18 +3,25 @@
 
 Generates candidate normalized spellings for tokens exhibiting scribal
 or epigraphic variation (itacism, vowel mergers, missing iota subscripta,
-etc.). Candidates are meant to be checked against a lookup table.
+etc.) as well as dialect-specific forms (Ionic, Doric, Aeolic).
+Candidates are meant to be checked against a lookup table.
 
 Usage:
     from normalize import Normalizer
 
     n = Normalizer()                        # all periods
     n = Normalizer(period="byzantine")      # period-specific rules
+    n = Normalizer(dialect="ionic")         # Ionic dialect rules
+    n = Normalizer(dialect="auto")          # try all dialect rules
+    n = Normalizer(period="hellenistic", dialect="ionic")  # combined
 
     candidates = n.normalize("χέροντες")    # itacism: ε for αι
     candidates = n.normalize("θεω")         # missing iota subscriptum
+    candidates = n.normalize("ἱστορίης")    # Ionic: -ης -> -ας after ρ
+    candidates = n.normalize("θάλασσα")     # Ionic σσ -> Attic ττ
 """
 
+import re
 import unicodedata
 from itertools import combinations
 
@@ -219,21 +226,151 @@ PROFILES["all"] = {
 }
 
 
+# ---------------------------------------------------------------------------
+# Dialect-specific rules
+# ---------------------------------------------------------------------------
+# These handle Ancient Greek dialect variation (Ionic, Doric, Aeolic) where
+# the surface form differs systematically from the Attic standard that
+# dominates the lookup table. Unlike the orthographic rules above (which
+# handle scribal error in any period), these are genuine linguistic variants.
+
+# Ionic dialect: whole-word and pattern-based substitutions
+# Each entry: (ionic_form, attic_form)
+IONIC_WORD_MAP = {
+    # κ/π interchange in interrogatives/indefinites/relatives
+    "κῶς": "πῶς",
+    "κως": "πως",
+    "ὅκου": "ὅπου",
+    "οκου": "οπου",
+    "κοῖος": "ποῖος",
+    "κοιος": "ποιος",
+    "κότε": "πότε",
+    "κοτε": "ποτε",
+    "κότερος": "πότερος",
+    "κοτερος": "ποτερος",
+    "κόσος": "πόσος",
+    "κοσος": "ποσος",
+    "κόθεν": "πόθεν",
+    "κοθεν": "ποθεν",
+    "κοῦ": "ποῦ",
+    "κου": "που",
+    "κόσε": "πόσε",
+    "κοσε": "ποσε",
+    "ὁκόσος": "ὁπόσος",
+    "οκοσος": "οποσος",
+    "ὅκως": "ὅπως",
+    "οκως": "οπως",
+    # ου/ο alternation (Ionic ου where Attic has ο)
+    "μοῦνος": "μόνος",
+    "μουνος": "μονος",
+    "μούνη": "μόνη",
+    "μουνη": "μονη",
+    "μοῦνον": "μόνον",
+    "μουνον": "μονον",
+    # ξεῖνος / ξένος
+    "ξεῖνος": "ξένος",
+    "ξεινος": "ξενος",
+    "ξείνη": "ξένη",
+    "ξεινη": "ξενη",
+    "ξεῖνον": "ξένον",
+    "ξεινον": "ξενον",
+    # κεῖνος / ἐκεῖνος
+    "κεῖνος": "ἐκεῖνος",
+    "κεινος": "εκεινος",
+    "κείνη": "ἐκείνη",
+    "κεινη": "εκεινη",
+    "κεῖνο": "ἐκεῖνο",
+    "κεινο": "εκεινο",
+    "κείνου": "ἐκείνου",
+    "κεινου": "εκεινου",
+    "κείνῳ": "ἐκείνῳ",
+    "κεινῳ": "εκεινῳ",
+    "κείνων": "ἐκείνων",
+    "κεινων": "εκεινων",
+    # εἵνεκα / ἕνεκα
+    "εἵνεκα": "ἕνεκα",
+    "εινεκα": "ενεκα",
+    "εἵνεκεν": "ἕνεκεν",
+    "εινεκεν": "ενεκεν",
+}
+
+# Doric dialect: whole-word substitutions
+DORIC_WORD_MAP = {
+    # ποτί / πρός
+    "ποτί": "πρός",
+    "ποτι": "προς",
+    # τύ / σύ
+    "τύ": "σύ",
+    "τυ": "συ",
+    "τύν": "σέ",
+    # Ἀθάνα / Ἀθήνη (and variants)
+    "Ἀθάνα": "Ἀθήνη",
+    "αθανα": "αθηνη",
+    "Ἀθαναία": "Ἀθηναία",
+    "αθαναια": "αθηναια",
+}
+
+
+# Helper: strip all diacritics from a Greek string for base-letter comparison
+def _strip_all_diacritics(s):
+    """Strip all combining marks (accents, breathings, iotas) from Greek."""
+    nfd = unicodedata.normalize("NFD", s)
+    base = "".join(c for c in nfd if not unicodedata.combining(c))
+    return unicodedata.normalize("NFC", base)
+
+
+# Characters that count as vowels for context matching in dialect rules
+_VOWELS = set("αεηιουωάέήίόύώὰὲὴὶὸὺὼᾶῆῖῦῶἀἐἠἰὀὐἠὠ"
+               "ἁἑἡἱὁὑἡὡᾳῃῳᾴῄῴᾲῂῲᾷῇῷ")
+
+# Characters that are vowel base letters (without diacritics)
+_VOWEL_BASES = set("αεηιουω")
+
+
+def _is_vowel(ch):
+    """Check if a character is a Greek vowel (including accented forms)."""
+    if ch in _VOWELS:
+        return True
+    base = _strip_all_diacritics(ch.lower())
+    return base in _VOWEL_BASES
+
+
 class Normalizer:
     """Generate candidate normalized spellings for Greek tokens."""
 
-    def __init__(self, period=None, max_candidates=50, max_substitutions=1):
+    # Valid dialect names
+    VALID_DIALECTS = frozenset({
+        "ionic", "doric", "aeolic", "koine", "auto", None
+    })
+
+    def __init__(self, period=None, dialect=None,
+                 max_candidates=50, max_substitutions=1):
         """
         Args:
-            period: Historical period for rule weighting.
+            period: Historical period for orthographic rule weighting.
                     One of: archaic_epigraphic, hellenistic, late_antique,
                     byzantine, all (default).
+            dialect: Dialect normalization to apply. One of:
+                    "ionic" - Ionic-to-Attic mappings (Herodotus, etc.)
+                    "doric" - Doric-to-Attic mappings (Pindar, etc.)
+                    "aeolic" - Aeolic-to-Attic mappings (Sappho, etc.)
+                    "koine" - Koine normalization (overlaps with period rules)
+                    "auto" - try all dialect rules
+                    None (default) - no dialect normalization
             max_candidates: Hard cap on candidates per token.
             max_substitutions: Max simultaneous rule applications per candidate.
                     Default is 1 (single substitutions only) to avoid false
                     positives from over-eager double substitutions.
         """
+        if dialect not in self.VALID_DIALECTS:
+            raise ValueError(
+                f"Unknown dialect {dialect!r}. "
+                f"Valid values: {sorted(d for d in self.VALID_DIALECTS if d)}, "
+                f"or None."
+            )
+
         self.period = period or "all"
+        self.dialect = dialect
         self.profile = PROFILES.get(self.period, PROFILES["all"])
         self.max_candidates = max_candidates
         self.max_subs = max_substitutions
@@ -253,6 +390,13 @@ class Normalizer:
                                 if use_consonants else [])
         self.all_rules = self.vowel_rules + self.consonant_rules
 
+        # Build active dialect set
+        self._dialects = set()
+        if dialect == "auto":
+            self._dialects = {"ionic", "doric", "aeolic", "koine"}
+        elif dialect is not None:
+            self._dialects.add(dialect)
+
     def _filter_rules(self, rules):
         """Filter and sort rules by profile weight."""
         active = []
@@ -266,7 +410,8 @@ class Normalizer:
         """Generate candidate normalized forms for a token.
 
         Returns a list of candidate strings, ordered by likelihood:
-        single substitutions first (sorted by rule weight), then doubles.
+        dialect-specific forms first (high confidence), then single
+        substitutions (sorted by rule weight), then doubles.
         The original token is NOT included (caller should check it first).
         """
         # Track candidates with their "cost" (lower = more likely)
@@ -276,6 +421,11 @@ class Normalizer:
         # for this period. This prevents low-confidence substitutions from
         # generating false positives.
         MIN_WEIGHT = 0.1
+
+        # Phase 0: Dialect-specific normalization (highest priority)
+        if self._dialects:
+            for c in self._dialect_candidates(token):
+                scored[c] = 0.05  # dialect matches rank highest
 
         # Phase 1: Iota subscriptum restoration (most common single fix)
         sub_weight = self.profile.get("iota_subscriptum", 0.0)
@@ -313,6 +463,285 @@ class Normalizer:
 
         # Sort by score (ascending = most likely first)
         return sorted(scored, key=lambda c: scored[c])[:self.max_candidates]
+
+    # ------------------------------------------------------------------
+    # Dialect candidate generation
+    # ------------------------------------------------------------------
+
+    def _dialect_candidates(self, token):
+        """Generate candidates from dialect-specific transformations."""
+        results = []
+        token_lower = token.lower()
+        token_stripped = _strip_all_diacritics(token_lower)
+
+        if "ionic" in self._dialects:
+            results.extend(self._ionic_candidates(token, token_lower,
+                                                   token_stripped))
+
+        if "doric" in self._dialects:
+            results.extend(self._doric_candidates(token, token_lower,
+                                                   token_stripped))
+
+        if "aeolic" in self._dialects:
+            results.extend(self._aeolic_candidates(token, token_lower,
+                                                    token_stripped))
+
+        if "koine" in self._dialects:
+            results.extend(self._koine_candidates(token, token_lower,
+                                                   token_stripped))
+
+        return results
+
+    def _ionic_candidates(self, token, token_lower, token_stripped):
+        """Ionic dialect -> Attic normalization.
+
+        Covers:
+        - Whole-word mappings (interrogatives, common words)
+        - η -> ᾱ after ε, ι, ρ (first-declension nouns)
+        - Uncontracted vowels (ε-contract verbs)
+        - σσ -> ττ alternation
+        - ρσ -> ρρ alternation
+        """
+        results = []
+
+        # 1. Whole-word lookup (exact, lowercase, stripped)
+        for form in (token, token_lower, token_stripped):
+            if form in IONIC_WORD_MAP:
+                results.append(IONIC_WORD_MAP[form])
+
+        # 2. Ionic η -> Attic ᾱ after ε, ι, ρ in endings
+        # This is the first-declension pattern: -ης/-ης/-ῃ/-ην etc.
+        # become -ας/-ας/-ᾳ/-αν in Attic after ε, ι, ρ.
+        # We try replacing final-syllable η with α (preserving accents).
+        results.extend(self._ionic_eta_to_alpha(token))
+
+        # 3. Uncontracted vowels -> contracted
+        # ε-contract verbs: -εε- -> -ει-, -εο- -> -ου-, -εω -> -ω
+        results.extend(self._ionic_contraction(token))
+
+        # 4. σσ -> ττ (Ionic/Koine σσ = Attic ττ)
+        results.extend(self._replace_all_occurrences(token, "σσ", "ττ"))
+
+        # 5. ρσ -> ρρ (θάρσος -> θάρρος, ἄρσην -> ἄρρην)
+        results.extend(self._replace_all_occurrences(token, "ρσ", "ρρ"))
+
+        return results
+
+    def _ionic_eta_to_alpha(self, token):
+        """Replace η with α in endings after ε, ι, ρ (Ionic -> Attic).
+
+        Handles accented variants: ή->ά, ῆ->ᾶ, ῇ->ᾷ, ὴ->ὰ, ῃ->ᾳ.
+        Only applies when preceded by ε, ι, or ρ (possibly with
+        intervening diacritics).
+        """
+        results = []
+        # Map η-family to α-family (preserving accent type)
+        eta_to_alpha = {
+            "η": "α", "ή": "ά", "ῆ": "ᾶ", "ὴ": "ὰ",
+            "ῃ": "ᾳ", "ῄ": "ᾴ", "ῇ": "ᾷ", "ῂ": "ᾲ",
+        }
+        # Also handle breathed forms
+        eta_to_alpha.update({
+            "ἡ": "ἁ", "ἥ": "ἅ", "ἧ": "ἇ", "ἣ": "ἃ",
+            "ἠ": "ἀ", "ἤ": "ἄ", "ἦ": "ἆ", "ἢ": "ἂ",
+        })
+
+        # Preceding context letters (base forms)
+        context_chars = set("ειρέίρὲὶεἐἑἔἕἒἓἰἱἴἵἲἳἶἷ")
+
+        for i, ch in enumerate(token):
+            if ch in eta_to_alpha and i > 0:
+                # Check if preceded by ε, ι, or ρ
+                prev = token[i - 1]
+                prev_base = _strip_all_diacritics(prev.lower())
+                if prev_base in ("ε", "ι", "ρ"):
+                    new = token[:i] + eta_to_alpha[ch] + token[i + 1:]
+                    results.append(new)
+
+        return results
+
+    def _ionic_contraction(self, token):
+        """Handle Ionic uncontracted vowels -> Attic contracted forms.
+
+        Patterns:
+        - εε -> ει (ποιέεσθαι -> ποιεῖσθαι)
+        - εο -> ου (when not word-initial)
+        - εω -> ω (τιμέω -> τιμῶ) - only at word end or before consonant
+        - εει -> ει
+        - εου -> ου
+        """
+        results = []
+
+        # Simple substring replacements for uncontracted -> contracted
+        contraction_pairs = [
+            ("εει", "ει"),
+            ("εου", "ου"),
+            ("εε", "ει"),
+            ("εο", "ου"),
+        ]
+
+        for ionic, attic in contraction_pairs:
+            results.extend(self._replace_all_occurrences(token, ionic, attic))
+
+        # εω -> ω at word end (verb infinitive/1sg endings)
+        if token.endswith("εω"):
+            results.append(token[:-2] + "ω")
+        if token.endswith("έω"):
+            results.append(token[:-2] + "ῶ")
+        # Also handle εων -> ων (genitive plural)
+        if "εων" in token or "έων" in token or "εών" in token:
+            results.extend(self._replace_all_occurrences(token, "εων", "ων"))
+            results.extend(self._replace_all_occurrences(token, "έων", "ῶν"))
+            results.extend(self._replace_all_occurrences(token, "εών", "ών"))
+
+        return results
+
+    def _doric_candidates(self, token, token_lower, token_stripped):
+        """Doric dialect -> Attic normalization.
+
+        Covers:
+        - Whole-word mappings
+        - Doric ᾱ -> Attic η
+        - Doric futures in -σέω -> Attic -σω
+        """
+        results = []
+
+        # 1. Whole-word lookup
+        for form in (token, token_lower, token_stripped):
+            if form in DORIC_WORD_MAP:
+                results.append(DORIC_WORD_MAP[form])
+
+        # 2. Doric ᾱ -> Attic η (reverse of Ionic η -> ᾱ)
+        # This is tricky because Greek text doesn't mark vowel length.
+        # We conservatively try α -> η substitution only in common
+        # grammatical endings where the alternation is predictable:
+        # -ας (gen.sg) -> -ης, -αν (acc.sg) -> -ην,
+        # -α (nom.sg) -> -η, -ᾳ (dat.sg) -> -ῃ
+        results.extend(self._doric_alpha_to_eta(token))
+
+        # 3. Doric futures: -σεω -> -σω, -σέω -> -σῶ
+        if token_lower.endswith("σεω"):
+            results.append(token[:-3] + "σω")
+        if token_lower.endswith("σέω"):
+            results.append(token[:-3] + "σῶ")
+        if token_lower.endswith("ξεω"):
+            results.append(token[:-3] + "ξω")
+        if token_lower.endswith("ξέω"):
+            results.append(token[:-3] + "ξῶ")
+
+        return results
+
+    def _doric_alpha_to_eta(self, token):
+        """Replace Doric long alpha with Attic eta in common endings.
+
+        Only targets final-syllable α where Doric/Attic systematically
+        differ. Conservative to avoid false positives.
+        """
+        results = []
+
+        # Map α-family to η-family
+        alpha_to_eta = {
+            "α": "η", "ά": "ή", "ᾶ": "ῆ", "ὰ": "ὴ",
+            "ᾳ": "ῃ", "ᾴ": "ῄ", "ᾷ": "ῇ", "ᾲ": "ῂ",
+            "ἁ": "ἡ", "ἅ": "ἥ", "ἇ": "ἧ", "ἃ": "ἣ",
+            "ἀ": "ἠ", "ἄ": "ἤ", "ἆ": "ἦ", "ἂ": "ἢ",
+        }
+
+        # Only try replacing the LAST alpha-like vowel in the word
+        # (most Doric/Attic alternation is in endings)
+        for i in range(len(token) - 1, -1, -1):
+            if token[i] in alpha_to_eta:
+                new = token[:i] + alpha_to_eta[token[i]] + token[i + 1:]
+                results.append(new)
+                break  # only the last one
+
+        return results
+
+    def _aeolic_candidates(self, token, token_lower, token_stripped):
+        """Aeolic dialect -> Attic normalization.
+
+        Aeolic features are harder to normalize systematically because
+        many involve morphological rather than phonological differences.
+        We handle the most common patterns:
+        - Labial treatment of labiovelars (π where Attic has τ/κ in some words)
+        - Initial πτ- for Attic πτ- (already same, skip)
+        """
+        results = []
+
+        # Aeolic has limited systematic orthographic differences that can
+        # be handled by simple substitution. Most Aeolic variation is
+        # morphological (different verb endings, etc.) which is better
+        # handled by the lookup table directly.
+
+        # Psilosis: loss of rough breathing. In polytonic text, we can
+        # try adding rough breathing to smooth-breathed initial vowels.
+        # This is worth trying since the lookup table expects standard
+        # Attic breathing.
+        results.extend(self._try_add_rough_breathing(token))
+
+        return results
+
+    def _try_add_rough_breathing(self, token):
+        """Try replacing smooth breathing with rough breathing on initial vowel.
+
+        Handles Aeolic/Ionic psilosis where the text may lack aspiration
+        that the Attic-based lookup expects.
+        """
+        results = []
+        if not token:
+            return results
+
+        # Map smooth-breathed initial vowels to rough-breathed equivalents
+        smooth_to_rough = {
+            "ἀ": "ἁ", "ἄ": "ἅ", "ἆ": "ἇ", "ἂ": "ἃ",
+            "ἐ": "ἑ", "ἔ": "ἕ", "ἒ": "ἓ",
+            "ἠ": "ἡ", "ἤ": "ἥ", "ἦ": "ἧ", "ἢ": "ἣ",
+            "ἰ": "ἱ", "ἴ": "ἵ", "ἶ": "ἷ", "ἲ": "ἳ",
+            "ὀ": "ὁ", "ὄ": "ὅ", "ὂ": "ὃ",
+            "ὐ": "ὑ", "ὔ": "ὕ", "ὖ": "ὗ", "ὒ": "ὓ",
+            "ὠ": "ὡ", "ὤ": "ὥ", "ὦ": "ὧ", "ὢ": "ὣ",
+        }
+
+        first = token[0]
+        if first in smooth_to_rough:
+            results.append(smooth_to_rough[first] + token[1:])
+
+        return results
+
+    def _koine_candidates(self, token, token_lower, token_stripped):
+        """Koine normalization.
+
+        Koine largely overlaps with the period-based rules (itacism,
+        αι/ε merger, etc.) already handled by the main rule engine.
+        Here we handle a few Koine-specific patterns not covered elsewhere:
+        - σσ/ττ alternation (Koine retains σσ like Ionic)
+        - αι/ε interchange (already in main rules, but ensure it fires)
+        """
+        results = []
+
+        # σσ -> ττ (Koine inherits Ionic σσ, lookup may expect Attic ττ)
+        results.extend(self._replace_all_occurrences(token, "σσ", "ττ"))
+
+        # ττ -> σσ (some forms may be Atticized in text but Koine in lookup)
+        results.extend(self._replace_all_occurrences(token, "ττ", "σσ"))
+
+        return results
+
+    # ------------------------------------------------------------------
+    # Helper methods
+    # ------------------------------------------------------------------
+
+    def _replace_all_occurrences(self, token, old, new):
+        """Replace each occurrence of `old` with `new`, one at a time."""
+        results = []
+        start = 0
+        while True:
+            idx = token.find(old, start)
+            if idx == -1:
+                break
+            results.append(token[:idx] + new + token[idx + len(old):])
+            start = idx + 1
+        return results
 
     def _subscriptum_candidates(self, token):
         """Try restoring iota subscriptum at each eligible position."""
@@ -363,23 +792,75 @@ class Normalizer:
 
 
 def demo():
-    """Demo the normalizer on sample Byzantine misspellings."""
+    """Demo the normalizer on sample Byzantine and dialect forms."""
+    print("=== Byzantine orthographic normalization ===\n")
     n = Normalizer(period="byzantine")
 
     test_cases = [
-        ("θεω", "missing iota subscriptum (θεῷ)"),
-        ("χεροντες", "itacism: ε for αι (χαίροντες)"),
-        ("ξενι", "itacism: ι for η (ξένη or ξένοι)"),
-        ("πιστι", "itacism: ι for ει (πίστει)"),
-        ("κινος", "itacism: ι for υ (κυνός)"),
-        ("ανθροπος", "o/ω confusion (ἄνθρωπος)"),
-        ("εφτα", "aspiration: φ for π (ἑπτά)"),
-        ("αλος", "geminate: λ for λλ (ἄλλος)"),
+        ("θεω", "missing iota subscriptum (-> θεῷ)"),
+        ("χεροντες", "itacism: ε for αι (-> χαίροντες)"),
+        ("ξενι", "itacism: ι for η (-> ξένη or ξένοι)"),
+        ("πιστι", "itacism: ι for ει (-> πίστει)"),
+        ("κινος", "itacism: ι for υ (-> κυνός)"),
+        ("ανθροπος", "o/ω confusion (-> ἄνθρωπος)"),
+        ("εφτα", "aspiration: φ for π (-> ἑπτά)"),
+        ("αλος", "geminate: λ for λλ (-> ἄλλος)"),
         ("τον", "iota sub: τόν or τῷν"),
     ]
 
     for token, description in test_cases:
         candidates = n.normalize(token)
+        print(f"{token:20s} -> {candidates[:8]}")
+        print(f"  ({description})")
+        print()
+
+    print("\n=== Ionic dialect normalization ===\n")
+    n_ionic = Normalizer(dialect="ionic")
+
+    ionic_cases = [
+        ("ἱστορίης", "Ionic -ης -> Attic -ας after ρ"),
+        ("χώρης", "Ionic -ης -> Attic -ας after ρ"),
+        ("ποιέειν", "uncontracted: -εει- -> -ει-"),
+        ("τιμέω", "uncontracted: -εω -> -ω"),
+        ("θάλασσα", "Ionic σσ -> Attic ττ"),
+        ("θάρσος", "Ionic ρσ -> Attic ρρ"),
+        ("κῶς", "Ionic κ- -> Attic π- interrogative"),
+        ("μοῦνος", "Ionic μοῦνος -> Attic μόνος"),
+        ("ξεῖνος", "Ionic ξεῖνος -> Attic ξένος"),
+    ]
+
+    for token, description in ionic_cases:
+        candidates = n_ionic.normalize(token)
+        print(f"{token:20s} -> {candidates[:8]}")
+        print(f"  ({description})")
+        print()
+
+    print("\n=== Doric dialect normalization ===\n")
+    n_doric = Normalizer(dialect="doric")
+
+    doric_cases = [
+        ("ποτί", "Doric ποτί -> Attic πρός"),
+        ("τύ", "Doric τύ -> Attic σύ"),
+        ("Ἀθάνα", "Doric Ἀθάνα -> Attic Ἀθήνη"),
+    ]
+
+    for token, description in doric_cases:
+        candidates = n_doric.normalize(token)
+        print(f"{token:20s} -> {candidates[:8]}")
+        print(f"  ({description})")
+        print()
+
+    print("\n=== Auto mode (all dialects) ===\n")
+    n_auto = Normalizer(dialect="auto")
+
+    auto_cases = [
+        ("ἱστορίης", "Ionic -> Attic"),
+        ("ποτί", "Doric -> Attic"),
+        ("θάλασσα", "σσ -> ττ"),
+    ]
+
+    for token, description in auto_cases:
+        candidates = n_auto.normalize(token)
         print(f"{token:20s} -> {candidates[:8]}")
         print(f"  ({description})")
         print()

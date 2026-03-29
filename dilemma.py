@@ -669,7 +669,7 @@ class LookupDB:
 class Dilemma:
     def __init__(self, lang="all", device=None, scale=None,
                  resolve_articles=False, normalize=False, period=None,
-                 convention=None):
+                 dialect=None, convention=None):
         """Initialize Dilemma.
 
         Args:
@@ -690,9 +690,19 @@ class Dilemma:
                   Byzantine/papyrological texts. Generates candidate
                   spellings (fixing itacism, missing iota subscripta,
                   etc.) and checks them against the lookup table.
+                  Also enabled implicitly when dialect is set.
             period: Historical period for normalization rule weights.
                   One of: "hellenistic", "late_antique", "byzantine",
                   "all" (default). Only used when normalize=True.
+            dialect: Ancient Greek dialect normalization. Maps dialect
+                  forms to Attic equivalents for lookup. One of:
+                  "ionic" (Herodotus, Hippocrates, etc.),
+                  "doric" (Pindar, Theocritus, etc.),
+                  "aeolic" (Sappho, Alcaeus, etc.),
+                  "koine" (NT, papyri - overlaps with period rules),
+                  "auto" (try all dialect rules),
+                  None (default, no dialect normalization).
+                  Setting a dialect implicitly enables normalization.
             convention: Lemma convention for output remapping. Controls
                   which citation form is returned when multiple conventions
                   exist for the same word (e.g. LSJ vs Wiktionary headwords).
@@ -722,9 +732,10 @@ class Dilemma:
         self._vocab = None
         self._device = device
         self._normalizer = None
-        if normalize:
+        # Setting a dialect implicitly enables normalization
+        if normalize or dialect is not None:
             from normalize import Normalizer
-            self._normalizer = Normalizer(period=period)
+            self._normalizer = Normalizer(period=period, dialect=dialect)
 
         # Lookup tables: SQLite-backed (instant startup) or dict (JSON fallback)
         self._mg_lookup = {}
