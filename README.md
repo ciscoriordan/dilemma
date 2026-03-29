@@ -608,7 +608,8 @@ python build/expand_sophocles.py --expand-verbs  # expand Sophocles verbs
 ```
 
 This requires LSJ9 data from [lsj9](https://github.com/ciscoriordan/lsj9)
-(via lsjpre export) and the Sophocles TEI data (included in `data/sophocles/`).
+(included in `data/lsjgr_bridges.json` and `data/lsj9_frequency.json`) and
+the Sophocles TEI data (included in `data/sophocles/`).
 
 ### Export to ONNX (optional)
 
