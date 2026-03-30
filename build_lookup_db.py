@@ -331,90 +331,18 @@ def build():
     if ag_protected:
         print(f"  AG headword self-maps protected: {ag_protected:,}")
 
-    # Fix self-maps using corpus evidence: for any self-map in combined,
-    # check if PROIEL/Gorman/GLAUx/Diorisis have a non-self mapping.
-    # If so, prefer the corpus mapping. This fixes cases like
-    # οἷον (self-map as adverb headword) which should be οἷος.
-    corpus_paths = [PROIEL_PAIRS_PATH, GORMAN_PAIRS_PATH,
-                    GLAUX_PAIRS_PATH, DIORISIS_PAIRS_PATH]
-    corpus_non_self = {}  # form -> lemma (first non-self corpus mapping wins)
-    for cp in corpus_paths:
-        if not cp.exists():
-            continue
-        with open(cp, encoding="utf-8") as f:
-            cpairs = json.load(f)
-        for p in cpairs:
-            form, lemma = p["form"], p["lemma"]
-            lemma = _normalize_corpus_lemma(lemma, ag_headwords_exact)
-            if form not in corpus_non_self and not _is_self_map(form, lemma):
-                # Validate lemma for GLAUx/Diorisis (same filter as above)
-                if ag_headwords_exact and lemma not in ag_headwords_exact:
-                    continue
-                corpus_non_self[form] = lemma
-
-    selfmap_fixed = 0
-    for k, v in list(combined.items()):
-        if _is_self_map(k, v) and k in corpus_non_self:
-            combined[k] = corpus_non_self[k]
-            selfmap_fixed += 1
-    # Also fix in ag/el dicts so grc-only and el-only tables stay consistent
-    for data in [ag, el]:
-        for k, v in list(data.items()):
-            if _is_self_map(k, v) and k in corpus_non_self:
-                data[k] = corpus_non_self[k]
-    if selfmap_fixed:
-        print(f"  Self-maps fixed from corpus evidence: {selfmap_fixed:,}")
-
-    # Corpus consensus override: when 2+ independent corpora agree on a
-    # lemma that differs from the combined lookup, prefer the corpus
-    # consensus. This fixes cases where a proper noun's inflection table
-    # in Wiktionary overwrites a common verb/noun form (e.g. φασιν ->
-    # Φᾶσις instead of φημί, where all 4 corpora say φημί).
-    corpus_votes = {}  # form -> {lemma: count}
-    for cp in corpus_paths:
-        if not cp.exists():
-            continue
-        with open(cp, encoding="utf-8") as f:
-            cpairs = json.load(f)
-        seen_in_corpus = set()  # dedupe within one corpus
-        for p in cpairs:
-            form, lemma = p["form"], p["lemma"]
-            lemma = _normalize_corpus_lemma(lemma, ag_headwords_exact)
-            if (form, lemma) in seen_in_corpus:
-                continue
-            seen_in_corpus.add((form, lemma))
-            if _is_self_map(form, lemma):
-                continue
-            if ag_headwords_exact and lemma not in ag_headwords_exact:
-                continue
-            if form not in corpus_votes:
-                corpus_votes[form] = {}
-            corpus_votes[form][lemma] = corpus_votes[form].get(lemma, 0) + 1
-
-    consensus_fixed = 0
-    for k, v in list(combined.items()):
-        if k not in corpus_votes:
-            continue
-        votes = corpus_votes[k]
-        # Find the top-voted lemma
-        top_lemma, top_count = max(votes.items(), key=lambda x: x[1])
-        if top_count >= 2 and top_lemma != v:
-            combined[k] = top_lemma
-            consensus_fixed += 1
-    # Also propagate consensus fixes to ag/el for per-language tables
-    for data in [ag, el]:
-        for k, v in list(data.items()):
-            if k in corpus_votes:
-                votes = corpus_votes[k]
-                top_lemma, top_count = max(votes.items(), key=lambda x: x[1])
-                if top_count >= 2 and top_lemma != v:
-                    data[k] = top_lemma
-    if consensus_fixed:
-        print(f"  Corpus consensus overrides (2+ corpora agree): {consensus_fixed:,}")
+    # NOTE: Corpus self-map and consensus overrides were tried here but
+    # proved too aggressive, overriding correct Wiktionary entries with
+    # corpus convention preferences (e.g. δεῖ -> δέομαι instead of δέω).
+    # The targeted manual overrides below handle specific known issues.
 
     # Manual corrections for known lookup bugs.
     # These override wrong entries from Wiktionary or pipeline errors.
     _LOOKUP_OVERRIDES = {
+        "φασιν": "φημί",          # was Φᾶσις (proper noun beats common verb)
+        "Ἔστι": "εἰμί",          # was Ἔσθι (GLAUx annotation error)
+        "σκέπτεσθαι": "σκέπτομαι",  # was self-map (infinitive as headword)
+        "οἷον": "οἷος",           # was self-map (adverb use as headword)
     }
     # Also fix corrupt -δήποτε lemmas from pipeline
     for k, v in list(combined.items()):
