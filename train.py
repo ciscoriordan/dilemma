@@ -196,15 +196,37 @@ def load_pairs(lang: str, max_pairs: int = 0) -> list[dict]:
         ag_pool.extend(glaux)
         print(f"  GLAUx: {len(glaux)} morphologically tagged AG pairs")
 
-    # Oversample perfect tense forms (underrepresented in training: ~2%
-    # vs 11.4% in Byzantine text per Swaelens et al. 2024/2025)
-    PERFECT_TAGS = {"perfect", "pluperfect", "future-perfect"}
-    perfect_pairs = [p for p in ag_pool
-                     if p.get("pos") == "verb" and PERFECT_TAGS & set(p.get("tags", []))]
-    if perfect_pairs:
-        # Add 2 extra copies to bring perfects from ~2% to ~6%
-        ag_pool.extend(perfect_pairs * 2)
-        print(f"  Perfect tense oversampling: {len(perfect_pairs)} pairs x3")
+    # Oversample underrepresented tense categories.
+    # In the combined AG pool (~1.9M pairs), tense-tagged forms are only ~12%,
+    # and critical categories for lemmatization are severely underrepresented:
+    #   present:    99K (5.2%)  - no oversampling needed (base forms)
+    #   aorist:     76K (4.0%)  - stem changes make these hard (2nd aorist esp.)
+    #   perfect:    28K (1.4%)  - reduplication patterns
+    #   future:     15K (0.8%)  - sigma-stem patterns
+    #   imperfect:  14K (0.7%)  - augment patterns
+    #   pluperfect:  3K (0.15%) - rarest, combines reduplication + augment
+    #
+    # Multipliers are proportional to rarity AND stem-change difficulty.
+    # Higher multipliers for forms where the inflected stem differs most
+    # from the present/lemma stem.
+    TENSE_OVERSAMPLING = {
+        # (tag_set, extra_copies, description)
+        "aorist":     ({"aorist"},                2, "aorist (stem changes, esp. 2nd aorist)"),
+        "perfect":    ({"perfect", "future-perfect"}, 2, "perfect (reduplication patterns)"),
+        "pluperfect": ({"pluperfect"},            4, "pluperfect (rarest tense, redup + augment)"),
+        "future":     ({"future"},                  2, "future (sigma-stem patterns)"),
+        "imperfect":  ({"imperfect"},             1, "imperfect (augment patterns)"),
+    }
+    # Snapshot the pool before oversampling so later categories don't
+    # pick up extra copies added by earlier ones.
+    base_ag_pool = list(ag_pool)
+    for name, (tag_set, extra_copies, desc) in TENSE_OVERSAMPLING.items():
+        matching = [p for p in base_ag_pool
+                    if p.get("pos") == "verb" and tag_set & set(p.get("tags", []))]
+        if matching:
+            ag_pool.extend(matching * extra_copies)
+            total_copies = extra_copies + 1
+            print(f"  Tense oversampling: {len(matching)} {desc} x{total_copies}")
 
     # Build final set: all varieties + 50/50 AG/SMG for remaining budget
     if max_pairs > 0 and len(varieties) + len(ag_pool) + len(smg_pool) > max_pairs:
