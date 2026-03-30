@@ -1133,11 +1133,66 @@ class Dilemma:
         For monotonic conventions (e.g. triantafyllidis), the result is
         converted to monotonic Greek after any explicit remapping, so
         polytonic lemmas like ὁ become ο automatically.
+
+        For the LSJ convention, adverbs (-ῶς/-ως) and neuter adjectives
+        (-ον/-όν) that aren't LSJ headwords are mapped to their adjective
+        headword, since LSJ files these as sub-entries under the adjective.
         """
         if self._convention_map:
             lemma = self._convention_map.get(lemma, lemma)
+        if self._convention_name == "lsj":
+            lemma = self._lsj_adverb_neuter_remap(lemma)
         if self._convention_monotonic:
             lemma = to_monotonic(lemma)
+        return lemma
+
+    def _lsj_adverb_neuter_remap(self, lemma: str) -> str:
+        """Map adverbs and neuter adjectives to LSJ adjective headwords.
+
+        LSJ doesn't give adverbs (δεινῶς) or neuter forms (δεινόν) their
+        own headword entries - they appear under the adjective (δεινός).
+        This remaps them automatically using accent-stripped matching
+        against the LSJ adjective headword set.
+        """
+        lsj_hw = self._get_headword_set("lsj")
+        if lemma in lsj_hw:
+            return lemma
+
+        # Lazy-load LSJ adjective set
+        if not hasattr(self, "_lsj_adj_stripped"):
+            lsj_pos_path = (Path(__file__).parent.parent / "lsj9"
+                            / "lsj9_headword_pos.json")
+            if not lsj_pos_path.exists():
+                lsj_pos_path = (Path(__file__).parent / "data"
+                                / "lsj9_headword_pos.json")
+            self._lsj_adj_stripped = {}
+            if lsj_pos_path.exists():
+                import json as _json
+                pos_data = _json.load(open(lsj_pos_path, encoding="utf-8"))
+                for hw, pos in pos_data.items():
+                    if pos == "ADJ":
+                        self._lsj_adj_stripped[
+                            strip_accents(hw.lower())] = hw
+
+        if not self._lsj_adj_stripped:
+            return lemma
+
+        # Adverb -ῶς/-ως -> adjective -ος/-ης/-υς
+        if lemma.endswith("ῶς") or lemma.endswith("ως"):
+            stem = strip_accents(lemma[:-2].lower())
+            for suffix in ("ος", "ης", "υς", "ων", "ις"):
+                candidate = stem + suffix
+                if candidate in self._lsj_adj_stripped:
+                    return self._lsj_adj_stripped[candidate]
+
+        # Neuter -ον/-όν -> adjective -ος/-ης
+        if lemma.endswith("ον") or lemma.endswith("όν"):
+            stem = strip_accents(lemma[:-2].lower())
+            for suffix in ("ος", "ης"):
+                candidate = stem + suffix
+                if candidate in self._lsj_adj_stripped:
+                    return self._lsj_adj_stripped[candidate]
+
         return lemma
 
     def _get_headword_set(self, convention: str = "lsj") -> set[str]:

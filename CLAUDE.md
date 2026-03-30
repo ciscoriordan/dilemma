@@ -49,8 +49,8 @@ In `build_data.py`, proper noun entries (`pos="name"`) get lower confidence for 
 ## Training
 
 - Use `--lang all` (not `--lang combined`, which doesn't exist)
-- Scale 3 (`--scale 3`) is the standard full training scale
-- Training on RTX 4090: ~35 min for 3 epochs
+- Two scales: `--scale test` (20K pairs, ~15 sec sanity check) and `--scale full` (all data, default). `--scale 3` is a legacy alias for full.
+- Training on RTX 4090: ~35 min for 3 epochs, RTX 2080 Ti: ~90 min
 - The model trains on pairs from `build_data.py`, not from the lookup table directly
 
 ## Testing

@@ -201,7 +201,7 @@ def run_crowell_test(name: str, words: list[str], top3000: set[str],
     print(f"  Unique uncommon words: {len(unique_words):,}")
 
     # Run Dilemma
-    m = dilemma_cls(lang="all")
+    m = dilemma_cls(lang="all", convention="lsj")
     valid = 0
     invalid = 0
     invalid_examples = []
