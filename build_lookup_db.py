@@ -390,10 +390,8 @@ def build():
         "παύσει": "παύω",        # was παῦσις (verb, not noun)
         "ἀνήκω": "ἀνήκω",       # was ἀνίημι (self-map should win)
         "ἀνήκετε": "ἀνήκω",     # was ἀνίημι
-        "ἅδῃ": "ᾅδης",          # was ἁνδάνω (noun Hades, not verb)
         "δευτέρους": "δεύτερος", # was δύο (adj, not numeral)
         "θέης": "θέα",           # was θέω (noun, not verb)
-        "γένεα": "γενεά",        # was γένος (Ionic pl. of γενεά)
         "σταθμῶν": "σταθμός",   # was στάθμη (common noun)
         "πλέοντας": "πλέω",      # was πολύς (verb, not adj)
         "πρόειπε": "προλέγω",    # was προαγορεύω
