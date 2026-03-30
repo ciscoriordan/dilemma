@@ -295,6 +295,32 @@ def build():
         print(f"  Article forms excluded (controlled by resolve_articles): {article_excluded:,}")
     if ag_protected:
         print(f"  AG headword self-maps protected: {ag_protected:,}")
+
+    # Manual corrections for known lookup bugs.
+    # These override wrong entries from Wiktionary or pipeline errors.
+    _LOOKUP_OVERRIDES = {
+        "φασιν": "φημί",          # was Φᾶσις (proper noun beats common verb)
+        "Ἔστι": "εἰμί",          # was Ἔσθι (obscure form beats common verb)
+        "σκέπτεσθαι": "σκέπτομαι",  # was self-map (infinitive as headword)
+        "οἷον": "οἷος",           # was self-map (adverb use as headword)
+    }
+    # Also fix corrupt -δήποτε lemmas from pipeline
+    for k, v in list(combined.items()):
+        if "δήποτε" in k and "δήποτε" in v and v != k:
+            stem = k.split("δήποτε")[0]
+            if stem:
+                _LOOKUP_OVERRIDES[k] = "ὁστισδήποτε"
+    override_count = 0
+    for form, lemma in _LOOKUP_OVERRIDES.items():
+        if form in combined and combined[form] != lemma:
+            combined[form] = lemma
+            override_count += 1
+        # Also fix in ag dict for the grc-only table
+        if form in ag and ag[form] != lemma:
+            ag[form] = lemma
+    if override_count:
+        print(f"  Lookup overrides applied: {override_count:,}")
+
     print(f"  Combined: {len(combined):,} entries")
 
     # Write SQLite database
