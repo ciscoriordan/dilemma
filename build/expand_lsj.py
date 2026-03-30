@@ -422,7 +422,7 @@ def setup_wtp():
     if WTP_DB.exists():
         WTP_DB.unlink()
 
-    wtp = Wtp(cache_file=str(WTP_DB))
+    wtp = Wtp(db_path=str(WTP_DB))
 
     NS_MODULE = 828
     NS_TEMPLATE = 10
@@ -450,7 +450,7 @@ def setup_wtp():
                     continue
                 body = f.read().decode("utf-8", errors="replace")
                 title = tar_to_title(member.name, ns_name)
-                wtp.add_page(model, title, body)
+                wtp.add_page(title, ns_id, body, model=model)
                 count += 1
         print(f"  Loaded {count:,} {ns_name.lower()}s")
 
@@ -462,11 +462,16 @@ _WTP_INSTANCE = None
 
 
 def get_wtp():
-    """Get wikitextprocessor instance, setting up if needed."""
+    """Get wikitextprocessor instance, reusing existing DB if available."""
     global _WTP_INSTANCE
     if _WTP_INSTANCE is not None:
         return _WTP_INSTANCE
-    _WTP_INSTANCE = setup_wtp()
+    if WTP_DB.exists():
+        from wikitextprocessor import Wtp
+        print(f"Loading existing wtp database from {WTP_DB}...")
+        _WTP_INSTANCE = Wtp(db_path=str(WTP_DB))
+    else:
+        _WTP_INSTANCE = setup_wtp()
     return _WTP_INSTANCE
 
 
