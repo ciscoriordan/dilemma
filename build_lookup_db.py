@@ -365,6 +365,39 @@ def build():
         "Ἔστι": "εἰμί",          # was Ἔσθι (GLAUx annotation error)
         "σκέπτεσθαι": "σκέπτομαι",  # was self-map (infinitive as headword)
         "οἷον": "οἷος",           # was self-map (adverb use as headword)
+        # Proper nouns beating common words (Herodotus benchmark)
+        "μένοντας": "μένω",       # was Μένων (proper noun)
+        "δευτέρης": "δεύτερος",   # was Δευτέρης (proper noun)
+        "Μάγων": "μάγος",         # was Μάγων (proper noun beats common noun)
+        "τέῳ": "τίς",            # was Τέως (place name beats pronoun)
+        "ταφῆς": "ταφή",         # was Ταφῆς (place name beats common noun)
+        "πάτρας": "πάτρα",       # was Πάτραι (place name beats common noun)
+        "ἥρων": "ἥρως",          # was Ἥρων (proper noun beats common noun)
+        # Wrong verb or noun picked for ambiguous forms
+        "κατέχει": "κατέχω",      # was καταχέω
+        "ἐπιστάμενος": "ἐπίσταμαι",  # was ἐφίστημι
+        "ἁρπαγῇ": "ἁρπαγή",      # was ἁρπάζω (noun dative, not verb subj.)
+        "ἀγορῇ": "ἀγορά",        # was ἀγοράζω (noun dative, not verb subj.)
+        "φρουρῇ": "φρουρά",      # was φρουρέω (noun dative, not verb subj.)
+        "φανεροῦ": "φανερός",    # was φανερόω (adj genitive, not verb)
+        "φανερῶν": "φανερός",    # was φανερόω (adj genitive pl., not verb)
+        "βάθεος": "βαθύς",       # was βάθος (adj, not noun)
+        "ἀσκοῦ": "ἀσκός",       # was ἀσκέω (noun genitive, not verb)
+        "κατάρας": "κατάρα",     # was καταίρω (noun, not verb)
+        "προσῆλθε": "προσέρχομαι",  # was πρόσειμι
+        "ἀπεδέχθη": "ἀποδέχομαι",  # was ἀποδείκνυμι
+        "ὑπάρξει": "ὑπάρχω",    # was ὕπαρξις (verb, not noun)
+        "παύσει": "παύω",        # was παῦσις (verb, not noun)
+        "ἀνήκω": "ἀνήκω",       # was ἀνίημι (self-map should win)
+        "ἀνήκετε": "ἀνήκω",     # was ἀνίημι
+        "ἅδῃ": "ᾅδης",          # was ἁνδάνω (noun Hades, not verb)
+        "δευτέρους": "δεύτερος", # was δύο (adj, not numeral)
+        "θέης": "θέα",           # was θέω (noun, not verb)
+        "γένεα": "γενεά",        # was γένος (Ionic pl. of γενεά)
+        "σταθμῶν": "σταθμός",   # was στάθμη (common noun)
+        "πλέοντας": "πλέω",      # was πολύς (verb, not adj)
+        "πρόειπε": "προλέγω",    # was προαγορεύω
+        "χωρῇ": "χώρα",         # was χωρέω (noun dative more common)
     }
     # Also fix corrupt -δήποτε lemmas from pipeline
     for k, v in list(combined.items()):
