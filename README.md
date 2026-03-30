@@ -515,11 +515,13 @@ infinitive/1sg form (-ω, -ώ, -μαι) is preferred. Adverbs and nouns keep
 their MG self-maps unchanged.
 
 The POS lookup tables (435K AG-only entries, 482K combined) are built
-from five sources in priority order: UD treebanks (gold), GLAUx corpus
-(8.7K entries), MG Wiktionary, AG Wiktionary, LSJ9 grammar. For
-polytonic input (breathing marks, circumflex), the AG-only POS entries
-are checked first to avoid MG lemma overrides on Ancient Greek text,
-mirroring the main lookup's AG-first logic.
+from six sources in priority order: UD treebanks (gold), LSJ9
+indeclinables (2.2K adverbs, prepositions, conjunctions, particles,
+interjections with unambiguous POS), GLAUx corpus (8.7K entries), MG
+Wiktionary, AG Wiktionary, LSJ9 grammar. For polytonic input (breathing
+marks, circumflex), the AG-only POS entries are checked first to avoid
+MG lemma overrides on Ancient Greek text, mirroring the main lookup's
+AG-first logic.
 
 ### Spelling correction
 
