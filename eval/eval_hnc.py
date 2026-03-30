@@ -24,18 +24,44 @@ from collections import Counter
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(SCRIPT_DIR))
+
+from dilemma import Dilemma
 DATA_DIR = SCRIPT_DIR / "data"
 HNC_PATH = DATA_DIR / "HNC_Golden_Corpus.xml"
-DB_PATH = DATA_DIR / "lookup.db"
+EQUIV_PATH = DATA_DIR / "lemma_equivalences.json"
 
 # Tags to skip (same as extract_hnc.py)
 SKIP_TAGS = {"ABBR", "DIG", "DATE", "INIT", "RgSyXx", "RgAbXx", "PuXx"}
+
+# Load lemma equivalences (same pattern as bench_fast.py)
+with open(EQUIV_PATH) as f:
+    _eq_data = json.load(f)
+equiv = {}
+for group in _eq_data["groups"]:
+    group_set = set(group)
+    for lemma in group:
+        equiv[lemma] = equiv.get(lemma, set()) | group_set
 
 
 def strip_accents(s: str) -> str:
     nfd = unicodedata.normalize("NFD", s)
     return unicodedata.normalize("NFC",
         "".join(c for c in nfd if unicodedata.category(c) != "Mn"))
+
+
+def are_equivalent(pred: str, gold: str) -> bool:
+    """Check if two lemmas are equivalent (exact, accent-stripped, or via equivalence groups)."""
+    pa, ga = strip_accents(pred).lower(), strip_accents(gold).lower()
+    if pa == ga:
+        return True
+    for e in equiv.get(gold, set()):
+        if strip_accents(e).lower() == pa:
+            return True
+    for e in equiv.get(pred, set()):
+        if strip_accents(e).lower() == ga:
+            return True
+    return False
 
 
 def _is_greek(s: str) -> bool:
@@ -53,35 +79,11 @@ def _is_noise(word: str) -> bool:
     return False
 
 
-def load_dilemma_lookup():
-    """Load Dilemma's lookup table from SQLite."""
-    import sqlite3
-    if not DB_PATH.exists():
-        print(f"Error: {DB_PATH} not found. Run build_lookup_db.py first.")
-        sys.exit(1)
-
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.execute("PRAGMA mmap_size=268435456")
-
-    # Load lemma table
-    lemmas = {}
-    for lid, text in conn.execute("SELECT id, text FROM lemmas"):
-        lemmas[lid] = text
-
-    # Load MG-priority lookups: lang='el' first, then lang='all'
-    lookup = {}
-    # el-specific entries (override combined)
-    for form, lemma_id in conn.execute(
-            "SELECT form, lemma_id FROM lookup WHERE lang='el'"):
-        lookup[form] = lemmas[lemma_id]
-    # Combined entries (fill gaps)
-    for form, lemma_id in conn.execute(
-            "SELECT form, lemma_id FROM lookup WHERE lang='all'"):
-        if form not in lookup:
-            lookup[form] = lemmas[lemma_id]
-
-    conn.close()
-    return lookup
+def safe_lemmatize(d: Dilemma, form: str) -> str:
+    try:
+        return d.lemmatize(form)
+    except Exception:
+        return form
 
 
 def parse_hnc_tokens(hnc_path: Path):
@@ -105,9 +107,10 @@ def main():
         print(f"Error: {HNC_PATH} not found")
         return
 
-    print("Loading Dilemma lookup table...")
-    lookup = load_dilemma_lookup()
-    print(f"  {len(lookup):,} entries loaded")
+    print("Loading Dilemma (lang='el', convention='triantafyllidis')...")
+    d = Dilemma(lang='el', convention='triantafyllidis')
+    d.preload()
+    print(f"  Dilemma loaded")
 
     correct = 0
     wrong = 0
@@ -117,7 +120,6 @@ def main():
 
     wrong_examples = []
     missing_examples = []
-    accent_mismatch = 0  # polytonic vs monotonic
 
     for word, tag, gold_lemma in parse_hnc_tokens(HNC_PATH):
         if tag in SKIP_TAGS:
@@ -130,22 +132,20 @@ def main():
         total += 1
         form = word.lower()
 
-        # Try lookup: exact, then lowercase
-        dilemma_lemma = lookup.get(form) or lookup.get(word)
+        dilemma_lemma = safe_lemmatize(d, form)
 
-        if dilemma_lemma is None:
-            missing += 1
-            missing_examples.append((form, gold_lemma))
-            continue
+        # If Dilemma just returns the input unchanged, count as missing
+        if dilemma_lemma == form and form != gold_lemma.lower():
+            # Check if it's truly missing (lemmatize returns input for unknowns)
+            # but some words are already in citation form
+            if not are_equivalent(dilemma_lemma, gold_lemma):
+                missing += 1
+                missing_examples.append((form, gold_lemma))
+                continue
 
-        # Check match: exact, case-insensitive, or accent-stripped
-        if (dilemma_lemma == gold_lemma
-                or dilemma_lemma.lower() == gold_lemma.lower()):
+        # Check match using equivalence groups
+        if are_equivalent(dilemma_lemma, gold_lemma):
             correct += 1
-        elif strip_accents(dilemma_lemma.lower()) == strip_accents(gold_lemma.lower()):
-            # Accent/breathing difference (e.g. polytonic vs monotonic)
-            correct += 1
-            accent_mismatch += 1
         else:
             wrong += 1
             wrong_examples.append((form, gold_lemma, dilemma_lemma))
@@ -155,7 +155,6 @@ def main():
     print(f"Evaluated tokens:  {total:,}")
     print(f"Skipped (noise):   {skipped:,}")
     print(f"Correct:           {correct:,} ({100*correct/total:.1f}%)")
-    print(f"  (accent-equiv):  {accent_mismatch:,}")
     print(f"Wrong:             {wrong:,} ({100*wrong/total:.1f}%)")
     print(f"Missing:           {missing:,} ({100*missing/total:.1f}%)")
     print(f"Coverage:          {100*(correct+wrong)/total:.1f}%")
