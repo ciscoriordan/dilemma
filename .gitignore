@@ -1,8 +1,22 @@
-# Data files (large, generated - except LFS-tracked ones)
+# Large pipeline outputs (stored on HuggingFace: hf.co/ciscoriordan/dilemma)
+data/ag_lookup.json
+data/ag_pairs.json
+data/corpus_freq.json
+data/diorisis_freq.json
+data/diorisis_pairs.json
+data/glaux_freq.json
+data/glaux_pairs.json
+data/lookup.db
+data/med_lookup.json
+data/med_pairs.json
+data/mg_lookup.json
+data/mg_pairs.json
+data/spell_index.db
+data/vesuvius_index.json.gz
+
+# Other generated data
 data/*.jsonl
 data/*.db
-!data/lookup.db
-!data/spell_index.db
 data/*.tar.gz
 data/*.xml
 data/*.xml.bz2
@@ -11,22 +25,13 @@ data/diorisis/
 data/wtp.db-shm
 data/wtp.db-wal
 data/wtp.db.pickle
+data/raw_lookups.db
 
 # Kaikki dumps
 kaikki/
 
-# Model artifacts (except production models tracked via LFS)
-model/*
-!model/combined-s3/
-!model/grc-s3/
-model/combined-s3/*
-!model/combined-s3/*.pt
-!model/combined-s3/*.onnx
-!model/combined-s3/*.npz
-!model/combined-s3/*.json
-model/grc-s3/*
-!model/grc-s3/*.pt
-!model/grc-s3/*.onnx
+# Model artifacts (stored on HuggingFace: hf.co/ciscoriordan/dilemma)
+model/
 
 # Python
 __pycache__/

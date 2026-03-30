@@ -149,19 +149,22 @@ table (which handles 95%+ of words) needs neither.
 
 ```bash
 git clone https://github.com/ciscoriordan/dilemma.git && cd dilemma
-pip install onnxruntime                # ~50 MB, lightweight
+pip install onnxruntime huggingface_hub  # lightweight dependencies
+huggingface-cli download ciscoriordan/dilemma --local-dir . --include "data/*" "model/*"
+```
+
+This downloads the pre-built lookup tables and ONNX model files from
+HuggingFace. The lookup table handles 95%+ of words with no model at all.
+For the remaining ~5% (unseen forms), the ONNX model files provide
+transformer inference. If you already have PyTorch installed, that works
+too - both produce identical output.
+
+To build the data from scratch instead of downloading:
+```bash
 python build_data.py --download        # downloads Wiktionary dumps, builds lookup tables
 python build_lookup_db.py              # builds SQLite DB for instant startup (optional)
 python fix_selfmaps.py                 # fixes inflected forms that self-map (optional)
 ```
-
-The lookup table handles 95%+ of words with no model at all. The SQLite
-step is optional but recommended - it reduces startup time from ~11s to
-~0.3s. Without it, Dilemma falls back to loading JSON files. For the
-remaining ~5% (unseen forms), the ONNX model files (`encoder.onnx`,
-`decoder_step.onnx`) in the model directory provide transformer
-inference. If you already have PyTorch installed, that works too -
-both produce identical output.
 
 ### Basic Usage
 
