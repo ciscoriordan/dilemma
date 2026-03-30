@@ -8,7 +8,7 @@ Dilemma is a holistic Greek lemmatizer spanning Ancient Greek (Classical,
 Homeric, Hellenistic), Medieval/Byzantine Greek (both vernacular and
 literary), and Modern Greek (Demotic and Katharevousa). It combines multiple strategies into a unified pipeline:
 
-- A 12.3M-form lookup table built from Wiktionary inflection tables,
+- A 12.5M-form lookup table built from Wiktionary inflection tables,
   Wiktionary's Lua morphological modules applied to LSJ and Sophocles
   lexicon headwords, gold-standard treebanks (Perseus, PROIEL, Gorman,
   DiGreC), and annotated corpora (GLAUx, Diorisis, HNC)
@@ -34,7 +34,7 @@ patterns at the character level, the standard architecture from
 it trains from scratch in minutes, compared to fine-tuning approaches
 like *ByT5-small* (300M params) which take hours to train. Greek
 lemmatization is highly pattern-based - a small specialized model matches
-a large general-purpose one, and the 12.3M lookup table handles the rest.
+a large general-purpose one, and the 12.5M lookup table handles the rest.
 
 **Note on methodology:** Dilemma is a supervised system. The transformer
 trains on 3.4M explicit form-to-lemma pairs from Wiktionary inflection
@@ -536,7 +536,7 @@ d.suggest_spelling("θδός")       # [("θεός", 1), ...]  (letter-level ED1
 ```
 
 The approach works in two layers. First, diacritics are stripped from both
-the input and the dictionary, collapsing the 12.3M-entry lookup into ~1-3M
+the input and the dictionary, collapsing the 12.5M-entry lookup into ~1-3M
 unique base forms. ED0/ED1/ED2 matches are found on these stripped forms,
 then expanded back to their original polytonic variants and ranked by true
 Levenshtein distance. This means accent and breathing errors (wrong accent,
@@ -602,7 +602,7 @@ table, avoiding false matches from MG monotonic forms.
 
 | Layer | Speed | Coverage | Source |
 |-------|-------|----------|--------|
-| **Lookup table** | hash lookup `O(1)` | 12.3M known forms | Wiktionary + LSJ + Sophocles + GLAUx + treebanks |
+| **Lookup table** | hash lookup `O(1)` | 12.5M known forms | Wiktionary + LSJ + Sophocles + GLAUx + treebanks |
 | **Normalizer** | k candidates `O(k)` | Byzantine orthographic variants | Rule-based candidate generation |
 | **Elision expansion** | v=7 vowels `O(v)` | AG elided forms | Vowel expansion against lookup |
 | **Crasis table** | hash lookup `O(1)` | ~50 common crasis forms | Hand-curated |
@@ -894,7 +894,7 @@ vocabulary (~160 tokens), so the same word is ~10 steps. Combined with
 | GLAUx corpus | 557K | 17M tokens, 98.8% accuracy ([Keersmaekers 2021](https://github.com/alekkeersmaekers/glaux)) |
 | Diorisis corpus | 76K new | 10M tokens, 91.4% accuracy ([Vatri & McGillivray 2018](https://figshare.com/articles/dataset/The_Diorisis_Ancient_Greek_Corpus/6187256)) |
 | HNC Golden Corpus | 1K new | 88K-token gold MG corpus ([CLARIN:EL](https://inventory.clarin.gr/corpus/870), openUnder-PSI) |
-| **Total lookup** | **12.3M** | |
+| **Total lookup** | **12.5M** | |
 
 All Wiktionary data is extracted automatically from
 [kaikki.org](https://kaikki.org/) JSONL dumps. LSJ and Sophocles
@@ -1012,7 +1012,7 @@ blinded evaluation by expert readers. They found that methods using
 large lexica combined with POS tagging (CLTK backoff lemmatizer,
 Diorisis corpus) consistently outperformed pure ML approaches with
 smaller lexica. Dilemma follows the same principle: a large lookup
-table (12.3M forms) handles the vast majority of words, with a small
+table (12.5M forms) handles the vast majority of words, with a small
 model as fallback.
 
 [Celano (2025)](https://aclanthology.org/2025.lm4dh-1.5/) presented
