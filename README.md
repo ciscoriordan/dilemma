@@ -216,7 +216,7 @@ and lemma equivalence groups (see `data/benchmarks/bench_all.py`).
 - **Katharevousa**: Konstantinos Sathas, *Neoelliniki Filologia* (1868), biography of Bessarion (318 tokens, [el.wikisource.org](https://el.wikisource.org/), public domain). No Katharevousa treebank exists.
 - **Demotic MG**: Greek Wikipedia articles "[Σπήλαιο Πετραλώνων](https://el.wikipedia.org/wiki/Σπήλαιο_Πετραλώνων)" and "[Ελαιόλαδο](https://el.wikipedia.org/wiki/Ελαιόλαδο)" (400 tokens, CC BY-SA). Not in any MG treebank. A separate dev set (251 tokens from "[Μέλισσα](https://el.wikipedia.org/wiki/Μέλισσα)" and "[Σαμοθράκη](https://el.wikipedia.org/wiki/Σαμοθράκη)") is also available.
 
-| Tool | AG Classical | Byzantine | Katharevousa | Demotic MG |
+| Tool | AG Classical | Byzantine (literary) | Katharevousa | Demotic MG |
 |------|:--------:|:--------:|:--------:|:--------:|
 | [spaCy](https://spacy.io/) `el` | -- | 31.7% | 44.6% | 79.9% |
 | [stanza](https://stanfordnlp.github.io/stanza/) `el` | -- | 37.4% | 48.4% | 87.0% |
@@ -246,7 +246,7 @@ tables have gaps.
 
 **Dilemma detail by convention:**
 
-| Lang | Convention | POS | AG Classical | Byzantine | Katharevousa | Demotic MG |
+| Lang | Convention | POS | AG Classical | Byzantine (literary) | Katharevousa | Demotic MG |
 |------|------------|-----|:--------:|:--------:|:--------:|:--------:|
 | `all` | `wiktionary` (default) | -- | 99.7% | 92.7% | 95.6% | 79.0%* |
 | `all` | `wiktionary` (default) | gold | -- | 92.6% | -- | -- |
