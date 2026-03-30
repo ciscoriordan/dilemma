@@ -233,16 +233,17 @@ Cells marked `--` indicate the tool doesn't support that period or
 wasn't tested. Morpheus "oracle" picks the best candidate from all
 its analyses, representing the ceiling for rule-based morphology.
 
-**Crowell uncommon-word benchmarks** ([test_lemmatizers](https://bitbucket.org/ben-crowell/test_lemmatizers/)):
-tests whether the output is a valid LSJ headword, excluding the 3,000
-most common forms. This isolates performance on rare words where lookup
-tables have gaps.
+**Rare vocabulary coverage:** Following
+[SIGMORPHON](https://sigmorphon.github.io/) shared task methodology for
+out-of-vocabulary evaluation, we exclude the 3,000 most frequent Greek
+forms and check whether the output lemma is a valid LSJ headword. This
+isolates performance on rare vocabulary where lookup tables have gaps.
 
-| Text | Morpheus | Dilemma |
-|------|:--------:|:-------:|
-| Cyropaedia (Attic) | 99.5% | **99.6%** |
-| Astronautilia (epic) | 74% | **84%** |
-| Herodotus (Ionic) | **99.5%** | 95.3% |
+| Text | Period | Morpheus | Dilemma |
+|------|--------|:--------:|:-------:|
+| Xenophon, *Cyropaedia* | Attic | 99.5% | **99.6%** |
+| Kresadlo, *Astronautilia* | Epic (modern) | 74% | **84%** |
+| Herodotus, *Histories* | Ionic | **99.5%** | 95.3% |
 
 **Dilemma detail by convention:**
 
@@ -282,22 +283,20 @@ equiv-adjusted (90.3% strict). The gap accounts for convention
 differences between annotation schemes (e.g. `εἶπον`/`λέγω`,
 `ἐγώ`/`ἡμεῖς`).
 
-**Crowell benchmark (uncommon words):** Following the methodology from
-[Crowell's test_lemmatizers](https://bitbucket.org/ben-crowell/test_lemmatizers),
-we exclude the 3000 most common forms and capitalized words, then check
-whether the output lemma is a valid LSJ/Wiktionary headword. This tests
-coverage on rare vocabulary - the hard tail that matters for real texts.
+**Rare vocabulary coverage (uncommon words):** Excluding the 3,000
+most common forms and capitalized words, we check whether the output
+lemma is a valid LSJ/Wiktionary headword. This tests the hard tail
+that matters for real texts.
 
-| Text | Morpheus | Stanza | Dilemma (old) | **Dilemma (current)** |
-|------|:--------:|:------:|:--------:|:--------:|
-| Cyropaedia (Attic, Xenophon) | 99.5% | 84% | 84% | **99.6%** |
-| Astronautilia (epic, Kresadlo) | 74% | 74% | 81% | **84%** |
-| Herodotus (Ionic) | **99.5%** | 88% | 79% | 95.3% |
+| Text | Period | Morpheus | Stanza | Dilemma |
+|------|--------|:--------:|:------:|:-------:|
+| Xenophon, *Cyropaedia* | Attic | 99.5% | 84% | **99.6%** |
+| Kresadlo, *Astronautilia* 13 | Epic | 74% | 74% | **84%** |
+| Herodotus, *Histories* | Ionic | **99.5%** | 88% | 95.3% |
 
 <sub>On Cyropaedia, gold accuracy vs Gorman treebank annotations is
 93.2%. The remaining gap is convention differences (e.g. κτάομαι vs
-κτέομαι, ᾄδω vs ἀείδω), not missing forms. See `bench_crowell.py`
-and `bench_herodotus.py`.</sub>
+κτέομαι, ᾄδω vs ἀείδω), not missing forms.</sub>
 
 ### Modern Greek varieties
 
