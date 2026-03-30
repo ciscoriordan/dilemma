@@ -198,7 +198,8 @@ def download_dump(filename: str, dest_dir: Path):
         return False
 
 
-def _add_lookup(lookup: dict, form: str, lemma: str, confidence: int = 1):
+def _add_lookup(lookup: dict, form: str, lemma: str, confidence: int = 1,
+                proper_noun: bool = False):
     """Add a form to the lookup under original, lowercase, monotonic, and stripped keys.
 
     Confidence levels (assigned during merge):
@@ -209,14 +210,22 @@ def _add_lookup(lookup: dict, form: str, lemma: str, confidence: int = 1):
         1 = single source, table-only (default)
 
     Higher confidence always wins over lower.
+
+    When proper_noun=True, stripped/lowercase keys that differ from the
+    original form get reduced confidence (confidence - 1, min 0). This
+    prevents proper noun forms (e.g. Φᾶσιν -> Φᾶσις) from winning over
+    common words (e.g. φασίν -> φημί) on accent-stripped keys.
     """
     for key in (form, form.lower(), to_monotonic(form), to_monotonic(form).lower(),
                 strip_accents(form.lower())):
         if not key:
             continue
+        conf = confidence
+        if proper_noun and key != form:
+            conf = max(0, confidence - 1)
         existing = lookup.get(key)
-        if existing is None or confidence > existing[1]:
-            lookup[key] = (lemma, confidence)
+        if existing is None or conf > existing[1]:
+            lookup[key] = (lemma, conf)
 
 
 def _add_pos_map(pos_map: dict, form: str, lemma: str, wikt_pos: str):
@@ -412,7 +421,8 @@ def extract_pairs(jsonl_path: Path, lang: str,
                     if any(p in gloss for p in _form_of_patterns):
                         is_form_of_page = True
             hw_confidence = 1 if is_form_of_page else 3
-            _add_lookup(lookup, lemma, lemma, confidence=hw_confidence)
+            _add_lookup(lookup, lemma, lemma, confidence=hw_confidence,
+                        proper_noun=(pos == "name"))
 
             has_data = False
 
@@ -431,7 +441,7 @@ def extract_pairs(jsonl_path: Path, lang: str,
                 if " " in ref_word:  # skip multi-word
                     continue
                 # This entry (lemma) is a form of ref_word
-                _add_lookup(lookup, lemma, ref_word)
+                _add_lookup(lookup, lemma, ref_word, proper_noun=(pos == "name"))
                 # Record for pass-2 self-map resolution (skip proper nouns
                 # since variant names like Βησσαρίων should self-map)
                 if pos != "name" and lemma != ref_word:
@@ -457,7 +467,7 @@ def extract_pairs(jsonl_path: Path, lang: str,
                     continue
                 if " " in ref_word:
                     continue
-                _add_lookup(lookup, lemma, ref_word)
+                _add_lookup(lookup, lemma, ref_word, proper_noun=(pos == "name"))
                 if pos != "name" and lemma != ref_word:
                     for key in (lemma, lemma.lower(),
                                 to_monotonic(lemma), to_monotonic(lemma).lower(),
@@ -578,12 +588,12 @@ def extract_pairs(jsonl_path: Path, lang: str,
                     })
 
                 # Lookup: original, lowercase, monotonic, accent-stripped
-                _add_lookup(lookup, form, lemma)
+                _add_lookup(lookup, form, lemma, proper_noun=(pos == "name"))
                 _add_pos_map(pos_map, form, lemma, pos)
 
                 # Also add the parenthetical-expanded form (e.g. ἐστίν from ἐστί(ν))
                 if extra_form and _is_greek(extra_form):
-                    _add_lookup(lookup, extra_form, lemma)
+                    _add_lookup(lookup, extra_form, lemma, proper_noun=(pos == "name"))
                     _add_pos_map(pos_map, extra_form, lemma, pos)
                     pairs.append({
                         "form": extra_form,

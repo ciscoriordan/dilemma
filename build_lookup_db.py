@@ -35,6 +35,7 @@ GLAUX_PAIRS_PATH = DATA_DIR / "glaux_pairs.json"
 DIORISIS_PAIRS_PATH = DATA_DIR / "diorisis_pairs.json"
 PROIEL_PAIRS_PATH = DATA_DIR / "proiel_pairs.json"
 GORMAN_PAIRS_PATH = DATA_DIR / "gorman_pairs.json"
+PERSEUS_PAIRS_PATH = DATA_DIR / "perseus_pairs.json"
 ETYMOLOGY_BRIDGES_PATH = DATA_DIR / "etymology_bridges.json"
 LSJGR_BRIDGES_PATH = DATA_DIR / "lsjgr_bridges.json"
 RELATED_LEMMAS_PATH = DATA_DIR / "related_lemmas.json"
@@ -168,12 +169,63 @@ def build():
     else:
         print(f"  Gorman: no gorman_pairs.json found, skipping")
 
+    # Expand AG with Perseus treebank pairs (42K unique form-lemma pairs
+    # from 178K tokens of AGDT-annotated Greek: Sophocles, Aeschylus,
+    # Homer, Hesiod, Herodotus, Thucydides, Plutarch, Polybius, Athenaeus.)
+    # Gold-standard annotations, same priority tier as PROIEL/Gorman.
+    perseus_added_ag = 0
+    if PERSEUS_PAIRS_PATH.exists():
+        t_pe = time.time()
+        with open(PERSEUS_PAIRS_PATH, encoding="utf-8") as f:
+            perseus_pairs = json.load(f)
+        for p in perseus_pairs:
+            form, lemma = p["form"], p["lemma"]
+            if form not in ag:
+                ag[form] = lemma
+                perseus_added_ag += 1
+        print(f"  Perseus: +{perseus_added_ag:,} to AG "
+              f"({len(perseus_pairs):,} total, "
+              f"{len(perseus_pairs) - perseus_added_ag:,} already present) "
+              f"({time.time()-t_pe:.1f}s)")
+    else:
+        print(f"  Perseus: no perseus_pairs.json found, skipping")
+
+    # Load AG headwords early: used both for corpus lemma validation
+    # and for protecting AG self-maps from EL overrides later.
+    # AG headwords that self-map (e.g. καθάπερ -> καθάπερ) are correct
+    # citation forms and should not be replaced by EL form-of redirects.
+    ag_headwords = set()
+    ag_headwords_exact = set()  # original forms only (for lemma validation)
+    if AG_HEADWORDS_PATH.exists():
+        with open(AG_HEADWORDS_PATH, encoding="utf-8") as f:
+            ag_headwords_exact = set(json.load(f))
+        ag_headwords = set(ag_headwords_exact)
+        ag_headwords |= {h.lower() for h in ag_headwords}
+        ag_headwords |= {strip_accents(h.lower()) for h in ag_headwords}
+        print(f"  AG headwords: {len(ag_headwords):,} (for self-map protection)")
+
     # Expand AG and Med with GLAUx corpus pairs (644K forms from
     # 8th c. BC - 4th c. AD Greek texts). These are corpus-derived
     # so lower confidence than Wiktionary, but fill coverage gaps.
+    def _normalize_corpus_lemma(lemma, headwords_exact):
+        """Normalize corpus lemmas with spurious capitalization.
+
+        Corpora like GLAUx sometimes capitalize sentence-initial lemmas
+        (e.g. Εἰμί instead of εἰμί). If the lowercase version is a known
+        headword, prefer it.
+        """
+        if lemma and lemma[0].isupper():
+            lower = lemma[0].lower() + lemma[1:]
+            if lower in headwords_exact:
+                return lower
+        return lemma
+
+    # Reject pairs whose lemma is not a known AG headword to filter
+    # out annotation errors (e.g. Ἔστι -> Ἔσθι, corrupt -δήποτε lemmas).
     glaux_added_ag = 0
     glaux_added_med = 0
     glaux_skipped_med = 0
+    glaux_bad_lemma = 0
     if GLAUX_PAIRS_PATH.exists():
         t_g = time.time()
         with open(GLAUX_PAIRS_PATH, encoding="utf-8") as f:
@@ -183,6 +235,12 @@ def build():
         ag_original = dict(ag)
         for p in glaux_pairs:
             form, lemma = p["form"], p["lemma"]
+            # Normalize capitalized lemmas (GLAUx sentence-initial convention)
+            lemma = _normalize_corpus_lemma(lemma, ag_headwords_exact)
+            # Validate lemma against known AG headwords
+            if ag_headwords_exact and lemma not in ag_headwords_exact:
+                glaux_bad_lemma += 1
+                continue
             # Add to AG if not already present
             if form not in ag:
                 ag[form] = lemma
@@ -200,17 +258,20 @@ def build():
                     glaux_skipped_med += 1
         print(f"  GLAUx: +{glaux_added_ag:,} to AG, "
               f"+{glaux_added_med:,} to el, "
-              f"{glaux_skipped_med:,} el conflicts skipped "
+              f"{glaux_skipped_med:,} el conflicts skipped, "
+              f"{glaux_bad_lemma:,} bad lemmas rejected "
               f"({time.time()-t_g:.1f}s)")
 
     # Expand AG and el with Diorisis corpus pairs (456K forms from
     # 10.2M tokens of ancient Greek texts). Lower confidence than GLAUx
     # (91.4% vs 98.8% lemma accuracy), so lowest priority: only added
     # when not already present from Wiktionary, LSJ, or GLAUx.
+    # Same lemma validation as GLAUx.
     dior_added_ag = 0
     dior_added_el = 0
     dior_skipped_el = 0
     dior_skipped_ag = 0
+    dior_bad_lemma = 0
     if DIORISIS_PAIRS_PATH.exists():
         t_d = time.time()
         with open(DIORISIS_PAIRS_PATH, encoding="utf-8") as f:
@@ -219,6 +280,12 @@ def build():
         ag_before_dior = dict(ag)
         for p in diorisis_pairs:
             form, lemma = p["form"], p["lemma"]
+            # Normalize capitalized lemmas
+            lemma = _normalize_corpus_lemma(lemma, ag_headwords_exact)
+            # Validate lemma against known AG headwords
+            if ag_headwords_exact and lemma not in ag_headwords_exact:
+                dior_bad_lemma += 1
+                continue
             # Add to AG if not already present from any source
             if form not in ag:
                 ag[form] = lemma
@@ -238,19 +305,9 @@ def build():
                     dior_skipped_el += 1
         print(f"  Diorisis: +{dior_added_ag:,} to AG ({dior_skipped_ag:,} skipped), "
               f"+{dior_added_el:,} to el, "
-              f"{dior_skipped_el:,} el conflicts skipped "
+              f"{dior_skipped_el:,} el conflicts skipped, "
+              f"{dior_bad_lemma:,} bad lemmas rejected "
               f"({time.time()-t_d:.1f}s)")
-
-    # Load AG headwords to protect AG self-maps from EL overrides.
-    # AG headwords that self-map (e.g. καθάπερ -> καθάπερ) are correct
-    # citation forms and should not be replaced by EL form-of redirects.
-    ag_headwords = set()
-    if AG_HEADWORDS_PATH.exists():
-        with open(AG_HEADWORDS_PATH, encoding="utf-8") as f:
-            ag_headwords = set(json.load(f))
-        ag_headwords |= {h.lower() for h in ag_headwords}
-        ag_headwords |= {strip_accents(h.lower()) for h in ag_headwords}
-        print(f"  AG headwords: {len(ag_headwords):,} (for self-map protection)")
 
     # Article and pronoun forms excluded from the lookup so that
     # resolve_articles=True/False in Dilemma controls their resolution.
@@ -296,11 +353,16 @@ def build():
     if ag_protected:
         print(f"  AG headword self-maps protected: {ag_protected:,}")
 
+    # NOTE: Corpus self-map and consensus overrides were tried here but
+    # proved too aggressive, overriding correct Wiktionary entries with
+    # corpus convention preferences (e.g. δεῖ -> δέομαι instead of δέω).
+    # The targeted manual overrides below handle specific known issues.
+
     # Manual corrections for known lookup bugs.
     # These override wrong entries from Wiktionary or pipeline errors.
     _LOOKUP_OVERRIDES = {
         "φασιν": "φημί",          # was Φᾶσις (proper noun beats common verb)
-        "Ἔστι": "εἰμί",          # was Ἔσθι (obscure form beats common verb)
+        "Ἔστι": "εἰμί",          # was Ἔσθι (GLAUx annotation error)
         "σκέπτεσθαι": "σκέπτομαι",  # was self-map (infinitive as headword)
         "οἷον": "οἷος",           # was self-map (adverb use as headword)
     }
@@ -483,9 +545,18 @@ def build():
     # Compact main DB
     print("\nOptimizing lookup.db...")
     conn.commit()
-    conn.execute("ANALYZE")
-    conn.execute("VACUUM")
-    conn.commit()
+    conn.close()
+
+    # Re-open for ANALYZE/VACUUM (avoids resource exhaustion on large DBs)
+    conn = sqlite3.connect(str(DB_PATH))
+    try:
+        conn.execute("ANALYZE")
+    except sqlite3.OperationalError as e:
+        print(f"  ANALYZE skipped: {e}")
+    try:
+        conn.execute("VACUUM")
+    except sqlite3.OperationalError as e:
+        print(f"  VACUUM skipped: {e}")
     conn.close()
 
     size_mb = DB_PATH.stat().st_size / 1e6
@@ -540,7 +611,10 @@ def build():
 
     spell_conn.commit()
     spell_conn.execute("ANALYZE")
-    spell_conn.execute("VACUUM")
+    try:
+        spell_conn.execute("VACUUM")
+    except sqlite3.OperationalError as e:
+        print(f"  VACUUM skipped: {e}")
     spell_conn.close()
 
     spell_mb = SPELL_DB_PATH.stat().st_size / 1e6

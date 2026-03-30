@@ -8,7 +8,7 @@ Dilemma is a holistic Greek lemmatizer spanning Ancient Greek (Classical,
 Homeric, Hellenistic), Medieval/Byzantine Greek (both vernacular and
 literary), and Modern Greek (Demotic and Katharevousa). It combines multiple strategies into a unified pipeline:
 
-- A 12.3M-form lookup table built from Wiktionary inflection tables,
+- A 12.5M-form lookup table built from Wiktionary inflection tables,
   Wiktionary's Lua morphological modules applied to LSJ and Sophocles
   lexicon headwords, gold-standard treebanks (Perseus, PROIEL, Gorman,
   DiGreC), and annotated corpora (GLAUx, Diorisis, HNC)
@@ -21,7 +21,7 @@ literary), and Modern Greek (Demotic and Katharevousa). It combines multiple str
   enclitic particle) and that a transformer might not generalize to for
   rare forms it has never trained on
 - A small supervised character-level transformer (~4M parameters) trained
-  on 3.4M explicit form-lemma pairs, used only for the ~5% of words not
+  on 3.5M explicit form-lemma pairs, used only for the ~5% of words not
   resolved by lookup or rules
 - Convention remapping to match output lemmas to target dictionaries (LSJ,
   Cunliffe, Triantafyllidis, Wiktionary)
@@ -34,10 +34,45 @@ patterns at the character level, the standard architecture from
 it trains from scratch in minutes, compared to fine-tuning approaches
 like *ByT5-small* (300M params) which take hours to train. Greek
 lemmatization is highly pattern-based - a small specialized model matches
-a large general-purpose one, and the 12.3M lookup table handles the rest.
+a large general-purpose one, and the 12.5M lookup table handles the rest.
+
+### What's new here
+
+Most individual components of Dilemma are established techniques. What's
+novel is the combination and the scale:
+
+- **Multi-period Greek in one tool.** No other lemmatizer covers Ancient,
+  Byzantine, and Modern Greek in a single system. Tools like Morpheus
+  handle only classical AG. Stanza handles AG or MG but not both.
+  Dilemma resolves Katharevousa, vernacular medieval, and regional MG
+  varieties (Cypriot, Cretan) alongside Homer and Herodotus.
+- **12.5M-form lookup table.** The largest compiled for Greek, built by
+  applying Wiktionary's Lua inflection modules to LSJ and Sophocles
+  headwords, then merging with five gold-standard treebanks and two
+  corpus-derived pair sets. This is a data engineering contribution, not
+  an algorithmic one.
+- **Dialect normalization.** Systematic Ionic, Doric, Aeolic, and Koine
+  orthographic mapping to Attic equivalents. No other Greek lemmatizer
+  handles dialectal variation this way.
+- **Elision with consonant de-assimilation and frequency ranking.**
+  Recovers prepositions like κατά from assimilated forms like καθ' by
+  reversing the aspiration rule, then ranks candidates by corpus frequency.
+
+### What's established
+
+- The character-level transformer is the standard SIGMORPHON architecture
+  for morphological inflection/reinflection tasks.
+- The SQLite lookup with monotonic/stripped fallback keys is a
+  straightforward hash table approach.
+- Edit-distance spelling correction uses a BK-tree, a well-known data
+  structure for metric-space nearest-neighbor search.
+- Wiktionary as a data source for morphological data is widely used
+  (kaikki.org, Lexonomy, etc.).
+- Treebank integration (Perseus, PROIEL, Gorman) follows standard
+  practice in computational linguistics.
 
 **Note on methodology:** Dilemma is a supervised system. The transformer
-trains on 3.4M explicit form-to-lemma pairs from Wiktionary inflection
+trains on 3.5M explicit form-to-lemma pairs from Wiktionary inflection
 tables, and the lookup table (which handles 95%+ of words) is literally a
 dictionary of correct answers. This is not unsupervised learning (pattern
 discovery from raw text with no labels). Some evaluations have incorrectly
@@ -52,9 +87,6 @@ back to JSON if the database isn't present.
 installed, it works fine. If you're starting fresh, ONNX is the
 lighter option. PyTorch is only required for training. The lookup
 table (which handles 95%+ of words) needs neither.
-
-Handles Standard Modern Greek (Demotic), Katharevousa, Cypriot, Cretan,
-and other regional varieties alongside Ancient and Medieval Greek.
 
 ## Table of Contents
 
@@ -108,7 +140,8 @@ The lookup table combines forms from multiple sources:
 | **[GLAUx](https://github.com/alekkeersmaekers/glaux)** (Keersmaekers, 2021) | 557K | 17M-token corpus, 8th c. BC - 4th c. AD, 98.8% lemma accuracy |
 | **[Diorisis](https://figshare.com/articles/dataset/The_Diorisis_Ancient_Greek_Corpus/6187256)** (Vatri & McGillivray, 2018) | 76K new | 10M-token corpus, Homer - 5th c. AD, 91.4% lemma accuracy. Low-priority pairs (only added when no conflict with existing sources). Also provides frequency data (27M combined tokens with GLAUx). |
 | **[HNC Golden Corpus](https://inventory.clarin.gr/corpus/870)** (CLARIN:EL) | 1K new | 88K-token gold-standard MG corpus, 11K unique form-lemma pairs. Low priority (only added when not in Wiktionary). Also used for MG evaluation. |
-| **UD Treebanks** (Perseus, PROIEL, DiGreC) | 27K | Gold form-lemma pairs from annotated treebanks |
+| **[PROIEL](https://github.com/UniversalDependencies/UD_Ancient_Greek-PROIEL)** (UD treebank) | 33K | Herodotus gold-standard form-lemma pairs (expert-verified) |
+| **[Perseus](https://github.com/UniversalDependencies/UD_Ancient_Greek-Perseus)** (UD treebank) | 42K | 178K tokens: Sophocles, Aeschylus, Homer, Hesiod, Herodotus, Thucydides, Plutarch, Polybius, Athenaeus |
 | **[Gorman Treebanks](https://github.com/UD-Greek/UD_Ancient_Greek-Gorman)** (Gorman) | 79K | 687K-token corpus across Herodotus, Thucydides, Xenophon, Demosthenes, Lysias, Polybius, etc. Gold-standard single annotator. |
 | Closed-class fixes | ~500 | Articles, pronouns, prepositions mapped to canonical lemmas |
 
@@ -117,6 +150,9 @@ The LSJ and Sophocles expansions use Wiktionary's own
 [grc-conj](https://en.wiktionary.org/wiki/Module:grc-conj) Lua modules
 (via [wikitextprocessor](https://github.com/tatuylonen/wikitextprocessor))
 to generate inflection paradigms from headwords with grammatical metadata.
+Cunliffe's Homeric Lexicon (~12K headwords) is not expanded this way
+because its headwords are a subset of LSJ and already covered by the
+LSJ expansion plus GLAUx Homeric corpus data (557K pairs).
 
 ### Orthographic normalizer (Byzantine/papyrological texts)
 
@@ -189,7 +225,7 @@ and lemma equivalence groups (see `data/benchmarks/bench_all.py`).
 | [Morpheus](https://github.com/perseids-tools/morpheus-perseids-api) (oracle) | -- | 71.1% | -- | -- |
 | [stanza](https://stanfordnlp.github.io/stanza/) `grc` | 92.2% | 71.3% | 85.2% | -- |
 | [Swaelens et al. (2025)](https://aclanthology.org/2025.acl-long.430/) | -- | ~74-75% | -- | -- |
-| **Dilemma** (best convention per period) | **96.9%** | **92.7%** | **95.6%** | **96.0%**† |
+| **Dilemma** (best convention per period) | **99.7%** | **92.7%** | **95.6%** | **96.0%**† |
 
 <sub>†`lang="el"` with `triantafyllidis` scores 95.8%, nearly matching `lang="all"` (96.0%). For MG-only workloads, `lang="el"` with `triantafyllidis` is recommended since it avoids AG false matches.</sub>
 
@@ -197,14 +233,25 @@ Cells marked `--` indicate the tool doesn't support that period or
 wasn't tested. Morpheus "oracle" picks the best candidate from all
 its analyses, representing the ceiling for rule-based morphology.
 
+**Crowell uncommon-word benchmarks** ([test_lemmatizers](https://bitbucket.org/ben-crowell/test_lemmatizers/)):
+tests whether the output is a valid LSJ headword, excluding the 3,000
+most common forms. This isolates performance on rare words where lookup
+tables have gaps.
+
+| Text | Morpheus | Dilemma |
+|------|:--------:|:-------:|
+| Cyropaedia (Attic) | 99.5% | **99.6%** |
+| Astronautilia (epic) | 74% | **84%** |
+| Herodotus (Ionic) | **99.5%** | 95.3% |
+
 **Dilemma detail by convention:**
 
 | Lang | Convention | POS | AG Classical | Byzantine | Katharevousa | Demotic MG |
 |------|------------|-----|:--------:|:--------:|:--------:|:--------:|
-| `all` | `wiktionary` (default) | -- | 96.9% | 92.7% | 95.6% | 79.0%* |
+| `all` | `wiktionary` (default) | -- | 99.7% | 92.7% | 95.6% | 79.0%* |
 | `all` | `wiktionary` (default) | gold | -- | 92.6% | -- | -- |
 | `all` | `triantafyllidis` | -- | 85.4% | 83.4% | 90.9% | 96.0%† |
-| `grc` | `wiktionary` (default) | -- | 96.9% | 92.3% | 94.3% | 79.0%* |
+| `grc` | `wiktionary` (default) | -- | 99.7% | 92.3% | 94.3% | 79.0%* |
 | `grc` | `triantafyllidis` | -- | 87.4% | 86.9% | 89.9% | 90.0% |
 | `el` | `wiktionary` (default) | -- | 93.3% | 86.7% | 92.5% | 73.0%* |
 | `el` | `triantafyllidis` | -- | 85.4% | 82.6% | 89.9% | 95.8% |
@@ -234,6 +281,23 @@ Homer through 15th century Byzantine Greek), Dilemma reaches 93.7%
 equiv-adjusted (90.3% strict). The gap accounts for convention
 differences between annotation schemes (e.g. `εἶπον`/`λέγω`,
 `ἐγώ`/`ἡμεῖς`).
+
+**Crowell benchmark (uncommon words):** Following the methodology from
+[Crowell's test_lemmatizers](https://bitbucket.org/ben-crowell/test_lemmatizers),
+we exclude the 3000 most common forms and capitalized words, then check
+whether the output lemma is a valid LSJ/Wiktionary headword. This tests
+coverage on rare vocabulary - the hard tail that matters for real texts.
+
+| Text | Morpheus | Stanza | Dilemma (old) | **Dilemma (current)** |
+|------|:--------:|:------:|:--------:|:--------:|
+| Cyropaedia (Attic, Xenophon) | 99.5% | 84% | 84% | **99.6%** |
+| Astronautilia (epic, Kresadlo) | 74% | 74% | 81% | **84%** |
+| Herodotus (Ionic) | **99.5%** | 88% | 79% | 95.3% |
+
+<sub>On Cyropaedia, gold accuracy vs Gorman treebank annotations is
+93.2%. The remaining gap is convention differences (e.g. κτάομαι vs
+κτέομαι, ᾄδω vs ἀείδω), not missing forms. See `bench_crowell.py`
+and `bench_herodotus.py`.</sub>
 
 ### Modern Greek varieties
 
@@ -536,7 +600,7 @@ d.suggest_spelling("θδός")       # [("θεός", 1), ...]  (letter-level ED1
 ```
 
 The approach works in two layers. First, diacritics are stripped from both
-the input and the dictionary, collapsing the 12.3M-entry lookup into ~1-3M
+the input and the dictionary, collapsing the 12.5M-entry lookup into ~1-3M
 unique base forms. ED0/ED1/ED2 matches are found on these stripped forms,
 then expanded back to their original polytonic variants and ranked by true
 Levenshtein distance. This means accent and breathing errors (wrong accent,
@@ -602,7 +666,7 @@ table, avoiding false matches from MG monotonic forms.
 
 | Layer | Speed | Coverage | Source |
 |-------|-------|----------|--------|
-| **Lookup table** | hash lookup `O(1)` | 12.3M known forms | Wiktionary + LSJ + Sophocles + GLAUx + treebanks |
+| **Lookup table** | hash lookup `O(1)` | 12.5M known forms | Wiktionary + LSJ + Sophocles + GLAUx + treebanks |
 | **Normalizer** | k candidates `O(k)` | Byzantine orthographic variants | Rule-based candidate generation |
 | **Elision expansion** | v=7 vowels `O(v)` | AG elided forms | Vowel expansion against lookup |
 | **Crasis table** | hash lookup `O(1)` | ~50 common crasis forms | Hand-curated |
@@ -801,15 +865,19 @@ Legacy `--scale 1/2/3` flags are still accepted for compatibility.
 Every scale includes **100% of non-standard varieties** (Medieval,
 Katharevousa, Cypriot, Cretan, Maniot, Heptanesian, archaic, dialectal).
 The remaining budget is split 50/50 between Ancient Greek and standard MG.
-Perfect tense verb forms are oversampled 3x, following
+Underrepresented tense categories are oversampled to compensate for
+their rarity in Wiktionary's paradigm tables, following
 [Swaelens et al. (2025)](https://aclanthology.org/2025.acl-long.430/)'s
-finding that perfects are underrepresented in training data (2%) relative
-to Byzantine text (11.4%).
+finding that perfects are underrepresented in training data relative
+to Byzantine text. Aorist forms (3x, critical for stem-changing 2nd
+aorist), perfect (3x), future (3x), imperfect (2x), and pluperfect
+(5x, rarest at 0.15% of pool) are oversampled proportionally to
+their rarity and the degree of stem change from the present form.
 
 | Scale | Training pairs | Varieties | AG | SMG | Time (RTX 2080) |
 |:-----:|---------------:|----------:|-------:|-------:|:--------------:|
 | test | 20K | 9K (100%) | 5.5K | 5.5K | ~15 sec |
-| full | 3.4M (all) | 9K (100%) | 1.5M (100%) | 1.7M (100%) | ~45 min |
+| full | 3.5M (all) | 9K (100%) | 1.5M (100%) | 1.7M (100%) | ~95 min |
 
 Models save to `model/{lang}-test/` (test scale) or `model/{lang}/`
 (full scale).
@@ -876,7 +944,7 @@ vocabulary (~160 tokens), so the same word is ~10 steps. Combined with
 |--|:----------:|:-------:|
 | Approach | Subword tokenizer (UTF-8 bytes) | Character vocabulary (~381 Greek chars) |
 | Parameters | 300M | 4M |
-| Training (3.4M pairs, 3 epochs) | ~20 hours | ~45 min |
+| Training (3.5M pairs, 3 epochs) | ~20 hours | ~95 min |
 | Dependencies | torch + transformers | torch only (or ONNX only) |
 
 ## Data
@@ -888,13 +956,14 @@ vocabulary (~160 tokens), so the same word is ~10 steps. Combined with
 | EL Wiktionary (Medieval) | 6.9K | From kaikki.org dumps |
 | LSJ noun/verb/adj expansion | 4.2M | Via Wiktionary Lua modules |
 | Sophocles lexicon expansion | 1.0M | Byzantine/Patristic vocabulary |
-| UD Treebanks (AG) | 27K | Gold annotations from Perseus, PROIEL, DiGreC |
-| [PROIEL](https://github.com/proiel/proiel-treebank) (gold) | 33K | Herodotus gold-standard form-lemma pairs (single annotator, high accuracy) |
+| UD Treebanks (DiGreC) | 27K | Gold annotations from DiGreC treebank |
+| [PROIEL](https://github.com/UniversalDependencies/UD_Ancient_Greek-PROIEL) (gold) | 33K | Herodotus gold-standard form-lemma pairs (expert-verified) |
+| [Perseus](https://github.com/UniversalDependencies/UD_Ancient_Greek-Perseus) (gold) | 42K | 178K tokens: Sophocles, Aeschylus, Homer, Hesiod, Herodotus, Thucydides, Plutarch, Polybius, Athenaeus |
 | [Gorman Treebanks](https://github.com/UD-Greek/UD_Ancient_Greek-Gorman) | 79K | 687K tokens across Herodotus, Thucydides, Xenophon, Demosthenes, Lysias, Polybius, etc. |
 | GLAUx corpus | 557K | 17M tokens, 98.8% accuracy ([Keersmaekers 2021](https://github.com/alekkeersmaekers/glaux)) |
 | Diorisis corpus | 76K new | 10M tokens, 91.4% accuracy ([Vatri & McGillivray 2018](https://figshare.com/articles/dataset/The_Diorisis_Ancient_Greek_Corpus/6187256)) |
 | HNC Golden Corpus | 1K new | 88K-token gold MG corpus ([CLARIN:EL](https://inventory.clarin.gr/corpus/870), openUnder-PSI) |
-| **Total lookup** | **12.3M** | |
+| **Total lookup** | **12.5M** | |
 
 All Wiktionary data is extracted automatically from
 [kaikki.org](https://kaikki.org/) JSONL dumps. LSJ and Sophocles
@@ -1012,7 +1081,7 @@ blinded evaluation by expert readers. They found that methods using
 large lexica combined with POS tagging (CLTK backoff lemmatizer,
 Diorisis corpus) consistently outperformed pure ML approaches with
 smaller lexica. Dilemma follows the same principle: a large lookup
-table (12.3M forms) handles the vast majority of words, with a small
+table (12.5M forms) handles the vast majority of words, with a small
 model as fallback.
 
 [Celano (2025)](https://aclanthology.org/2025.lm4dh-1.5/) presented
@@ -1057,7 +1126,8 @@ will propagate into Dilemma via kaikki dumps.
 - Sophocles lexicon TEI from [Ionian University / Internet Archive](https://archive.org/details/pateres)
 - [GLAUx](https://github.com/alekkeersmaekers/glaux) corpus data (Keersmaekers, 2021) (CC BY-SA 4.0)
 - [Diorisis](https://figshare.com/articles/dataset/The_Diorisis_Ancient_Greek_Corpus/6187256) corpus data (Vatri & McGillivray, 2018) (CC BY-SA 3.0)
-- [PROIEL Treebank](https://github.com/proiel/proiel-treebank) gold-standard annotations (CC BY-NC-SA 4.0)
+- [PROIEL Treebank](https://github.com/UniversalDependencies/UD_Ancient_Greek-PROIEL) gold-standard annotations (CC BY-NC-SA 3.0)
+- [Perseus Treebank](https://github.com/UniversalDependencies/UD_Ancient_Greek-Perseus) (AGDT) gold-standard annotations (CC BY-NC-SA 3.0)
 - [Gorman Treebanks](https://github.com/UD-Greek/UD_Ancient_Greek-Gorman) (Gorman) (CC BY-NC-SA 4.0)
 - [HNC Golden Corpus](https://inventory.clarin.gr/corpus/870) from CLARIN:EL (openUnder-PSI)
 - DBBE evaluation data from [Swaelens et al.](https://github.com/coswaele/ByzantineGreekDatasets) (CC BY 4.0)

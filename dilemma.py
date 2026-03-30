@@ -1133,11 +1133,66 @@ class Dilemma:
         For monotonic conventions (e.g. triantafyllidis), the result is
         converted to monotonic Greek after any explicit remapping, so
         polytonic lemmas like ὁ become ο automatically.
+
+        For the LSJ convention, adverbs (-ῶς/-ως) and neuter adjectives
+        (-ον/-όν) that aren't LSJ headwords are mapped to their adjective
+        headword, since LSJ files these as sub-entries under the adjective.
         """
         if self._convention_map:
             lemma = self._convention_map.get(lemma, lemma)
+        if self._convention_name == "lsj":
+            lemma = self._lsj_adverb_neuter_remap(lemma)
         if self._convention_monotonic:
             lemma = to_monotonic(lemma)
+        return lemma
+
+    def _lsj_adverb_neuter_remap(self, lemma: str) -> str:
+        """Map adverbs and neuter adjectives to LSJ adjective headwords.
+
+        LSJ doesn't give adverbs (δεινῶς) or neuter forms (δεινόν) their
+        own headword entries - they appear under the adjective (δεινός).
+        This remaps them automatically using accent-stripped matching
+        against the LSJ adjective headword set.
+        """
+        lsj_hw = self._get_headword_set("lsj")
+        if lemma in lsj_hw:
+            return lemma
+
+        # Lazy-load LSJ adjective set
+        if not hasattr(self, "_lsj_adj_stripped"):
+            lsj_pos_path = (Path(__file__).parent.parent / "lsj9"
+                            / "lsj9_headword_pos.json")
+            if not lsj_pos_path.exists():
+                lsj_pos_path = (Path(__file__).parent / "data"
+                                / "lsj9_headword_pos.json")
+            self._lsj_adj_stripped = {}
+            if lsj_pos_path.exists():
+                import json as _json
+                pos_data = _json.load(open(lsj_pos_path, encoding="utf-8"))
+                for hw, pos in pos_data.items():
+                    if pos == "ADJ":
+                        self._lsj_adj_stripped[
+                            strip_accents(hw.lower())] = hw
+
+        if not self._lsj_adj_stripped:
+            return lemma
+
+        # Adverb -ῶς/-ως -> adjective -ος/-ης/-υς
+        if lemma.endswith("ῶς") or lemma.endswith("ως"):
+            stem = strip_accents(lemma[:-2].lower())
+            for suffix in ("ος", "ης", "υς", "ων", "ις"):
+                candidate = stem + suffix
+                if candidate in self._lsj_adj_stripped:
+                    return self._lsj_adj_stripped[candidate]
+
+        # Neuter -ον/-όν -> adjective -ος/-ης
+        if lemma.endswith("ον") or lemma.endswith("όν"):
+            stem = strip_accents(lemma[:-2].lower())
+            for suffix in ("ος", "ης"):
+                candidate = stem + suffix
+                if candidate in self._lsj_adj_stripped:
+                    return self._lsj_adj_stripped[candidate]
+
         return lemma
 
     def _get_headword_set(self, convention: str = "lsj") -> set[str]:
@@ -2387,21 +2442,24 @@ class Dilemma:
     def lemmatize_pos(self, word: str, upos: str) -> str:
         """Lemmatize with POS-aware disambiguation.
 
-        POS is used to disambiguate among multiple candidates from the
-        regular lookup, not to override it. The regular lookup (without
-        POS) already produces good results; POS should only help pick
-        between ambiguous candidates, never make things worse.
+        POS is used to disambiguate among multiple candidates, or to
+        override the single candidate when curated POS tables indicate
+        a different lemma for the given POS tag.
 
         Algorithm:
           1. Run regular lemmatize_verbose() to get all candidates.
-          2. If there is only one candidate, return it (POS can't help).
-          3. If there are multiple candidates, check POS tables for a
-             POS-specific lemma and see if any candidate matches it.
+          2. Check POS tables for a POS-specific lemma. If it matches
+             any candidate, return that candidate.
+          3. If there is only one candidate and the POS table suggests
+             a different lemma, trust the POS table (curated sources:
+             treebank, GLAUx, Wiktionary). This handles cases like
+             σκέψει+NOUN -> σκέψις where the default lookup only has
+             the verb mapping σκέπτομαι.
           4. For MG self-map fix: when _prefer_mg is true and POS is
              ADJ/VERB, check if the top candidate is an MG self-map and
              prefer a citation-form alternative from combined/AG lookup.
-          5. If a match is found, return it. Otherwise return the top
-             candidate (same as regular lookup).
+          5. If no POS match, return the top candidate (same as regular
+             lookup).
 
         Args:
             word: Greek word form.
@@ -2417,11 +2475,7 @@ class Dilemma:
             # Should not happen (verbose always adds identity), but be safe
             return self.lemmatize(word)
 
-        if len(candidates) == 1:
-            # Only one candidate - POS can't help, return it directly
-            return candidates[0].lemma
-
-        # Multiple candidates - use POS to disambiguate
+        # Use POS tables to disambiguate or override
         pos_lemma = self._pos_table_lookup(word, upos)
         if pos_lemma is not None:
             pos_lemma_conv = self._apply_convention(pos_lemma)
@@ -2435,6 +2489,14 @@ class Dilemma:
             for c in candidates:
                 if strip_accents(c.lemma.lower()) == pos_stripped:
                     return c.lemma
+            # POS lemma not among candidates (e.g., single candidate from
+            # lookup maps to a different headword). Trust the POS table -
+            # it comes from curated sources (treebank, GLAUx, Wiktionary).
+            if len(candidates) == 1:
+                return pos_lemma_conv
+
+        if len(candidates) == 1:
+            return candidates[0].lemma
 
         # MG self-map fix: when the top candidate is an MG self-map for
         # an ADJ/VERB inflection, prefer the citation form from combined/AG.
@@ -2449,10 +2511,10 @@ class Dilemma:
     def lemmatize_batch_pos(self, words: list[str], upos_tags: list[str]) -> list[str]:
         """Lemmatize a batch of words with POS-aware disambiguation.
 
-        POS is used to disambiguate among multiple candidates, not to
-        override the regular lookup. This preserves the batch model
-        optimization from lemmatize_batch() while using POS only when
-        it can help (multiple valid candidates for a form).
+        POS is used to disambiguate among multiple candidates, or to
+        override the single candidate when curated POS tables indicate
+        a different lemma. Preserves the batch model optimization from
+        lemmatize_batch() while applying POS corrections.
 
         Algorithm:
           1. Run lemmatize_batch() to get baseline results (efficient,
@@ -2460,10 +2522,12 @@ class Dilemma:
           2. For each word where POS tables suggest a different lemma,
              call lemmatize_verbose() to get all candidates and check
              if the POS-specific lemma is among them.
-          3. For MG self-map fix: when _prefer_mg is true and POS is
+          3. If a single candidate doesn't match the POS lemma, trust
+             the POS table (curated sources).
+          4. For MG self-map fix: when _prefer_mg is true and POS is
              ADJ/VERB, check if the baseline result is an MG self-map
              and prefer a citation-form alternative.
-          4. If a match is found, use it. Otherwise keep the baseline.
+          5. If a match is found, use it. Otherwise keep the baseline.
 
         Args:
             words: List of Greek word forms.
@@ -2491,9 +2555,6 @@ class Dilemma:
                 # POS suggests a different lemma than baseline. Check if
                 # the POS lemma is among the valid candidates.
                 candidates = self.lemmatize_verbose(word)
-                if len(candidates) <= 1:
-                    # Only one candidate - POS can't help, keep baseline
-                    continue
 
                 # Check if any candidate matches the POS-specific lemma
                 pos_stripped = strip_accents(pos_lemma_conv.lower())
@@ -2510,6 +2571,11 @@ class Dilemma:
                             results[i] = c.lemma
                             matched = True
                             break
+                if not matched and len(candidates) <= 1:
+                    # Single candidate doesn't match POS lemma - trust the
+                    # POS table (curated sources: treebank, GLAUx, Wiktionary)
+                    results[i] = pos_lemma_conv
+                    matched = True
                 if matched:
                     continue
 
