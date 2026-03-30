@@ -35,6 +35,7 @@ GLAUX_PAIRS_PATH = DATA_DIR / "glaux_pairs.json"
 DIORISIS_PAIRS_PATH = DATA_DIR / "diorisis_pairs.json"
 PROIEL_PAIRS_PATH = DATA_DIR / "proiel_pairs.json"
 GORMAN_PAIRS_PATH = DATA_DIR / "gorman_pairs.json"
+PERSEUS_PAIRS_PATH = DATA_DIR / "perseus_pairs.json"
 ETYMOLOGY_BRIDGES_PATH = DATA_DIR / "etymology_bridges.json"
 LSJGR_BRIDGES_PATH = DATA_DIR / "lsjgr_bridges.json"
 RELATED_LEMMAS_PATH = DATA_DIR / "related_lemmas.json"
@@ -167,6 +168,27 @@ def build():
               f"({time.time()-t_gr:.1f}s)")
     else:
         print(f"  Gorman: no gorman_pairs.json found, skipping")
+
+    # Expand AG with Perseus treebank pairs (42K unique form-lemma pairs
+    # from 178K tokens of AGDT-annotated Greek: Sophocles, Aeschylus,
+    # Homer, Hesiod, Herodotus, Thucydides, Plutarch, Polybius, Athenaeus.)
+    # Gold-standard annotations, same priority tier as PROIEL/Gorman.
+    perseus_added_ag = 0
+    if PERSEUS_PAIRS_PATH.exists():
+        t_pe = time.time()
+        with open(PERSEUS_PAIRS_PATH, encoding="utf-8") as f:
+            perseus_pairs = json.load(f)
+        for p in perseus_pairs:
+            form, lemma = p["form"], p["lemma"]
+            if form not in ag:
+                ag[form] = lemma
+                perseus_added_ag += 1
+        print(f"  Perseus: +{perseus_added_ag:,} to AG "
+              f"({len(perseus_pairs):,} total, "
+              f"{len(perseus_pairs) - perseus_added_ag:,} already present) "
+              f"({time.time()-t_pe:.1f}s)")
+    else:
+        print(f"  Perseus: no perseus_pairs.json found, skipping")
 
     # Load AG headwords early: used both for corpus lemma validation
     # and for protecting AG self-maps from EL overrides later.

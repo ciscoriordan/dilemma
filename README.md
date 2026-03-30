@@ -108,7 +108,8 @@ The lookup table combines forms from multiple sources:
 | **[GLAUx](https://github.com/alekkeersmaekers/glaux)** (Keersmaekers, 2021) | 557K | 17M-token corpus, 8th c. BC - 4th c. AD, 98.8% lemma accuracy |
 | **[Diorisis](https://figshare.com/articles/dataset/The_Diorisis_Ancient_Greek_Corpus/6187256)** (Vatri & McGillivray, 2018) | 76K new | 10M-token corpus, Homer - 5th c. AD, 91.4% lemma accuracy. Low-priority pairs (only added when no conflict with existing sources). Also provides frequency data (27M combined tokens with GLAUx). |
 | **[HNC Golden Corpus](https://inventory.clarin.gr/corpus/870)** (CLARIN:EL) | 1K new | 88K-token gold-standard MG corpus, 11K unique form-lemma pairs. Low priority (only added when not in Wiktionary). Also used for MG evaluation. |
-| **UD Treebanks** (Perseus, PROIEL, DiGreC) | 27K | Gold form-lemma pairs from annotated treebanks |
+| **[PROIEL](https://github.com/UniversalDependencies/UD_Ancient_Greek-PROIEL)** (UD treebank) | 33K | Herodotus gold-standard form-lemma pairs (expert-verified) |
+| **[Perseus](https://github.com/UniversalDependencies/UD_Ancient_Greek-Perseus)** (UD treebank) | 42K | 178K tokens: Sophocles, Aeschylus, Homer, Hesiod, Herodotus, Thucydides, Plutarch, Polybius, Athenaeus |
 | **[Gorman Treebanks](https://github.com/UD-Greek/UD_Ancient_Greek-Gorman)** (Gorman) | 79K | 687K-token corpus across Herodotus, Thucydides, Xenophon, Demosthenes, Lysias, Polybius, etc. Gold-standard single annotator. |
 | Closed-class fixes | ~500 | Articles, pronouns, prepositions mapped to canonical lemmas |
 
@@ -234,6 +235,23 @@ Homer through 15th century Byzantine Greek), Dilemma reaches 93.7%
 equiv-adjusted (90.3% strict). The gap accounts for convention
 differences between annotation schemes (e.g. `εἶπον`/`λέγω`,
 `ἐγώ`/`ἡμεῖς`).
+
+**Crowell benchmark (uncommon words):** Following the methodology from
+[Crowell's test_lemmatizers](https://bitbucket.org/ben-crowell/test_lemmatizers),
+we exclude the 3000 most common forms and capitalized words, then check
+whether the output lemma is a valid LSJ/Wiktionary headword. This tests
+coverage on rare vocabulary - the hard tail that matters for real texts.
+
+| Text | Morpheus | Lemming | Stanza | Dilemma (old) | **Dilemma (current)** |
+|------|:--------:|:-------:|:------:|:--------:|:--------:|
+| Cyropaedia (Attic, Xenophon) | 99.5% | 99.5% | 84% | 84% | **99.6%** |
+| Astronautilia (epic, Kresadlo) | 74% | 78% | 74% | 81% | **84%** |
+| Herodotus (Ionic) | 99.5% | 95.2% | 88% | 79% | **95.3%** |
+
+<sub>On Cyropaedia, gold accuracy vs Gorman treebank annotations is
+93.2%. The remaining gap is convention differences (e.g. κτάομαι vs
+κτέομαι, ᾄδω vs ἀείδω), not missing forms. See `bench_crowell.py`
+and `bench_herodotus.py`.</sub>
 
 ### Modern Greek varieties
 
@@ -888,8 +906,9 @@ vocabulary (~160 tokens), so the same word is ~10 steps. Combined with
 | EL Wiktionary (Medieval) | 6.9K | From kaikki.org dumps |
 | LSJ noun/verb/adj expansion | 4.2M | Via Wiktionary Lua modules |
 | Sophocles lexicon expansion | 1.0M | Byzantine/Patristic vocabulary |
-| UD Treebanks (AG) | 27K | Gold annotations from Perseus, PROIEL, DiGreC |
-| [PROIEL](https://github.com/proiel/proiel-treebank) (gold) | 33K | Herodotus gold-standard form-lemma pairs (single annotator, high accuracy) |
+| UD Treebanks (DiGreC) | 27K | Gold annotations from DiGreC treebank |
+| [PROIEL](https://github.com/UniversalDependencies/UD_Ancient_Greek-PROIEL) (gold) | 33K | Herodotus gold-standard form-lemma pairs (expert-verified) |
+| [Perseus](https://github.com/UniversalDependencies/UD_Ancient_Greek-Perseus) (gold) | 42K | 178K tokens: Sophocles, Aeschylus, Homer, Hesiod, Herodotus, Thucydides, Plutarch, Polybius, Athenaeus |
 | [Gorman Treebanks](https://github.com/UD-Greek/UD_Ancient_Greek-Gorman) | 79K | 687K tokens across Herodotus, Thucydides, Xenophon, Demosthenes, Lysias, Polybius, etc. |
 | GLAUx corpus | 557K | 17M tokens, 98.8% accuracy ([Keersmaekers 2021](https://github.com/alekkeersmaekers/glaux)) |
 | Diorisis corpus | 76K new | 10M tokens, 91.4% accuracy ([Vatri & McGillivray 2018](https://figshare.com/articles/dataset/The_Diorisis_Ancient_Greek_Corpus/6187256)) |
@@ -1057,7 +1076,8 @@ will propagate into Dilemma via kaikki dumps.
 - Sophocles lexicon TEI from [Ionian University / Internet Archive](https://archive.org/details/pateres)
 - [GLAUx](https://github.com/alekkeersmaekers/glaux) corpus data (Keersmaekers, 2021) (CC BY-SA 4.0)
 - [Diorisis](https://figshare.com/articles/dataset/The_Diorisis_Ancient_Greek_Corpus/6187256) corpus data (Vatri & McGillivray, 2018) (CC BY-SA 3.0)
-- [PROIEL Treebank](https://github.com/proiel/proiel-treebank) gold-standard annotations (CC BY-NC-SA 4.0)
+- [PROIEL Treebank](https://github.com/UniversalDependencies/UD_Ancient_Greek-PROIEL) gold-standard annotations (CC BY-NC-SA 3.0)
+- [Perseus Treebank](https://github.com/UniversalDependencies/UD_Ancient_Greek-Perseus) (AGDT) gold-standard annotations (CC BY-NC-SA 3.0)
 - [Gorman Treebanks](https://github.com/UD-Greek/UD_Ancient_Greek-Gorman) (Gorman) (CC BY-NC-SA 4.0)
 - [HNC Golden Corpus](https://inventory.clarin.gr/corpus/870) from CLARIN:EL (openUnder-PSI)
 - DBBE evaluation data from [Swaelens et al.](https://github.com/coswaele/ByzantineGreekDatasets) (CC BY 4.0)
