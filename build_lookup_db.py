@@ -185,6 +185,19 @@ def build():
     # Expand AG and Med with GLAUx corpus pairs (644K forms from
     # 8th c. BC - 4th c. AD Greek texts). These are corpus-derived
     # so lower confidence than Wiktionary, but fill coverage gaps.
+    def _normalize_corpus_lemma(lemma, headwords_exact):
+        """Normalize corpus lemmas with spurious capitalization.
+
+        Corpora like GLAUx sometimes capitalize sentence-initial lemmas
+        (e.g. Εἰμί instead of εἰμί). If the lowercase version is a known
+        headword, prefer it.
+        """
+        if lemma and lemma[0].isupper():
+            lower = lemma[0].lower() + lemma[1:]
+            if lower in headwords_exact:
+                return lower
+        return lemma
+
     # Reject pairs whose lemma is not a known AG headword to filter
     # out annotation errors (e.g. Ἔστι -> Ἔσθι, corrupt -δήποτε lemmas).
     glaux_added_ag = 0
@@ -200,6 +213,8 @@ def build():
         ag_original = dict(ag)
         for p in glaux_pairs:
             form, lemma = p["form"], p["lemma"]
+            # Normalize capitalized lemmas (GLAUx sentence-initial convention)
+            lemma = _normalize_corpus_lemma(lemma, ag_headwords_exact)
             # Validate lemma against known AG headwords
             if ag_headwords_exact and lemma not in ag_headwords_exact:
                 glaux_bad_lemma += 1
@@ -243,6 +258,8 @@ def build():
         ag_before_dior = dict(ag)
         for p in diorisis_pairs:
             form, lemma = p["form"], p["lemma"]
+            # Normalize capitalized lemmas
+            lemma = _normalize_corpus_lemma(lemma, ag_headwords_exact)
             # Validate lemma against known AG headwords
             if ag_headwords_exact and lemma not in ag_headwords_exact:
                 dior_bad_lemma += 1
@@ -328,6 +345,7 @@ def build():
             cpairs = json.load(f)
         for p in cpairs:
             form, lemma = p["form"], p["lemma"]
+            lemma = _normalize_corpus_lemma(lemma, ag_headwords_exact)
             if form not in corpus_non_self and not _is_self_map(form, lemma):
                 # Validate lemma for GLAUx/Diorisis (same filter as above)
                 if ag_headwords_exact and lemma not in ag_headwords_exact:
@@ -339,8 +357,60 @@ def build():
         if _is_self_map(k, v) and k in corpus_non_self:
             combined[k] = corpus_non_self[k]
             selfmap_fixed += 1
+    # Also fix in ag/el dicts so grc-only and el-only tables stay consistent
+    for data in [ag, el]:
+        for k, v in list(data.items()):
+            if _is_self_map(k, v) and k in corpus_non_self:
+                data[k] = corpus_non_self[k]
     if selfmap_fixed:
         print(f"  Self-maps fixed from corpus evidence: {selfmap_fixed:,}")
+
+    # Corpus consensus override: when 2+ independent corpora agree on a
+    # lemma that differs from the combined lookup, prefer the corpus
+    # consensus. This fixes cases where a proper noun's inflection table
+    # in Wiktionary overwrites a common verb/noun form (e.g. φασιν ->
+    # Φᾶσις instead of φημί, where all 4 corpora say φημί).
+    corpus_votes = {}  # form -> {lemma: count}
+    for cp in corpus_paths:
+        if not cp.exists():
+            continue
+        with open(cp, encoding="utf-8") as f:
+            cpairs = json.load(f)
+        seen_in_corpus = set()  # dedupe within one corpus
+        for p in cpairs:
+            form, lemma = p["form"], p["lemma"]
+            lemma = _normalize_corpus_lemma(lemma, ag_headwords_exact)
+            if (form, lemma) in seen_in_corpus:
+                continue
+            seen_in_corpus.add((form, lemma))
+            if _is_self_map(form, lemma):
+                continue
+            if ag_headwords_exact and lemma not in ag_headwords_exact:
+                continue
+            if form not in corpus_votes:
+                corpus_votes[form] = {}
+            corpus_votes[form][lemma] = corpus_votes[form].get(lemma, 0) + 1
+
+    consensus_fixed = 0
+    for k, v in list(combined.items()):
+        if k not in corpus_votes:
+            continue
+        votes = corpus_votes[k]
+        # Find the top-voted lemma
+        top_lemma, top_count = max(votes.items(), key=lambda x: x[1])
+        if top_count >= 2 and top_lemma != v:
+            combined[k] = top_lemma
+            consensus_fixed += 1
+    # Also propagate consensus fixes to ag/el for per-language tables
+    for data in [ag, el]:
+        for k, v in list(data.items()):
+            if k in corpus_votes:
+                votes = corpus_votes[k]
+                top_lemma, top_count = max(votes.items(), key=lambda x: x[1])
+                if top_count >= 2 and top_lemma != v:
+                    data[k] = top_lemma
+    if consensus_fixed:
+        print(f"  Corpus consensus overrides (2+ corpora agree): {consensus_fixed:,}")
 
     # Manual corrections for known lookup bugs.
     # These override wrong entries from Wiktionary or pipeline errors.
@@ -525,9 +595,18 @@ def build():
     # Compact main DB
     print("\nOptimizing lookup.db...")
     conn.commit()
-    conn.execute("ANALYZE")
-    conn.execute("VACUUM")
-    conn.commit()
+    conn.close()
+
+    # Re-open for ANALYZE/VACUUM (avoids resource exhaustion on large DBs)
+    conn = sqlite3.connect(str(DB_PATH))
+    try:
+        conn.execute("ANALYZE")
+    except sqlite3.OperationalError as e:
+        print(f"  ANALYZE skipped: {e}")
+    try:
+        conn.execute("VACUUM")
+    except sqlite3.OperationalError as e:
+        print(f"  VACUUM skipped: {e}")
     conn.close()
 
     size_mb = DB_PATH.stat().st_size / 1e6
@@ -582,7 +661,10 @@ def build():
 
     spell_conn.commit()
     spell_conn.execute("ANALYZE")
-    spell_conn.execute("VACUUM")
+    try:
+        spell_conn.execute("VACUUM")
+    except sqlite3.OperationalError as e:
+        print(f"  VACUUM skipped: {e}")
     spell_conn.close()
 
     spell_mb = SPELL_DB_PATH.stat().st_size / 1e6
