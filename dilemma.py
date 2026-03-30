@@ -41,6 +41,7 @@ MODEL_DIR = Path(__file__).parent / "model"
 LOOKUP_DB_PATH = Path(__file__).parent / "data" / "lookup.db"
 SPELL_INDEX_PATH = Path(__file__).parent / "data" / "spell_index.db"
 LSJ9_POS_LOOKUP_PATH = Path(__file__).parent / "data" / "lsj9_pos_lookup.json"
+LSJ9_INDECLINABLES_PATH = Path(__file__).parent / "data" / "lsj9_indeclinables.json"
 LSJ9_FREQUENCY_PATH = Path(__file__).parent / "data" / "lsj9_frequency.json"
 LOOKUP_PATH = Path(__file__).parent / "data" / "mg_lookup.json"
 AG_LOOKUP_PATH = Path(__file__).parent / "data" / "ag_lookup.json"
@@ -441,6 +442,39 @@ def _strip_elision(word: str) -> str | None:
             return stem
 
     return None
+
+
+# LSJ9 indeclinable category -> UPOS tag mapping
+_INDECL_TO_UPOS = {
+    "adverb": "ADV",
+    "preposition": "ADP",
+    "conjunction": "CCONJ",
+    "particle": "PART",
+    "interjection": "INTJ",
+}
+
+# Subordinating conjunctions get SCONJ instead of CCONJ
+_SUBORDINATING = {
+    "ὅτι", "ὁτιή", "ἐπεί", "ἐπάν", "ὄφρα", "πρίν", "διότι",
+    "μέχριπερ", "ἠΰτε",
+}
+
+
+def _indeclinables_to_pos(raw: dict[str, str]) -> dict[str, dict[str, str]]:
+    """Convert {lemma: category} indeclinables dict to POS lookup format.
+
+    Returns {form: {UPOS: lemma}} where form == lemma (indeclinable).
+    For conjunctions, subordinating forms get SCONJ; others get CCONJ.
+    """
+    result: dict[str, dict[str, str]] = {}
+    for lemma, category in raw.items():
+        upos = _INDECL_TO_UPOS.get(category)
+        if not upos:
+            continue
+        if category == "conjunction" and lemma in _SUBORDINATING:
+            upos = "SCONJ"
+        result[lemma] = {upos: lemma}
+    return result
 
 
 class LookupDB:
@@ -904,8 +938,9 @@ class Dilemma:
         lemmatize_batch_pos() check _pos_ag_lookup first before the combined
         table, mirroring the AG-first logic in the main lookup.
 
-        Priority within each table: treebank (gold) > GLAUx (corpus) >
-        MG Wiktionary (combined only) > AG Wiktionary > LSJ9 grammar.
+        Priority within each table: treebank (gold) > LSJ9 indeclinables
+        (unambiguous POS) > GLAUx (corpus) > MG Wiktionary (combined only) >
+        AG Wiktionary > LSJ9 grammar.
         """
         def _add_to(target, source_data, overwrite=False):
             """Merge source_data into target POS dict."""
@@ -925,6 +960,15 @@ class Dilemma:
                 tb_pos = json.load(f)
             _add_to(self._pos_ag_lookup, tb_pos, overwrite=True)
             _add_to(self._pos_lookup, tb_pos, overwrite=True)
+
+        # 1b. LSJ9 indeclinables (adverbs, prepositions, conjunctions,
+        #     particles, interjections) - POS is unambiguous for these
+        if self.lang in ("all", "grc") and LSJ9_INDECLINABLES_PATH.exists():
+            with open(LSJ9_INDECLINABLES_PATH, encoding="utf-8") as f:
+                indecl_raw = json.load(f)
+            indecl_pos = _indeclinables_to_pos(indecl_raw)
+            _add_to(self._pos_ag_lookup, indecl_pos)
+            _add_to(self._pos_lookup, indecl_pos)
 
         # 2. GLAUx POS lookup (corpus-derived, 8.7K entries)
         if self.lang in ("all", "grc") and GLAUX_POS_LOOKUP_PATH.exists():
