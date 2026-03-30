@@ -233,17 +233,22 @@ Cells marked `--` indicate the tool doesn't support that period or
 wasn't tested. Morpheus "oracle" picks the best candidate from all
 its analyses, representing the ceiling for rule-based morphology.
 
-**Rare vocabulary coverage:** Following
-[SIGMORPHON](https://sigmorphon.github.io/) shared task methodology for
-out-of-vocabulary evaluation, we exclude the 3,000 most frequent Greek
-forms and check whether the output lemma is a valid LSJ headword. This
-isolates performance on rare vocabulary where lookup tables have gaps.
+**Frequency-stratified evaluation:** We stratify evaluation by corpus
+frequency using GLAUx+Diorisis token counts (27M combined tokens), checking
+whether Dilemma's output is a valid LSJ/Wiktionary headword at each frequency
+tier. This follows the frequency-aware evaluation approach of
+[Novak & Cavar (2025)](https://arxiv.org/abs/2510.23131). Test texts:
+Xenophon *Cyropaedia* (Gorman treebank), Herodotus *Histories* (PROIEL),
+and Sextus Empiricus *Pyrrhoniae Hypotyposes* (16,910 unique forms combined).
 
-| Text | Period | Morpheus | Dilemma |
-|------|--------|:--------:|:-------:|
-| Xenophon, *Cyropaedia* | Attic | 99.5% | **99.6%** |
-| Kresadlo, *Astronautilia* | Epic (modern) | 74% | **84%** |
-| Herodotus, *Histories* | Ionic | **99.5%** | 95.3% |
+| Frequency bin | Forms | Valid lemma |
+|---------------|------:|:-----------:|
+| High (1000+ occurrences) | 1,979 | **99.6%** |
+| Medium (100-999) | 4,656 | **99.9%** |
+| Low (10-99) | 5,723 | **99.8%** |
+| Rare (1-9) | 4,492 | **99.7%** |
+| Unseen (not in corpus) | 60 | **98.3%** |
+| **Overall** | **16,910** | **99.8%** |
 
 **Dilemma detail by convention:**
 
@@ -283,20 +288,22 @@ equiv-adjusted (90.3% strict). The gap accounts for convention
 differences between annotation schemes (e.g. `εἶπον`/`λέγω`,
 `ἐγώ`/`ἡμεῖς`).
 
-**Rare vocabulary coverage (uncommon words):** Excluding the 3,000
-most common forms and capitalized words, we check whether the output
-lemma is a valid LSJ/Wiktionary headword. This tests the hard tail
-that matters for real texts.
+**Per-text frequency-stratified results:** Breaking down valid-lemma
+rates by text and frequency bin. Even on truly unseen forms (zero corpus
+occurrences), Dilemma produces valid headwords over 98% of the time.
 
-| Text | Period | Morpheus | Stanza | Dilemma |
-|------|--------|:--------:|:------:|:-------:|
-| Xenophon, *Cyropaedia* | Attic | 99.5% | 84% | **99.6%** |
-| Kresadlo, *Astronautilia* 13 | Epic | 74% | 74% | **84%** |
-| Herodotus, *Histories* | Ionic | **99.5%** | 88% | 95.3% |
+| Text | High (1000+) | Medium (100-999) | Low (10-99) | Rare (1-9) | Unseen | Overall |
+|------|:------------:|:----------------:|:-----------:|:----------:|:------:|:-------:|
+| Xenophon, *Cyropaedia* | 99.5% | 99.9% | 99.8% | 98.4% | 98.2% | 99.6% |
+| Herodotus, *Histories* | 99.7% | 99.9% | 99.8% | 99.9% | -- | 99.8% |
+| Sextus Empiricus | 98.0% | 100% | 100% | 94.1% | 100% | 98.4% |
 
-<sub>On Cyropaedia, gold accuracy vs Gorman treebank annotations is
-93.2%. The remaining gap is convention differences (e.g. κτάομαι vs
-κτέομαι, ᾄδω vs ἀείδω), not missing forms.</sub>
+<sub>Herodotus has no "Unseen" column because all its forms appear at
+least once in the GLAUx+Diorisis corpus (which includes PROIEL
+Herodotus). Sextus Empiricus has only 190 unique forms, so per-bin
+counts are small. On Cyropaedia, gold accuracy vs Gorman treebank
+annotations is 93.2% - the gap is convention differences
+(e.g. κτάομαι vs κτέομαι, ᾄδω vs ἀείδω), not missing forms.</sub>
 
 ### Modern Greek varieties
 
