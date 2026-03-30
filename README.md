@@ -189,7 +189,7 @@ and lemma equivalence groups (see `data/benchmarks/bench_all.py`).
 | [Morpheus](https://github.com/perseids-tools/morpheus-perseids-api) (oracle) | -- | 71.1% | -- | -- |
 | [stanza](https://stanfordnlp.github.io/stanza/) `grc` | 92.2% | 71.3% | 85.2% | -- |
 | [Swaelens et al. (2025)](https://aclanthology.org/2025.acl-long.430/) | -- | ~74-75% | -- | -- |
-| **Dilemma** (best convention per period) | **96.9%** | **92.7%** | **95.6%** | **96.0%**† |
+| **Dilemma** (best convention per period) | **99.7%** | **92.7%** | **95.6%** | **96.0%**† |
 
 <sub>†`lang="el"` with `triantafyllidis` scores 95.8%, nearly matching `lang="all"` (96.0%). For MG-only workloads, `lang="el"` with `triantafyllidis` is recommended since it avoids AG false matches.</sub>
 
@@ -201,10 +201,10 @@ its analyses, representing the ceiling for rule-based morphology.
 
 | Lang | Convention | POS | AG Classical | Byzantine | Katharevousa | Demotic MG |
 |------|------------|-----|:--------:|:--------:|:--------:|:--------:|
-| `all` | `wiktionary` (default) | -- | 96.9% | 92.7% | 95.6% | 79.0%* |
+| `all` | `wiktionary` (default) | -- | 99.7% | 92.7% | 95.6% | 79.0%* |
 | `all` | `wiktionary` (default) | gold | -- | 92.6% | -- | -- |
 | `all` | `triantafyllidis` | -- | 85.4% | 83.4% | 90.9% | 96.0%† |
-| `grc` | `wiktionary` (default) | -- | 96.9% | 92.3% | 94.3% | 79.0%* |
+| `grc` | `wiktionary` (default) | -- | 99.7% | 92.3% | 94.3% | 79.0%* |
 | `grc` | `triantafyllidis` | -- | 87.4% | 86.9% | 89.9% | 90.0% |
 | `el` | `wiktionary` (default) | -- | 93.3% | 86.7% | 92.5% | 73.0%* |
 | `el` | `triantafyllidis` | -- | 85.4% | 82.6% | 89.9% | 95.8% |
