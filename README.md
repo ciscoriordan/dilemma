@@ -328,11 +328,15 @@ matters for real texts.
 |------|--------|:--------:|:------:|:-------:|
 | Xenophon, *Cyropaedia* | Attic | 99.5% | 84% | **99.6%** |
 | Kresadlo, *Astronautilia* 13 | Epic | 74% | 74% | **84%** |
-| Herodotus, *Histories* | Ionic | **99.5%** | 88% | 95.3% |
+| Herodotus, *Histories* | Ionic | 99.5% | 88% | **99.9%** |
 
 <sub>On Cyropaedia, gold accuracy vs Gorman treebank annotations is
 93.2%. The remaining gap is convention differences (e.g. κτάομαι vs
-κτέομαι, ᾄδω vs ἀείδω), not missing forms.</sub>
+κτέομαι, ᾄδω vs ἀείδω), not missing forms. Herodotus gold-match
+accuracy (vs PROIEL annotations) is 95.3%, where the gap is almost
+entirely convention differences (Ionic vs Attic spelling, plural
+ethnonym lemmas, voice conventions), not missing forms or
+disambiguation failures.</sub>
 
 ### DiGreC treebank
 
