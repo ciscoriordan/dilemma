@@ -2387,21 +2387,24 @@ class Dilemma:
     def lemmatize_pos(self, word: str, upos: str) -> str:
         """Lemmatize with POS-aware disambiguation.
 
-        POS is used to disambiguate among multiple candidates from the
-        regular lookup, not to override it. The regular lookup (without
-        POS) already produces good results; POS should only help pick
-        between ambiguous candidates, never make things worse.
+        POS is used to disambiguate among multiple candidates, or to
+        override the single candidate when curated POS tables indicate
+        a different lemma for the given POS tag.
 
         Algorithm:
           1. Run regular lemmatize_verbose() to get all candidates.
-          2. If there is only one candidate, return it (POS can't help).
-          3. If there are multiple candidates, check POS tables for a
-             POS-specific lemma and see if any candidate matches it.
+          2. Check POS tables for a POS-specific lemma. If it matches
+             any candidate, return that candidate.
+          3. If there is only one candidate and the POS table suggests
+             a different lemma, trust the POS table (curated sources:
+             treebank, GLAUx, Wiktionary). This handles cases like
+             σκέψει+NOUN -> σκέψις where the default lookup only has
+             the verb mapping σκέπτομαι.
           4. For MG self-map fix: when _prefer_mg is true and POS is
              ADJ/VERB, check if the top candidate is an MG self-map and
              prefer a citation-form alternative from combined/AG lookup.
-          5. If a match is found, return it. Otherwise return the top
-             candidate (same as regular lookup).
+          5. If no POS match, return the top candidate (same as regular
+             lookup).
 
         Args:
             word: Greek word form.
@@ -2417,11 +2420,7 @@ class Dilemma:
             # Should not happen (verbose always adds identity), but be safe
             return self.lemmatize(word)
 
-        if len(candidates) == 1:
-            # Only one candidate - POS can't help, return it directly
-            return candidates[0].lemma
-
-        # Multiple candidates - use POS to disambiguate
+        # Use POS tables to disambiguate or override
         pos_lemma = self._pos_table_lookup(word, upos)
         if pos_lemma is not None:
             pos_lemma_conv = self._apply_convention(pos_lemma)
@@ -2435,6 +2434,14 @@ class Dilemma:
             for c in candidates:
                 if strip_accents(c.lemma.lower()) == pos_stripped:
                     return c.lemma
+            # POS lemma not among candidates (e.g., single candidate from
+            # lookup maps to a different headword). Trust the POS table -
+            # it comes from curated sources (treebank, GLAUx, Wiktionary).
+            if len(candidates) == 1:
+                return pos_lemma_conv
+
+        if len(candidates) == 1:
+            return candidates[0].lemma
 
         # MG self-map fix: when the top candidate is an MG self-map for
         # an ADJ/VERB inflection, prefer the citation form from combined/AG.
@@ -2449,10 +2456,10 @@ class Dilemma:
     def lemmatize_batch_pos(self, words: list[str], upos_tags: list[str]) -> list[str]:
         """Lemmatize a batch of words with POS-aware disambiguation.
 
-        POS is used to disambiguate among multiple candidates, not to
-        override the regular lookup. This preserves the batch model
-        optimization from lemmatize_batch() while using POS only when
-        it can help (multiple valid candidates for a form).
+        POS is used to disambiguate among multiple candidates, or to
+        override the single candidate when curated POS tables indicate
+        a different lemma. Preserves the batch model optimization from
+        lemmatize_batch() while applying POS corrections.
 
         Algorithm:
           1. Run lemmatize_batch() to get baseline results (efficient,
@@ -2460,10 +2467,12 @@ class Dilemma:
           2. For each word where POS tables suggest a different lemma,
              call lemmatize_verbose() to get all candidates and check
              if the POS-specific lemma is among them.
-          3. For MG self-map fix: when _prefer_mg is true and POS is
+          3. If a single candidate doesn't match the POS lemma, trust
+             the POS table (curated sources).
+          4. For MG self-map fix: when _prefer_mg is true and POS is
              ADJ/VERB, check if the baseline result is an MG self-map
              and prefer a citation-form alternative.
-          4. If a match is found, use it. Otherwise keep the baseline.
+          5. If a match is found, use it. Otherwise keep the baseline.
 
         Args:
             words: List of Greek word forms.
@@ -2491,9 +2500,6 @@ class Dilemma:
                 # POS suggests a different lemma than baseline. Check if
                 # the POS lemma is among the valid candidates.
                 candidates = self.lemmatize_verbose(word)
-                if len(candidates) <= 1:
-                    # Only one candidate - POS can't help, keep baseline
-                    continue
 
                 # Check if any candidate matches the POS-specific lemma
                 pos_stripped = strip_accents(pos_lemma_conv.lower())
@@ -2510,6 +2516,11 @@ class Dilemma:
                             results[i] = c.lemma
                             matched = True
                             break
+                if not matched and len(candidates) <= 1:
+                    # Single candidate doesn't match POS lemma - trust the
+                    # POS table (curated sources: treebank, GLAUx, Wiktionary)
+                    results[i] = pos_lemma_conv
+                    matched = True
                 if matched:
                     continue
 

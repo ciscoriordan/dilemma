@@ -168,12 +168,29 @@ def build():
     else:
         print(f"  Gorman: no gorman_pairs.json found, skipping")
 
+    # Load AG headwords early: used both for corpus lemma validation
+    # and for protecting AG self-maps from EL overrides later.
+    # AG headwords that self-map (e.g. καθάπερ -> καθάπερ) are correct
+    # citation forms and should not be replaced by EL form-of redirects.
+    ag_headwords = set()
+    ag_headwords_exact = set()  # original forms only (for lemma validation)
+    if AG_HEADWORDS_PATH.exists():
+        with open(AG_HEADWORDS_PATH, encoding="utf-8") as f:
+            ag_headwords_exact = set(json.load(f))
+        ag_headwords = set(ag_headwords_exact)
+        ag_headwords |= {h.lower() for h in ag_headwords}
+        ag_headwords |= {strip_accents(h.lower()) for h in ag_headwords}
+        print(f"  AG headwords: {len(ag_headwords):,} (for self-map protection)")
+
     # Expand AG and Med with GLAUx corpus pairs (644K forms from
     # 8th c. BC - 4th c. AD Greek texts). These are corpus-derived
     # so lower confidence than Wiktionary, but fill coverage gaps.
+    # Reject pairs whose lemma is not a known AG headword to filter
+    # out annotation errors (e.g. Ἔστι -> Ἔσθι, corrupt -δήποτε lemmas).
     glaux_added_ag = 0
     glaux_added_med = 0
     glaux_skipped_med = 0
+    glaux_bad_lemma = 0
     if GLAUX_PAIRS_PATH.exists():
         t_g = time.time()
         with open(GLAUX_PAIRS_PATH, encoding="utf-8") as f:
@@ -183,6 +200,10 @@ def build():
         ag_original = dict(ag)
         for p in glaux_pairs:
             form, lemma = p["form"], p["lemma"]
+            # Validate lemma against known AG headwords
+            if ag_headwords_exact and lemma not in ag_headwords_exact:
+                glaux_bad_lemma += 1
+                continue
             # Add to AG if not already present
             if form not in ag:
                 ag[form] = lemma
@@ -200,17 +221,20 @@ def build():
                     glaux_skipped_med += 1
         print(f"  GLAUx: +{glaux_added_ag:,} to AG, "
               f"+{glaux_added_med:,} to el, "
-              f"{glaux_skipped_med:,} el conflicts skipped "
+              f"{glaux_skipped_med:,} el conflicts skipped, "
+              f"{glaux_bad_lemma:,} bad lemmas rejected "
               f"({time.time()-t_g:.1f}s)")
 
     # Expand AG and el with Diorisis corpus pairs (456K forms from
     # 10.2M tokens of ancient Greek texts). Lower confidence than GLAUx
     # (91.4% vs 98.8% lemma accuracy), so lowest priority: only added
     # when not already present from Wiktionary, LSJ, or GLAUx.
+    # Same lemma validation as GLAUx.
     dior_added_ag = 0
     dior_added_el = 0
     dior_skipped_el = 0
     dior_skipped_ag = 0
+    dior_bad_lemma = 0
     if DIORISIS_PAIRS_PATH.exists():
         t_d = time.time()
         with open(DIORISIS_PAIRS_PATH, encoding="utf-8") as f:
@@ -219,6 +243,10 @@ def build():
         ag_before_dior = dict(ag)
         for p in diorisis_pairs:
             form, lemma = p["form"], p["lemma"]
+            # Validate lemma against known AG headwords
+            if ag_headwords_exact and lemma not in ag_headwords_exact:
+                dior_bad_lemma += 1
+                continue
             # Add to AG if not already present from any source
             if form not in ag:
                 ag[form] = lemma
@@ -238,19 +266,9 @@ def build():
                     dior_skipped_el += 1
         print(f"  Diorisis: +{dior_added_ag:,} to AG ({dior_skipped_ag:,} skipped), "
               f"+{dior_added_el:,} to el, "
-              f"{dior_skipped_el:,} el conflicts skipped "
+              f"{dior_skipped_el:,} el conflicts skipped, "
+              f"{dior_bad_lemma:,} bad lemmas rejected "
               f"({time.time()-t_d:.1f}s)")
-
-    # Load AG headwords to protect AG self-maps from EL overrides.
-    # AG headwords that self-map (e.g. καθάπερ -> καθάπερ) are correct
-    # citation forms and should not be replaced by EL form-of redirects.
-    ag_headwords = set()
-    if AG_HEADWORDS_PATH.exists():
-        with open(AG_HEADWORDS_PATH, encoding="utf-8") as f:
-            ag_headwords = set(json.load(f))
-        ag_headwords |= {h.lower() for h in ag_headwords}
-        ag_headwords |= {strip_accents(h.lower()) for h in ag_headwords}
-        print(f"  AG headwords: {len(ag_headwords):,} (for self-map protection)")
 
     # Article and pronoun forms excluded from the lookup so that
     # resolve_articles=True/False in Dilemma controls their resolution.
@@ -296,13 +314,37 @@ def build():
     if ag_protected:
         print(f"  AG headword self-maps protected: {ag_protected:,}")
 
+    # Fix self-maps using corpus evidence: for any self-map in combined,
+    # check if PROIEL/Gorman/GLAUx/Diorisis have a non-self mapping.
+    # If so, prefer the corpus mapping. This fixes cases like
+    # οἷον (self-map as adverb headword) which should be οἷος.
+    corpus_paths = [PROIEL_PAIRS_PATH, GORMAN_PAIRS_PATH,
+                    GLAUX_PAIRS_PATH, DIORISIS_PAIRS_PATH]
+    corpus_non_self = {}  # form -> lemma (first non-self corpus mapping wins)
+    for cp in corpus_paths:
+        if not cp.exists():
+            continue
+        with open(cp, encoding="utf-8") as f:
+            cpairs = json.load(f)
+        for p in cpairs:
+            form, lemma = p["form"], p["lemma"]
+            if form not in corpus_non_self and not _is_self_map(form, lemma):
+                # Validate lemma for GLAUx/Diorisis (same filter as above)
+                if ag_headwords_exact and lemma not in ag_headwords_exact:
+                    continue
+                corpus_non_self[form] = lemma
+
+    selfmap_fixed = 0
+    for k, v in list(combined.items()):
+        if _is_self_map(k, v) and k in corpus_non_self:
+            combined[k] = corpus_non_self[k]
+            selfmap_fixed += 1
+    if selfmap_fixed:
+        print(f"  Self-maps fixed from corpus evidence: {selfmap_fixed:,}")
+
     # Manual corrections for known lookup bugs.
     # These override wrong entries from Wiktionary or pipeline errors.
     _LOOKUP_OVERRIDES = {
-        "φασιν": "φημί",          # was Φᾶσις (proper noun beats common verb)
-        "Ἔστι": "εἰμί",          # was Ἔσθι (obscure form beats common verb)
-        "σκέπτεσθαι": "σκέπτομαι",  # was self-map (infinitive as headword)
-        "οἷον": "οἷος",           # was self-map (adverb use as headword)
     }
     # Also fix corrupt -δήποτε lemmas from pipeline
     for k, v in list(combined.items()):
