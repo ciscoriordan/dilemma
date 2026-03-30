@@ -21,7 +21,7 @@ literary), and Modern Greek (Demotic and Katharevousa). It combines multiple str
   enclitic particle) and that a transformer might not generalize to for
   rare forms it has never trained on
 - A small supervised character-level transformer (~4M parameters) trained
-  on 3.4M explicit form-lemma pairs, used only for the ~5% of words not
+  on 3.5M explicit form-lemma pairs, used only for the ~5% of words not
   resolved by lookup or rules
 - Convention remapping to match output lemmas to target dictionaries (LSJ,
   Cunliffe, Triantafyllidis, Wiktionary)
@@ -37,7 +37,7 @@ lemmatization is highly pattern-based - a small specialized model matches
 a large general-purpose one, and the 12.5M lookup table handles the rest.
 
 **Note on methodology:** Dilemma is a supervised system. The transformer
-trains on 3.4M explicit form-to-lemma pairs from Wiktionary inflection
+trains on 3.5M explicit form-to-lemma pairs from Wiktionary inflection
 tables, and the lookup table (which handles 95%+ of words) is literally a
 dictionary of correct answers. This is not unsupervised learning (pattern
 discovery from raw text with no labels). Some evaluations have incorrectly
@@ -819,15 +819,19 @@ Legacy `--scale 1/2/3` flags are still accepted for compatibility.
 Every scale includes **100% of non-standard varieties** (Medieval,
 Katharevousa, Cypriot, Cretan, Maniot, Heptanesian, archaic, dialectal).
 The remaining budget is split 50/50 between Ancient Greek and standard MG.
-Perfect tense verb forms are oversampled 3x, following
+Underrepresented tense categories are oversampled to compensate for
+their rarity in Wiktionary's paradigm tables, following
 [Swaelens et al. (2025)](https://aclanthology.org/2025.acl-long.430/)'s
-finding that perfects are underrepresented in training data (2%) relative
-to Byzantine text (11.4%).
+finding that perfects are underrepresented in training data relative
+to Byzantine text. Aorist forms (3x, critical for stem-changing 2nd
+aorist), perfect (3x), future (3x), imperfect (2x), and pluperfect
+(5x, rarest at 0.15% of pool) are oversampled proportionally to
+their rarity and the degree of stem change from the present form.
 
 | Scale | Training pairs | Varieties | AG | SMG | Time (RTX 2080) |
 |:-----:|---------------:|----------:|-------:|-------:|:--------------:|
 | test | 20K | 9K (100%) | 5.5K | 5.5K | ~15 sec |
-| full | 3.4M (all) | 9K (100%) | 1.5M (100%) | 1.7M (100%) | ~45 min |
+| full | 3.5M (all) | 9K (100%) | 1.5M (100%) | 1.7M (100%) | ~95 min |
 
 Models save to `model/{lang}-test/` (test scale) or `model/{lang}/`
 (full scale).
@@ -894,7 +898,7 @@ vocabulary (~160 tokens), so the same word is ~10 steps. Combined with
 |--|:----------:|:-------:|
 | Approach | Subword tokenizer (UTF-8 bytes) | Character vocabulary (~381 Greek chars) |
 | Parameters | 300M | 4M |
-| Training (3.4M pairs, 3 epochs) | ~20 hours | ~45 min |
+| Training (3.5M pairs, 3 epochs) | ~20 hours | ~95 min |
 | Dependencies | torch + transformers | torch only (or ONNX only) |
 
 ## Data
