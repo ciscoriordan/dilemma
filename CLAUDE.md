@@ -1,5 +1,9 @@
 # Dilemma - Project Instructions
 
+## Data Storage
+
+Large data files and models are stored on HuggingFace at `hf.co/ciscoriordan/dilemma` (public model repo), not in git. This includes lookup.db, all *_lookup.json/*_pairs.json/*_freq.json files, spell_index.db, vesuvius_index.json.gz, and ONNX/PyTorch model files. Download with `huggingface-cli download ciscoriordan/dilemma --local-dir . --include "data/*" "model/*"`.
+
 ## Build Pipeline
 
 ### Lookup DB rebuild order
