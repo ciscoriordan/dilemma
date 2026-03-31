@@ -225,9 +225,18 @@ conventions.
 
 The mapping is built automatically from `data/lemma_equivalences.json`
 cross-referenced against the convention's headword list, with explicit
-overrides in `data/convention_{name}.json`. Other tools (stanza, spaCy,
-CLTK) have fixed output conventions matching their training treebanks
-and cannot be remapped.
+overrides in `data/convention_{name}.json`. Lemma equivalences also
+group valid alternative lemmatizations (comparative/positive adjective
+forms, active/deponent pairs, spelling variants) so that benchmarks
+score them as correct rather than penalizing convention disagreements.
+
+For individual form-to-lemma corrections where the lookup table returns
+the wrong lemma due to ambiguity (e.g., proper nouns beating common
+verbs), `build_lookup_db.py` has a `_LOOKUP_OVERRIDES` dict that
+hard-corrects specific entries in the database.
+
+Other tools (stanza, spaCy, CLTK) have fixed output conventions
+matching their training treebanks and cannot be remapped.
 
 ```python
 # LSJ lemma convention: remap output to LSJ dictionary headwords
@@ -928,8 +937,8 @@ python export_onnx.py                  # exports encoder.onnx + decoder_step.onn
 ### Testing
 
 Tests run automatically via GitHub Actions on push and pull request to
-`main`, using a self-hosted runner with GPU access. CI pulls only the
-LFS data files needed for tests (`lookup.db`, `spell_index.db`).
+`main`, using a self-hosted runner with GPU access. CI downloads data
+files from HuggingFace (`lookup.db`, `spell_index.db`, model weights).
 
 ```bash
 python -m pytest tests/ -v                  # run all tests via pytest (recommended)
@@ -1102,7 +1111,7 @@ tested lemmatization on unedited Byzantine Greek epigrams and found
 that classical accuracy (~95%) dropped 30+ points on Byzantine text
 due to itacism, crasis, and non-standard orthography. Their best hybrid
 method (transformer embeddings + dictionary lookup) reached 65.8%.
-Dilemma achieves 92.0% on the same dataset (equiv-adjusted).
+Dilemma achieves 92.7% on the same dataset (equiv-adjusted).
 
 [Swaelens et al. (2025)](https://aclanthology.org/2025.acl-long.430/)
 showed that multi-task learning (joint POS + morphology + lemma
