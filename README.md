@@ -57,12 +57,16 @@ novel is the combination and the scale:
 - **Elision with consonant de-assimilation and frequency ranking.**
   Recovers prepositions like κατά from assimilated forms like καθ' by
   reversing the aspiration rule, then ranks candidates by corpus frequency.
+- **Character-level transformer for Greek lemmatization.** The SIGMORPHON
+  encoder-decoder architecture is well established for morphological
+  inflection in other languages, but applying it to Greek lemmatization
+  (rather than inflection) appears to be new.
 
 ### What's established
 
-- The character-level transformer uses the standard SIGMORPHON architecture
-  for morphological inflection/reinflection tasks, though applying it to
-  Greek lemmatization (rather than inflection) appears to be new.
+- The character-level encoder-decoder is the standard SIGMORPHON
+  architecture for morphological inflection/reinflection tasks across
+  many languages.
 - The SQLite lookup with monotonic/stripped fallback keys is a
   straightforward hash table approach.
 - Edit-distance spelling correction uses a BK-tree, a well-known data
