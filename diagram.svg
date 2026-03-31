@@ -34,7 +34,7 @@
   <text x="36" y="212" fill="#e0ecf4" font-size="10">GLAUx 557K &#xB7; UD Treebanks 27K</text>
 
   <!-- Notes under sources -->
-  <text x="171" y="246" text-anchor="middle" fill="#4a6a84" font-size="9">3.4M training pairs (model) &#xB7; 12.3M lookup forms</text>
+  <text x="171" y="246" text-anchor="middle" fill="#4a6a84" font-size="9">3.4M training pairs (model) &#xB7; 12.5M lookup forms</text>
   <text x="171" y="262" text-anchor="middle" fill="#4a6a84" font-size="8">*Medieval = Wiktionary category (vernacular, not Byzantine literary)</text>
 
   <!-- ── Arrows from sources to lookup (colored to match lookup) ── -->
@@ -50,7 +50,7 @@
   <text x="522" y="34" text-anchor="middle" fill="#fff" font-size="13" font-weight="700" letter-spacing="0.5">LOOKUP TABLE</text>
 
   <rect x="350" y="44" width="344" height="88" rx="3" fill="#5a8aac"/>
-  <text x="522" y="66" text-anchor="middle" fill="#fff" font-size="12" font-weight="600">12.3M indexed forms</text>
+  <text x="522" y="66" text-anchor="middle" fill="#fff" font-size="12" font-weight="600">12.5M indexed forms</text>
   <text x="522" y="84" text-anchor="middle" fill="#d8e8f0" font-size="10">polytonic &#xB7; monotonic &#xB7; accent-stripped</text>
   <text x="522" y="102" text-anchor="middle" fill="#d8e8f0" font-size="10">AG-first priority &#xB7; el-only overrides for MG</text>
   <text x="522" y="122" text-anchor="middle" fill="#fff" font-size="11" font-weight="600" font-style="italic">resolves 95%+ of words instantly</text>
