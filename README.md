@@ -60,8 +60,9 @@ novel is the combination and the scale:
 
 ### What's established
 
-- The character-level transformer is the standard SIGMORPHON architecture
-  for morphological inflection/reinflection tasks.
+- The character-level transformer uses the standard SIGMORPHON architecture
+  for morphological inflection/reinflection tasks, though applying it to
+  Greek lemmatization (rather than inflection) appears to be new.
 - The SQLite lookup with monotonic/stripped fallback keys is a
   straightforward hash table approach.
 - Edit-distance spelling correction uses a BK-tree, a well-known data
