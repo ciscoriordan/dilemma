@@ -129,8 +129,10 @@ table (which handles 95%+ of words) needs neither.
   - [LSJ/Sophocles expansion](#lsjsophocles-expansion)
   - [Export to ONNX](#export-to-onnx)
   - [Testing](#testing)
+  - [Frequency-ranked inflection lists](#frequency-ranked-inflection-lists)
 - [Data](#data)
   - [Sources and scale](#sources-and-scale)
+  - [HuggingFace Hub dataset](#huggingface-hub-dataset)
   - [Confidence tiers](#confidence-tiers)
   - [Quality controls](#quality-controls)
 - [Architecture](#architecture)
@@ -977,6 +979,45 @@ match, DB table presence, model load, inference, and ONNX/PyTorch
 parity. `tests/test_dilemma.py` validates lookup correctness and known
 form-lemma pairs across Greek varieties.
 
+### Frequency-ranked inflection lists
+
+`rank_forms.py` produces per-lemma ranked form lists, sorted by corpus
+frequency. This is useful for downstream consumers (e.g.
+[Lemma](https://github.com/ciscoriordan/lemma)) that need to know which
+inflections of a word are most common.
+
+```bash
+python rank_forms.py --lang el     # Modern Greek (default)
+python rank_forms.py --lang grc    # Ancient Greek
+python rank_forms.py --lang mgr    # Medieval/Byzantine Greek
+python rank_forms.py --lang all    # All three
+```
+
+For each language, the script produces:
+- `{prefix}_ranked_forms.json` - lemma to list of forms sorted by frequency
+- `{prefix}_form_freq.json` - form to raw frequency count
+
+Frequency sources:
+- **MG**: [FrequencyWords/OpenSubtitles](https://github.com/hermitdave/FrequencyWords) word counts
+- **AG**: GLAUx + Diorisis corpus token frequencies (27M combined tokens)
+- **Medieval**: AG corpus frequencies as proxy (GLAUx and Diorisis include
+  significant post-Classical and late antique texts that overlap with
+  Byzantine vocabulary)
+
+By default, `rank_forms.py` downloads pre-built files from the
+[`ciscoriordan/dilemma-data`](https://huggingface.co/datasets/ciscoriordan/dilemma-data)
+HuggingFace dataset. Use `--rebuild` to regenerate locally from the
+lookup and frequency source files:
+
+```bash
+python rank_forms.py --lang el --rebuild            # regenerate MG locally
+python rank_forms.py --lang all --verbose --rebuild  # all languages with per-corpus breakdown
+```
+
+The `--verbose` flag adds a `{prefix}_ranked_forms_verbose.json` file
+with per-corpus frequency breakdowns (OpenSubtitles, GLAUx, Diorisis)
+for each form, useful for debugging frequency ranking decisions.
+
 ## Data
 
 ### Sources and scale
@@ -1048,6 +1089,33 @@ Form-lemma pairs come from three sources per Wiktionary entry:
    inflection tables.
 3. **`alt_of` references**. Alternative/variant spellings. Adds ~1K
    pairs.
+
+### HuggingFace Hub dataset
+
+Generated data files (ranked form lists, form frequencies, scored
+lookups) are hosted at
+[`ciscoriordan/dilemma-data`](https://huggingface.co/datasets/ciscoriordan/dilemma-data)
+on HuggingFace Hub. `rank_forms.py` downloads these by default instead
+of regenerating locally.
+
+Available files:
+
+| File | Description |
+|------|-------------|
+| `mg_ranked_forms.json` | MG lemma to frequency-ranked form list |
+| `mg_form_freq.json` | MG form to frequency count |
+| `mg_ranked_forms_verbose.json` | MG ranked forms with per-corpus breakdown |
+| `mg_lookup_scored.json` | MG scored lookup table |
+| `ag_ranked_forms.json` | AG lemma to frequency-ranked form list |
+| `ag_form_freq.json` | AG form to frequency count |
+| `ag_ranked_forms_verbose.json` | AG ranked forms with per-corpus breakdown |
+| `med_ranked_forms.json` | Medieval lemma to frequency-ranked form list |
+| `med_form_freq.json` | Medieval form to frequency count |
+
+This is separate from the main
+[`ciscoriordan/dilemma`](https://huggingface.co/ciscoriordan/dilemma)
+model repo, which hosts `lookup.db`, model weights, and other core
+data files.
 
 ### Confidence tiers
 
