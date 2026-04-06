@@ -997,12 +997,14 @@ For each language, the script produces:
 - `{prefix}_ranked_forms.json` - lemma to list of forms sorted by frequency
 - `{prefix}_form_freq.json` - form to raw frequency count
 
-Frequency sources:
-- **MG**: [FrequencyWords/OpenSubtitles](https://github.com/hermitdave/FrequencyWords) word counts
+Frequency sources (used for primary ranking):
+- **MG**: [FrequencyWords/OpenSubtitles](https://github.com/hermitdave/FrequencyWords) (1.49M forms)
 - **AG**: GLAUx + Diorisis corpus token frequencies (27M combined tokens)
-- **Medieval**: AG corpus frequencies as proxy (GLAUx and Diorisis include
-  significant post-Classical and late antique texts that overlap with
-  Byzantine vocabulary)
+- **Medieval**: AG corpus frequencies as proxy
+
+Additional corpora available in `--verbose` per-form breakdowns:
+- **Patrologia Graeca** (`freq_pg`): 3.14M tokens of Byzantine/Patristic Greek from [PG corpus](https://zenodo.org/records/15780625) (Church Fathers, PG071-PG158)
+- **Byzantine vernacular** (`freq_byz_vern`): 191K tokens from the [Byzantine Vernacular Corpus](https://github.com/ciscoriordan/byzantine-vernacular-corpus) (Digenes Akritas, Chronicle of Moreas, Erotokritos, etc.)
 
 By default, `rank_forms.py` downloads pre-built files from the
 [`ciscoriordan/dilemma-data`](https://huggingface.co/datasets/ciscoriordan/dilemma-data)
@@ -1015,8 +1017,11 @@ python rank_forms.py --lang all --verbose --rebuild  # all languages with per-co
 ```
 
 The `--verbose` flag adds a `{prefix}_ranked_forms_verbose.json` file
-with per-corpus frequency breakdowns (OpenSubtitles, GLAUx, Diorisis)
-for each form, useful for debugging frequency ranking decisions.
+with per-corpus frequency breakdowns for each form. Each entry includes
+frequencies from all available corpora (OpenSubtitles, GLAUx, Diorisis,
+Patrologia Graeca, Byzantine vernacular), letting consumers re-rank for
+mixed-period use cases (e.g., a Modern Greek dictionary for a book about
+ancient topics could boost forms with high `freq_glaux`).
 
 ## Data
 
