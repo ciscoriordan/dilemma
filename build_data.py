@@ -8,6 +8,8 @@ references, and dialect-tagged paradigms. Produces:
   - data/ag_pairs.json: Ancient Greek form->lemma training pairs
   - data/mg_lookup.json: flat lookup table {form: lemma}
   - data/ag_lookup.json: flat lookup table {form: lemma}
+  - data/mg_lookup_scored.json: scored lookup {form: {lemma, confidence}}
+  - data/ag_lookup_scored.json: scored lookup {form: {lemma, confidence}}
   - data/mg_pos_lookup.json: POS-indexed disambiguation table
   - data/ag_pos_lookup.json: POS-indexed disambiguation table
 
@@ -733,8 +735,14 @@ def main():
             else:
                 el_headwords |= headwords  # merge all non-EN sources
 
-        # First pass: merge all lookups (first wins for same confidence)
-        for _, lookup, _ in source_lookups:
+        # First pass: merge all lookups (first wins for same confidence).
+        # For MG, prefer EL Wiktionary lemma forms over EN - EL uses the
+        # modern contracted forms (τρώω, λέω) that reflect actual usage,
+        # while EN tends toward fuller morphological stems (τρώγω, λέγω).
+        merge_order = source_lookups
+        if lang == "el":
+            merge_order = sorted(source_lookups, key=lambda x: (x[0] == "en",))
+        for _, lookup, _ in merge_order:
             for k, (lemma, _) in lookup.items():
                 if k not in all_lookup:
                     all_lookup[k] = (lemma, 1)
@@ -861,6 +869,16 @@ def main():
         size_mb = lookup_path.stat().st_size / (1024 * 1024)
         print(f"Lookup table: {len(flat_lookup)} entries ({size_mb:.1f} MB)")
         print(f"  -> {lookup_path}")
+
+        # Save scored lookup table (preserves confidence tiers for downstream consumers)
+        scored_lookup = {k: {"lemma": v[0], "confidence": v[1]}
+                         for k, v in all_lookup.items()}
+        scored_path = DATA_DIR / f"{prefix}_lookup_scored.json"
+        with open(scored_path, "w", encoding="utf-8") as f:
+            json.dump(scored_lookup, f, ensure_ascii=False, separators=(",", ":"))
+        scored_mb = scored_path.stat().st_size / (1024 * 1024)
+        print(f"Scored lookup: {len(scored_lookup)} entries ({scored_mb:.1f} MB)")
+        print(f"  -> {scored_path}")
 
         # Also write to SQLite for fast loading by build_lookup_db.py
         raw_db_path = DATA_DIR / "raw_lookups.db"
