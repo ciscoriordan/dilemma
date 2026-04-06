@@ -18,12 +18,20 @@ Usage:
 import argparse
 import json
 import os
+import shutil
 import statistics
 import sys
 from collections import defaultdict
 from pathlib import Path
 
+try:
+    from huggingface_hub import hf_hub_download
+    HAS_HF_HUB = True
+except ImportError:
+    HAS_HF_HUB = False
+
 DATA_DIR = Path(__file__).parent / "data"
+HF_REPO_ID = "ciscoriordan/dilemma-data"
 
 # Fallback path for MG frequency data (in the lemma project)
 LEMMA_FREQ_PATH = Path.home() / "Documents" / "lemma" / "data" / "el_full.txt"
@@ -424,27 +432,89 @@ def process_med(verbose=False, verbose_sources=None):
     return ranked
 
 
+def download_prebuilt(prefix, verbose=False):
+    """Try to download pre-built ranked forms from HuggingFace Hub.
+
+    Returns True if all required files were downloaded successfully,
+    False otherwise.
+    """
+    if not HAS_HF_HUB:
+        print(f"  huggingface_hub not installed, cannot download pre-built files")
+        return False
+
+    files = [
+        f"{prefix}_ranked_forms.json",
+        f"{prefix}_form_freq.json",
+    ]
+    if verbose:
+        files.append(f"{prefix}_ranked_forms_verbose.json")
+    if prefix == "mg":
+        files.append("mg_lookup_scored.json")
+
+    try:
+        for filename in files:
+            print(f"  Downloading {filename} from HF Hub...")
+            cached_path = hf_hub_download(
+                repo_id=HF_REPO_ID,
+                filename=filename,
+                repo_type="dataset",
+            )
+            dest = DATA_DIR / filename
+            shutil.copy2(cached_path, dest)
+            print(f"  Saved {filename} ({dest.stat().st_size / 1024 / 1024:.1f} MB)")
+        return True
+    except Exception as e:
+        print(f"  HF download failed: {e}")
+        return False
+
+
 def main():
     parser = argparse.ArgumentParser(description="Rank inflected forms per lemma by corpus frequency")
     parser.add_argument("--lang", default="el", choices=["el", "grc", "mgr", "all"],
                         help="Language: el (Modern Greek), grc (Ancient Greek), mgr (Medieval/Byzantine), all")
     parser.add_argument("--verbose", action="store_true", default=False,
                         help="Generate verbose output with per-corpus frequency breakdowns")
+    parser.add_argument("--rebuild", action="store_true", default=False,
+                        help="Skip HF Hub download and regenerate locally")
     args = parser.parse_args()
 
+    # Map lang choices to (prefix, process_fn) pairs
+    lang_map = {
+        "el": "mg",
+        "grc": "ag",
+        "mgr": "med",
+    }
+    langs_to_process = list(lang_map.keys()) if args.lang == "all" else [args.lang]
+
     verbose_sources = None
-    if args.verbose:
+    needs_rebuild = set()
+
+    # Try downloading pre-built files unless --rebuild is set
+    if not args.rebuild:
+        for lang in langs_to_process:
+            prefix = lang_map[lang]
+            print(f"\n--- Checking HF Hub for pre-built {prefix} files ---")
+            if download_prebuilt(prefix, verbose=args.verbose):
+                print(f"  Using pre-built files from HF Hub")
+            else:
+                print(f"  HF download failed, rebuilding locally")
+                needs_rebuild.add(lang)
+    else:
+        needs_rebuild = set(langs_to_process)
+
+    # Load verbose sources only if we need to rebuild something with verbose
+    if needs_rebuild and args.verbose:
         print("\nLoading all frequency sources for verbose output...")
         verbose_sources = load_all_verbose_sources()
         if not verbose_sources:
             print("  WARNING: No frequency sources loaded for verbose output")
 
     results = {}
-    if args.lang in ("el", "all"):
+    if "el" in needs_rebuild:
         results["el"] = process_mg(verbose=args.verbose, verbose_sources=verbose_sources)
-    if args.lang in ("grc", "all"):
+    if "grc" in needs_rebuild:
         results["grc"] = process_ag(verbose=args.verbose, verbose_sources=verbose_sources)
-    if args.lang in ("mgr", "all"):
+    if "mgr" in needs_rebuild:
         results["mgr"] = process_med(verbose=args.verbose, verbose_sources=verbose_sources)
 
     # Quick sanity check for MG

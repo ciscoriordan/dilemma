@@ -42,3 +42,11 @@ build/
 
 # OS
 .DS_Store
+mg_ranked_forms.json
+mg_form_freq.json
+ag_ranked_forms.json
+ag_form_freq.json
+med_ranked_forms.json
+med_form_freq.json
+mg_ranked_forms_verbose.json
+mg_lookup_scored.json
