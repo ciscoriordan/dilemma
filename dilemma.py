@@ -54,6 +54,8 @@ LSJ_HEADWORDS_PATH = Path(__file__).parent / "data" / "lsj_headwords.json"
 CUNLIFFE_HEADWORDS_PATH = Path(__file__).parent / "data" / "cunliffe_headwords.json"
 MG_HEADWORDS_PATH = Path(__file__).parent / "data" / "mg_headwords.json"
 AG_HEADWORDS_PATH = Path(__file__).parent / "data" / "ag_headwords.json"
+DGE_HEADWORDS_PATH = Path(__file__).parent / "data" / "dge_headwords.json"
+LGPN_NAMES_PATH = Path(__file__).parent / "data" / "lgpn_names.json"
 LEMMA_EQUIVALENCES_PATH = Path(__file__).parent / "data" / "lemma_equivalences.json"
 CORPUS_FREQ_PATH = Path(__file__).parent / "data" / "corpus_freq.json"
 CONVENTION_DIR = Path(__file__).parent / "data"
@@ -703,7 +705,7 @@ class LookupDB:
 class Dilemma:
     def __init__(self, lang="all", device=None, scale=None,
                  resolve_articles=False, normalize=False, period=None,
-                 dialect=None, convention=None):
+                 dialect=None, convention=None, skip_pos=False):
         """Initialize Dilemma.
 
         Args:
@@ -792,7 +794,7 @@ class Dilemma:
         # GLAUx corpus frequency: stripped_form -> token_count (lazy-loaded)
         self._glaux_freq: dict[str, int] | None = None
 
-        self._load_lookups()
+        self._load_lookups(skip_pos=skip_pos)
         self._convention_map = self._build_convention_map(convention)
         self._convention_monotonic = convention in _MONOTONIC_CONVENTIONS
         self._check_backend()
@@ -858,7 +860,7 @@ class Dilemma:
                 cache[form] = self._apply_convention(lemma)
         return cache
 
-    def _load_lookups(self):
+    def _load_lookups(self, skip_pos=False):
         """Load lookup tables from SQLite (instant) or JSON (fallback).
 
         SQLite path (lookup.db): pre-merged combined table with AG priority,
@@ -888,7 +890,8 @@ class Dilemma:
             # JSON fallback
             self._load_lookups_json()
 
-        self._load_pos_lookups()
+        if not skip_pos:
+            self._load_pos_lookups()
 
     def _load_lookups_json(self):
         """Fallback: load JSON lookup tables and merge (~11s)."""
@@ -1234,6 +1237,61 @@ class Dilemma:
             True if the word is in the convention's headword list.
         """
         return word in self._get_headword_set(convention)
+
+    def _build_sorted_headword_index(self):
+        """Build sorted (sort_key, headword) list from all headword sources.
+
+        Lazy-loaded on first call to headwords_between(). Combines:
+        LSJ, Cunliffe, DGE, LGPN, and ag_headwords (Wiktionary-derived).
+        """
+        if hasattr(self, "_sorted_hw_index"):
+            return
+        all_hws = set()
+        PD_HW_PATH = Path(__file__).parent / "data" / "pd_headwords.json"
+        for path in [LSJ_HEADWORDS_PATH, CUNLIFFE_HEADWORDS_PATH,
+                     AG_HEADWORDS_PATH, DGE_HEADWORDS_PATH, LGPN_NAMES_PATH,
+                     PD_HW_PATH]:
+            if path.exists():
+                with open(path, encoding="utf-8") as f:
+                    all_hws.update(json.load(f))
+        # Build sorted list by sort key
+        def _sort_key(hw):
+            nfkd = unicodedata.normalize("NFKD", hw.lower().replace("-", ""))
+            return "".join(c for c in nfkd if unicodedata.category(c) != "Mn")
+        self._sorted_hw_pairs = sorted(
+            ((_sort_key(h), h) for h in all_hws if h),
+            key=lambda x: x[0])
+        self._sorted_hw_keys = [p[0] for p in self._sorted_hw_pairs]
+        self._sorted_hw_index = True
+
+    def headwords_between(self, hw_a: str, hw_b: str) -> list[str]:
+        """Return all known headwords sorting alphabetically between hw_a and hw_b.
+
+        Uses accent-stripped, case-folded sort keys for comparison.
+        Returns original polytonic headword forms.
+
+        Args:
+            hw_a: Lower bound headword (exclusive).
+            hw_b: Upper bound headword (exclusive).
+
+        Returns:
+            List of headwords between hw_a and hw_b, sorted alphabetically.
+        """
+        import bisect
+        self._build_sorted_headword_index()
+
+        def _sort_key(hw):
+            nfkd = unicodedata.normalize("NFKD", hw.lower().replace("-", ""))
+            return "".join(c for c in nfkd if unicodedata.category(c) != "Mn")
+
+        key_a = _sort_key(hw_a)
+        key_b = _sort_key(hw_b)
+        if key_a > key_b:
+            key_a, key_b = key_b, key_a
+
+        lo = bisect.bisect_right(self._sorted_hw_keys, key_a)
+        hi = bisect.bisect_left(self._sorted_hw_keys, key_b)
+        return [self._sorted_hw_pairs[i][1] for i in range(lo, hi)]
 
     def _get_lemma_set(self) -> set[str]:
         """Get the set of all lemmata (citation forms) in the lookup table.
@@ -2071,6 +2129,16 @@ class Dilemma:
             for suf_len in (len(suffix), len(suffix_stripped)):
                 if len(lower) > suf_len:
                     candidates.add(lower[:-suf_len])
+
+            # After stripping a suffix, a medial sigma (σ) that was
+            # word-internal may now be at the end of the base. Convert
+            # to final sigma (ς) so lookup matches dictionary forms
+            # (e.g. ὅσπερ -> ὅσ needs to find ὅς).
+            sigma_fixed = set()
+            for c in candidates:
+                if c.endswith("σ"):
+                    sigma_fixed.add(c[:-1] + "ς")
+            candidates |= sigma_fixed
 
             for candidate in candidates:
                 lemma = self._lookup_word(candidate)
