@@ -17,7 +17,7 @@ jobs:
       - name: Download lookup data from HuggingFace Hub
         run: |
           pip install -q pytest huggingface_hub
-          hf download ciscoriordan/dilemma --local-dir . --include "data/lookup.db" "data/spell_index.db"
+          hf download ciscoriordan/dilemma data/lookup.db data/spell_index.db --local-dir .
 
       - name: Run all tests
         run: python3 -m pytest tests/ -x -v
