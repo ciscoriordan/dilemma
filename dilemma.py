@@ -2360,12 +2360,13 @@ class Dilemma:
                     return self._apply_convention(lemma)
 
         # Fall back to model
-        self._load_model()
         try:
+            self._load_model()
             pred = self._predict([word])[0]
-        except (RuntimeError, IndexError):
+        except (RuntimeError, IndexError, ImportError, FileNotFoundError):
             # Model inference can fail on unusual inputs (empty tensors,
-            # single-char forms, etc.). Fall through to identity fallback.
+            # single-char forms, etc.) or if no backend is installed.
+            # Fall through to identity fallback.
             return self._apply_convention(word)
 
         # Fallback strategies when the model returns identity
@@ -2815,7 +2816,7 @@ class Dilemma:
                     _add(pred, source="model", score=0.5)
                 else:
                     model_identity = True
-            except (FileNotFoundError, RuntimeError):
+            except (FileNotFoundError, RuntimeError, ImportError, IndexError):
                 model_identity = True
 
         # 9. Light Byzantine normalization (only when model returned identity)
@@ -2955,10 +2956,10 @@ class Dilemma:
             model_words.append(word)
 
         if model_words:
-            self._load_model()
             try:
+                self._load_model()
                 predictions = self._predict(model_words)
-            except (RuntimeError, IndexError):
+            except (RuntimeError, IndexError, ImportError, FileNotFoundError):
                 predictions = model_words  # identity fallback
             for idx, word, pred in zip(model_indices, model_words, predictions):
                 # Fallback strategies when model returns identity
