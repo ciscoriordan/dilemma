@@ -1,0 +1,28 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download lookup data from HuggingFace Hub
+        run: |
+          pip install -q pytest huggingface_hub
+          hf download ciscoriordan/dilemma data/lookup.db data/spell_index.db --local-dir .
+
+      - name: Run all tests
+        run: python3 -m pytest tests/ -x -v
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
