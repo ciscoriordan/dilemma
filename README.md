@@ -412,6 +412,9 @@ The lookup table combines forms from multiple sources:
 | **[PROIEL](https://github.com/UniversalDependencies/UD_Ancient_Greek-PROIEL)** (UD treebank) | 33K | Herodotus gold-standard form-lemma pairs (expert-verified) |
 | **[Perseus](https://github.com/UniversalDependencies/UD_Ancient_Greek-Perseus)** (UD treebank) | 42K | 178K tokens: Sophocles, Aeschylus, Homer, Hesiod, Herodotus, Thucydides, Plutarch, Polybius, Athenaeus |
 | **[Gorman Treebanks](https://github.com/UD-Greek/UD_Ancient_Greek-Gorman)** (Gorman) | 79K | 687K-token corpus across Herodotus, Thucydides, Xenophon, Demosthenes, Lysias, Polybius, etc. Gold-standard single annotator. |
+| **DGE** (Diccionario Griego-Espanol) | 52K | Headword filter coverage for spell-check |
+| **LGPN** (Lexicon of Greek Personal Names) | 44K | Proper noun headword coverage |
+| **Perseus Digital Library** (L&S, Pape, Bailly, etc.) | 176K | Headword filter from multiple classical lexica |
 | Closed-class fixes | ~500 | Articles, pronouns, prepositions mapped to canonical lemmas |
 
 The LSJ and Sophocles expansions use Wiktionary's own
@@ -441,9 +444,11 @@ an additional AG-only lookup pass runs first.
 
 When the transformer handles an unseen form, beam search generates
 multiple candidates and picks the first that matches a known headword
-from the combined filter (~740K headwords from Wiktionary self-maps,
+from the combined filter (headwords from Wiktionary self-maps,
 [LSJ9](https://github.com/ciscoriordan/lsj9) (119K entries + variants),
-and [Cunliffe's Homeric Lexicon](https://archive.org/details/lexiconofhomeric0000cunn) (12K entries)).
+[Cunliffe's Homeric Lexicon](https://archive.org/details/lexiconofhomeric0000cunn) (12K entries),
+DGE (52K entries), LGPN proper names (44K entries),
+and Perseus Digital Library headwords (176K from L&S, Pape, Bailly, etc.)).
 If nothing matches, the input is returned unchanged.
 
 **Wiktionary as upstream:** Because Dilemma's lookup tables are built
@@ -1014,7 +1019,16 @@ lookup and frequency source files:
 ```bash
 python rank_forms.py --lang el --rebuild            # regenerate MG locally
 python rank_forms.py --lang all --verbose --rebuild  # all languages with per-corpus breakdown
+python rank_forms.py --lang el --polytonic --rebuild  # MG with polytonic variant ranking
 ```
+
+The `--polytonic` flag generates `mg_polytonic_ranked.json`, which maps
+each monotonic MG form to its attested polytonic variants ranked by
+corpus frequency. This is built from `mg_polytonic_freq.json` (see
+`build/build_polytonic_freq.py`), which extracts polytonic word
+frequencies from the [glossAPI/Wikisource Greek texts](https://huggingface.co/datasets/glossAPI/Wikisource_Greek_texts)
+dataset (~38M tokens, 5,394 texts). Forms appearing fewer than 3 times
+are filtered out.
 
 The `--verbose` flag adds a `{prefix}_ranked_forms_verbose.json` file
 with per-corpus frequency breakdowns for each form. Each entry includes
@@ -1041,6 +1055,9 @@ ancient topics could boost forms with high `freq_glaux`).
 | GLAUx corpus | 557K | 17M tokens, 98.8% accuracy ([Keersmaekers 2021](https://github.com/alekkeersmaekers/glaux)) |
 | Diorisis corpus | 76K new | 10M tokens, 91.4% accuracy ([Vatri & McGillivray 2018](https://figshare.com/articles/dataset/The_Diorisis_Ancient_Greek_Corpus/6187256)) |
 | HNC Golden Corpus | 1K new | 88K-token gold MG corpus ([CLARIN:EL](https://inventory.clarin.gr/corpus/870), openUnder-PSI) |
+| DGE headwords | 52K | Headword filter coverage from Diccionario Griego-Espanol |
+| LGPN names | 44K | Proper noun coverage from Lexicon of Greek Personal Names |
+| Perseus Digital Library headwords | 176K | Headword filter from L&S, Pape, Bailly, etc. |
 | **Total lookup** | **12.5M** | |
 
 All Wiktionary data is extracted automatically from
@@ -1116,6 +1133,8 @@ Available files:
 | `ag_ranked_forms_verbose.json` | AG ranked forms with per-corpus breakdown |
 | `med_ranked_forms.json` | Medieval lemma to frequency-ranked form list |
 | `med_form_freq.json` | Medieval form to frequency count |
+| `mg_polytonic_freq.json` | MG polytonic form frequencies from Wikisource (38M tokens) |
+| `mg_polytonic_ranked.json` | Monotonic MG form to ranked polytonic variants |
 
 This is separate from the main
 [`ciscoriordan/dilemma`](https://huggingface.co/ciscoriordan/dilemma)
@@ -1276,6 +1295,10 @@ vocabulary (~160 tokens), so the same word is ~10 steps. Combined with
 - [Perseus Treebank](https://github.com/UniversalDependencies/UD_Ancient_Greek-Perseus) (AGDT) gold-standard annotations (CC BY-NC-SA 3.0)
 - [Gorman Treebanks](https://github.com/UD-Greek/UD_Ancient_Greek-Gorman) (Gorman) (CC BY-NC-SA 4.0)
 - [HNC Golden Corpus](https://inventory.clarin.gr/corpus/870) from CLARIN:EL (openUnder-PSI)
+- DGE headwords from the [Diccionario Griego-Espanol](http://dge.cchs.csic.es/) (CSIC)
+- LGPN proper names from the [Lexicon of Greek Personal Names](https://www.lgpn.ox.ac.uk/) (Oxford)
+- Perseus Digital Library headwords (L&S, Pape, Bailly) from the [Perseus project](https://www.perseus.tufts.edu/)
+- MG polytonic frequencies from [glossAPI/Wikisource Greek texts](https://huggingface.co/datasets/glossAPI/Wikisource_Greek_texts) on HuggingFace
 - DBBE evaluation data from [Swaelens et al.](https://github.com/coswaele/ByzantineGreekDatasets) (CC BY 4.0)
 - Flag icons by [svg-flags](https://github.com/ciscoriordan/svg-flags)
 
