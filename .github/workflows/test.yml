@@ -16,7 +16,7 @@ jobs:
 
       - name: Download lookup data from HuggingFace Hub
         run: |
-          pip install -q huggingface_hub
+          pip install -q pytest huggingface_hub
           hf download ciscoriordan/dilemma --local-dir . --include "data/lookup.db"
 
       - name: Run all tests
