@@ -8,20 +8,16 @@ on:
 
 jobs:
   test:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
-      HOME: /root
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          lfs: false
 
-      - name: Pull LFS data files
+      - name: Download lookup data from HuggingFace Hub
         run: |
-          git lfs install --force
-          git lfs pull
+          pip install -q huggingface_hub
+          huggingface-cli download ciscoriordan/dilemma --local-dir . --include "data/lookup.db"
 
       - name: Run all tests
         run: python3 -m pytest tests/ -x -v
