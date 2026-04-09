@@ -2312,6 +2312,8 @@ class Dilemma:
 
         If a convention is set, the output lemma is remapped accordingly.
         """
+        if not word:
+            return word
         # Pass through tokens that are purely digits/punctuation (dates, numbers)
         if word.isdigit():
             return word
