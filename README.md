@@ -137,7 +137,6 @@ table (which handles 95%+ of words) needs neither.
   - [Quality controls](#quality-controls)
 - [Architecture](#architecture)
 - [Credits](#credits)
-- [How to Cite](#how-to-cite)
 - [License](#license)
 
 <p align="center">
@@ -1302,17 +1301,6 @@ vocabulary (~160 tokens), so the same word is ~10 steps. Combined with
 - DBBE evaluation data from [Swaelens et al.](https://github.com/coswaele/ByzantineGreekDatasets) (CC BY 4.0)
 - Flag icons by [svg-flags](https://github.com/ciscoriordan/svg-flags)
 
-## How to Cite
-
-```
-Francisco Riordan, Dilemma [computer software] (2026).
-https://github.com/ciscoriordan/dilemma
-```
-
-## Upcoming
-
-- `pip install dilemma` - PyPI package for easy installation
-
 ## License
 
-MIT
+MIT. Copyright Francisco Riordan.
