@@ -37,6 +37,79 @@ HF_REPO_ID = "ciscoriordan/dilemma-data"
 LEMMA_FREQ_PATH = Path.home() / "Documents" / "lemma" / "data" / "el_full.txt"
 
 
+def load_mg_polytonic_freq():
+    """Load MG polytonic frequency data from mg_polytonic_freq.json.
+
+    Returns: {monotonic_form: [(polytonic_form, count), ...]}
+    """
+    freq_path = DATA_DIR / "mg_polytonic_freq.json"
+    if not freq_path.exists():
+        print(f"  ERROR: {freq_path} not found")
+        sys.exit(1)
+
+    with open(freq_path, encoding="utf-8") as f:
+        data = json.load(f)
+
+    forms = data.get("forms", {})
+    mono_to_poly = defaultdict(list)
+    for poly_form, info in forms.items():
+        mono = info.get("monotonic", "")
+        count = info.get("count", 0)
+        if mono:
+            mono_to_poly[mono].append((poly_form, count))
+
+    print(f"  Loaded {len(forms):,} polytonic forms mapping to {len(mono_to_poly):,} monotonic forms")
+    return mono_to_poly
+
+
+def process_mg_polytonic(min_count=3):
+    """Process MG polytonic frequency data into ranked variants per monotonic form.
+
+    Loads the polytonic freq data, filters by min_count, sorts variants by
+    frequency descending, and writes mg_polytonic_ranked.json.
+    """
+    print("\n=== MG Polytonic Ranking ===")
+    print("  Loading polytonic frequency data...")
+    mono_to_poly = load_mg_polytonic_freq()
+
+    ranked = {}
+    total_variants = 0
+    filtered_out = 0
+
+    for mono, variants in mono_to_poly.items():
+        # Filter out low-frequency forms
+        kept = [(pf, c) for pf, c in variants if c >= min_count]
+        filtered_out += len(variants) - len(kept)
+
+        if not kept:
+            continue
+
+        # Sort by frequency descending
+        kept.sort(key=lambda x: -x[1])
+        ranked[mono] = [pf for pf, _ in kept]
+        total_variants += len(kept)
+
+    # Write output
+    out_path = DATA_DIR / "mg_polytonic_ranked.json"
+    print(f"  Writing {out_path.name}...")
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(ranked, f, ensure_ascii=False, indent=None, separators=(",", ":"))
+
+    print(f"\n  === Stats for MG polytonic ===")
+    print(f"  Monotonic forms with variants: {len(ranked):,}")
+    print(f"  Total polytonic variants:      {total_variants:,}")
+    print(f"  Filtered out (count < {min_count}):   {filtered_out:,}")
+    print(f"  Output file: {out_path}")
+    print(f"  Output size: {out_path.stat().st_size / 1024 / 1024:.1f} MB")
+
+    # Sample output
+    for mono in ["από", "αυτός", "είναι", "και"]:
+        if mono in ranked:
+            print(f"  Sample: {mono} -> {ranked[mono][:5]}")
+
+    return ranked
+
+
 def load_mg_freq():
     """Load Modern Greek frequency data from FrequencyWords format (word count per line)."""
     freq_path = DATA_DIR / "mg_freq.txt"
@@ -476,6 +549,8 @@ def main():
                         help="Generate verbose output with per-corpus frequency breakdowns")
     parser.add_argument("--rebuild", action="store_true", default=False,
                         help="Skip HF Hub download and regenerate locally")
+    parser.add_argument("--polytonic", action="store_true", default=False,
+                        help="Generate polytonic ranked variants for MG")
     args = parser.parse_args()
 
     # Map lang choices to (prefix, process_fn) pairs
@@ -516,6 +591,10 @@ def main():
         results["grc"] = process_ag(verbose=args.verbose, verbose_sources=verbose_sources)
     if "mgr" in needs_rebuild:
         results["mgr"] = process_med(verbose=args.verbose, verbose_sources=verbose_sources)
+
+    # Polytonic ranking for MG
+    if args.polytonic and ("el" in langs_to_process or args.lang == "all"):
+        process_mg_polytonic()
 
     # Quick sanity check for MG
     if "el" in results:
