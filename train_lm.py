@@ -20,6 +20,7 @@ mergeable without rework.
 Currently registered:
     - GLAUx             (``iter_glaux_sentences``, inline below)
     - Diorisis          (``extract_diorisis_lm.iter_diorisis_sentences``)
+    - Polytonic MG      (``extract_polytonic_mg.iter_polytonic_mg_sentences``)
 
 Pipeline
 --------
@@ -57,8 +58,9 @@ Usage
 -----
 
     python train_lm.py --sanity               # few files per corpus, < 1 min
-    python train_lm.py                        # full GLAUx + Diorisis
-    python train_lm.py --no-diorisis          # GLAUx-only baseline
+    python train_lm.py                        # full: GLAUx + Diorisis + MG
+    python train_lm.py --no-diorisis          # drop Diorisis from the mix
+    python train_lm.py --no-polytonic-mg      # drop the Katharevousa slice
     python train_lm.py --glaux /path/to/xml   # custom GLAUx location
     python train_lm.py --diorisis /path       # custom Diorisis location
 
@@ -275,6 +277,28 @@ def build_corpus_sources(args, max_files):
             ("diorisis", iter_diorisis_sentences(diorisis, max_files))
         )
 
+    if not args.no_polytonic_mg:
+        # Lazy import: pandas / HF parquet cache are only needed when
+        # this slice is active. See extract_polytonic_mg.py for the
+        # Wikisource 19th-c. Katharevousa register filter.
+        from extract_polytonic_mg import iter_polytonic_mg_sentences
+
+        mg_parquet = (
+            Path(args.polytonic_mg_parquet)
+            if args.polytonic_mg_parquet
+            else None
+        )
+        # ``max_files`` on the XML corpora roughly bounds sentence count
+        # for the sanity pass; for the parquet-backed MG slice we
+        # translate it to a doc cap of the same order of magnitude.
+        max_mg_docs = 50 if max_files is not None else None
+        sources.append((
+            "polytonic_mg",
+            iter_polytonic_mg_sentences(
+                parquet_path=mg_parquet, max_docs=max_mg_docs
+            ),
+        ))
+
     return sources
 
 
@@ -285,6 +309,12 @@ def main():
     ap.add_argument("--no-diorisis", action="store_true",
                     help="Skip the Diorisis corpus; GLAUx only "
                          "(reproduces the original baseline).")
+    ap.add_argument("--no-polytonic-mg", action="store_true",
+                    help="Skip the Wikisource 19th-c. Katharevousa "
+                         "slice (extract_polytonic_mg.py).")
+    ap.add_argument("--polytonic-mg-parquet", type=str, default=None,
+                    help="Override path to the Wikisource parquet "
+                         "(defaults to the HF cache location).")
     ap.add_argument("--out", type=str, default=str(BUILD_DIR))
     ap.add_argument("--vocab-size", type=int, default=80_000)
     ap.add_argument("--min-count-bi", type=int, default=1)
@@ -403,6 +433,10 @@ def main():
         "glaux_dir": str(Path(args.glaux)),
         "diorisis_dir": (
             None if args.no_diorisis else str(Path(args.diorisis))
+        ),
+        "polytonic_mg_parquet": (
+            None if args.no_polytonic_mg
+            else (args.polytonic_mg_parquet or "<hf_cache_default>")
         ),
         "per_corpus": per_corpus_stats,
         "sanity": args.sanity,
