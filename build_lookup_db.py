@@ -29,6 +29,10 @@ RAW_DB_PATH = DATA_DIR / "raw_lookups.db"
 
 AG_PATH = DATA_DIR / "ag_lookup.json"
 AG_HEADWORDS_PATH = DATA_DIR / "ag_headwords.json"
+DGE_HEADWORDS_PATH = DATA_DIR / "dge_headwords.json"
+LGPN_NAMES_PATH = DATA_DIR / "lgpn_names.json"
+PD_HEADWORDS_PATH = DATA_DIR / "pd_headwords.json"
+BRILLDAG_HEADWORDS_PATH = DATA_DIR / "brilldag_headwords.json"
 MG_PATH = DATA_DIR / "mg_lookup.json"
 MED_PATH = DATA_DIR / "med_lookup.json"
 GLAUX_PAIRS_PATH = DATA_DIR / "glaux_pairs.json"
@@ -76,20 +80,35 @@ def _load_from_json(path: Path) -> dict:
 
 
 def _load_lookup(table: str, json_path: Path, label: str) -> dict:
-    """Load lookup, preferring SQLite over JSON."""
+    """Load lookup, preferring whichever source has more entries.
+
+    raw_lookups.db has base Wiktionary entries (~2.36M AG), while the
+    JSON files may have LSJ-expanded entries (~9.97M AG). Always prefer
+    the larger source to avoid losing LSJ forms from the spell index.
+    """
     t0 = time.time()
 
-    data = _load_from_sqlite(table)
-    if data:
-        print(f"  {label}: {len(data):,} entries from SQLite ({time.time()-t0:.1f}s)")
-        return data
+    sqlite_data = _load_from_sqlite(table)
+    json_data = _load_from_json(json_path)
 
-    data = _load_from_json(json_path)
-    if data:
-        print(f"  {label}: {len(data):,} entries from JSON ({time.time()-t0:.1f}s)")
+    if sqlite_data and json_data:
+        if len(json_data) > len(sqlite_data):
+            print(f"  {label}: {len(json_data):,} entries from JSON "
+                  f"(preferred over SQLite's {len(sqlite_data):,}) "
+                  f"({time.time()-t0:.1f}s)")
+            return json_data
+        else:
+            print(f"  {label}: {len(sqlite_data):,} entries from SQLite ({time.time()-t0:.1f}s)")
+            return sqlite_data
+    elif sqlite_data:
+        print(f"  {label}: {len(sqlite_data):,} entries from SQLite ({time.time()-t0:.1f}s)")
+        return sqlite_data
+    elif json_data:
+        print(f"  {label}: {len(json_data):,} entries from JSON ({time.time()-t0:.1f}s)")
+        return json_data
     else:
         print(f"  {label}: no data found")
-    return data
+        return {}
 
 
 def build():
@@ -203,6 +222,54 @@ def build():
         ag_headwords |= {h.lower() for h in ag_headwords}
         ag_headwords |= {strip_accents(h.lower()) for h in ag_headwords}
         print(f"  AG headwords: {len(ag_headwords):,} (for self-map protection)")
+
+    if DGE_HEADWORDS_PATH.exists():
+        with open(DGE_HEADWORDS_PATH, encoding="utf-8") as f:
+            dge_raw = set(json.load(f))
+        dge_new = dge_raw - ag_headwords_exact
+        ag_headwords_exact |= dge_raw
+        ag_headwords |= dge_raw
+        ag_headwords |= {h.lower() for h in dge_raw}
+        ag_headwords |= {strip_accents(h.lower()) for h in dge_raw}
+        print(f"  DGE headwords: {len(dge_new):,} new (for spell-check coverage)")
+
+    if LGPN_NAMES_PATH.exists():
+        with open(LGPN_NAMES_PATH, encoding="utf-8") as f:
+            lgpn_raw = set(json.load(f))
+        lgpn_new = lgpn_raw - ag_headwords_exact
+        ag_headwords_exact |= lgpn_raw
+        ag_headwords |= lgpn_raw
+        ag_headwords |= {h.lower() for h in lgpn_raw}
+        ag_headwords |= {strip_accents(h.lower()) for h in lgpn_raw}
+        print(f"  LGPN names: {len(lgpn_new):,} new (proper noun coverage)")
+
+    if PD_HEADWORDS_PATH.exists():
+        with open(PD_HEADWORDS_PATH, encoding="utf-8") as f:
+            pd_raw = set(json.load(f))
+        pd_new = pd_raw - ag_headwords_exact
+        ag_headwords_exact |= pd_raw
+        ag_headwords |= pd_raw
+        ag_headwords |= {h.lower() for h in pd_raw}
+        ag_headwords |= {strip_accents(h.lower()) for h in pd_raw}
+        print(f"  PD headwords (L&S, Pape, Bailly, etc.): {len(pd_new):,} new")
+
+    if BRILLDAG_HEADWORDS_PATH.exists():
+        with open(BRILLDAG_HEADWORDS_PATH, encoding="utf-8") as f:
+            brilldag_raw = set(json.load(f))
+        brilldag_new = brilldag_raw - ag_headwords_exact
+        ag_headwords_exact |= brilldag_raw
+        ag_headwords |= brilldag_raw
+        ag_headwords |= {h.lower() for h in brilldag_raw}
+        ag_headwords |= {strip_accents(h.lower()) for h in brilldag_raw}
+        # Add self-map entries to AG lookup so these headwords are
+        # recognized by Dilemma's spell-checker (form -> lemma = itself).
+        brilldag_lookup_added = 0
+        for h in brilldag_raw:
+            if h not in ag:
+                ag[h] = h
+                brilldag_lookup_added += 1
+        print(f"  BrillDAG headwords: {len(brilldag_new):,} new, "
+              f"+{brilldag_lookup_added:,} self-maps to AG lookup")
 
     # Expand AG and Med with GLAUx corpus pairs (644K forms from
     # 8th c. BC - 4th c. AD Greek texts). These are corpus-derived

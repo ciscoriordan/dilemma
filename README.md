@@ -1036,6 +1036,253 @@ Patrologia Graeca, Byzantine vernacular), letting consumers re-rank for
 mixed-period use cases (e.g., a Modern Greek dictionary for a book about
 ancient topics could boost forms with high `freq_glaux`).
 
+### Hunspell spell-check export
+
+`export_hunspell.py` produces compact Hunspell `.dic` + `.aff` pairs from
+`lookup.db`, aimed at mobile consumers (primarily the
+[Tonos](https://github.com/ciscoriordan/tonos) iOS polytonic keyboard)
+where the full 993 MB `lookup.db` and 482 MB `spell_index.db` do not
+fit inside the ~48 MB memory ceiling of a keyboard extension. Affix
+compression collapses each inflection class to a single SFX rule
+group, so ~12.5M forms compress to ~2M dictionary entries while
+preserving exact-match acceptance.
+
+Default output is the **grc** variant (Ancient + Medieval polytonic),
+which is what Tonos ships. An optional **el** variant (Modern Greek
+monotonic) is retained for other downstream consumers via
+`--variant el`. Output layout under `build/hunspell/`:
+
+| Variant | Script name | Lang tag | Contents |
+|--------|------------|---------|---------|
+| `grc_polytonic.{dic,aff,version}` | `grc` | `grc` | Ancient + Medieval polytonic forms (breathings, circumflex, iota subscript, grave). Acute-only fallback keys are dropped unless corpus-attested. AG function words (definite article, 1st/2nd person pronouns) are injected because `dilemma.py` resolves those via hardcoded rules rather than the lookup table. |
+| `el_GR_monotonic.{dic,aff,version}` | `el` | `el_GR` | Modern Greek monotonic forms, including MG-relevant vocabulary drawn from the AG side of `lookup.db` (articles, common verbs, proper names). Not shipped in Tonos. |
+
+Each dictionary entry carries a morphological field `fr:<bucket>` where
+the bucket is one of `C` (common), `M` (medium), `R` (rare), or `X`
+(unseen in corpus). This lets consumers rank spelling candidates
+without shipping the full frequency table.
+
+The bucket is chosen from three signals, in priority order:
+
+1. **Canonical seed.** `data/canonical_ag_forms.json` pins ~194 iconic
+   polytonic surface forms to `C` (Iliad/Odyssey/Herodotus incipits,
+   Olympians, Homeric heroes). These are low-token-count forms whose
+   cultural weight exceeds their corpus frequency - `ἄειδε` appears
+   only 71 times in corpus but is the opening word of the Iliad.
+2. **Canonical lemmas.** ~168 famous lemmas (`ἀείδω`, `μῆνις`, `Πλάτων`,
+   etc.) promote any polytonic-marked form of theirs to `C`. This
+   catches canonical inflections beyond what the seed enumerates.
+3. **Lemma aggregate.** For polytonic forms, the lemma's total corpus
+   count promotes the form: `>= 20K -> C`, `>= 5K -> M`. Highly-
+   inflected lemmas (`ἀείδω` has 1289 surface forms) would otherwise
+   dilute frequency across the paradigm so no single form crosses the
+   per-form threshold.
+4. **Per-form count fallback.** `count >= 1000 -> C`, `>= 100 -> M`,
+   `>= 1 -> R`, else `X`.
+
+Only polytonic-marked forms receive the canonical promotions, so
+monotonic leaks like `άειδε` (acute-only, no breathing) stay at `R`
+and downstream rankers can pick the polytonic variant when the two
+otherwise tie.
+
+```bash
+python export_hunspell.py                 # grc polytonic (default)
+python export_hunspell.py --variant both  # grc + el
+python export_hunspell.py --variant el    # el monotonic only
+python export_hunspell.py --sanity 10000  # 10K-lemma sanity pass
+```
+
+Output layout, with one sidecar `.version` file per variant so the
+consumer can detect updates:
+
+```
+build/hunspell/
+  el_GR_monotonic.dic
+  el_GR_monotonic.aff
+  el_GR_monotonic.version   # semver + dilemma commit hash + entry count
+  grc_polytonic.dic
+  grc_polytonic.aff
+  grc_polytonic.version
+  eval_results.txt          # from eval_hunspell.py
+```
+
+`eval_hunspell.py` is the quality gate. It samples mid-frequency real
+Greek words (ranks 100..10K in the corpus), generates synthetic typos
+at edit distance 1 and 2, and measures top-1/top-5 correction accuracy
+against the compact artifact. Add `--compare-full` to also benchmark
+Dilemma's own `suggest_spelling()` on the full `lookup.db`.
+
+```bash
+python eval_hunspell.py                    # default 500 targets per variant
+python eval_hunspell.py --n 100            # quick sanity eval
+python eval_hunspell.py --variant el       # only MG
+python eval_hunspell.py --compare-full     # compare vs full Dilemma (slower)
+```
+
+Requires `pip install spylls` for the Python-side Hunspell consumer.
+To regenerate both artifacts and the eval report end-to-end:
+
+```bash
+python export_hunspell.py
+python eval_hunspell.py --n 200
+```
+
+### Polytonic next-word prediction LM
+
+`train_lm.py` + `export_lm.py` produce a compact next-word prediction
+language model, `build/lm/grc_ngram.bin`, aimed at the Tonos iOS
+keyboard extension for a QuickType-style suggestion strip over
+polytonic Greek.
+
+This is a classical **stupid-backoff trigram** over GLAUx + Diorisis
+(~29.6M polytonic tokens, 1.48M sentences after a deterministic 2%
+dev split). Classical n-gram is a deliberate choice: inference is a
+couple of binary searches on mmap'd bytes (no ML runtime, no matmul),
+trivially under 1 ms per keystroke, and the artifact can be used
+directly from a keyboard extension without adding a Core ML
+dependency. A small neural LM would improve perplexity but cannot
+beat this on the cost side that keyboards are constrained by:
+cold-start memory and per-keystroke CPU.
+
+Build
+
+```bash
+python train_lm.py --sanity         # few files per corpus, <1 min
+python train_lm.py                  # full GLAUx + Diorisis, ~5 min
+python train_lm.py --no-diorisis    # GLAUx-only baseline
+python export_lm.py                 # writes grc_ngram.bin + .version, ~30 s
+python eval_lm.py                   # writes eval_results.txt, ~90 s
+```
+
+Corpus loaders live in ``train_lm.py`` (GLAUx, inline) and
+``extract_diorisis_lm.py`` (Diorisis, beta-code to NFC). To add
+another Ancient Greek corpus, write a loader that yields
+``(sentence_id, [<s>, ...NFC tokens..., </s>])`` and append one
+entry to ``build_corpus_sources`` in ``train_lm.py``; the counting,
+vocab, split, and eval stages do not need any changes.
+
+Output layout:
+
+```
+build/lm/
+  grc_ngram.bin                 mmap-friendly binary, ~55 MB (v2)
+  grc_ngram.version             semver + dilemma commit + vocab/context counts
+  eval_results.txt              from eval_lm.py (combined dev split)
+  eval_results_glaux.txt        eval restricted to GLAUx dev sentences
+  eval_results_diorisis.txt     eval restricted to Diorisis dev sentences
+  vocab.json                    intermediate from train_lm.py
+  unigrams.json                 intermediate
+  bigrams.tsv.gz                intermediate
+  trigrams.tsv.gz               intermediate
+  dev_sentences.txt             held-out dev set, deterministic split (seed 4242)
+  dev_sentences_glaux.txt       same split, restricted to GLAUx sentences
+  dev_sentences_diorisis.txt    same split, restricted to Diorisis sentences
+  stats.json                    training corpus statistics
+```
+
+Artifact layout at a glance (full spec in the docstring of
+`export_lm.py`): a 128-byte little-endian header, a sorted UTF-8
+vocab (binary-searchable by the Swift reader), a per-vocab unigram
+count column, and three flat sorted tables: unigram top-K,
+bigram top-K-per-w1, and trigram top-K-per-w1,w2. Each suggestion
+entry is 6 bytes: a `u32` word id and an `i16` fixed-point log
+probability (scale 1024). Lookup is a binary search on the trigram
+context (w1, w2); on miss, fall back to bigram (w1); on miss, fall
+back to the global unigram top-K. All tables are mmap'd and accessed
+by offset; nothing needs to be read into RAM.
+
+Typeahead v2 (format_version = 2) adds two things versus v1:
+
+- Independent top-K per table. Bigram contexts now store the top 30
+  continuations and trigram contexts the top 15, so the keyboard's
+  mid-word prefix filter has enough candidates to work with even
+  after a user has typed a character or two. The global unigram
+  fallback stays at 10. Old v1 files are not forward-compatible:
+  the Swift reader refuses anything below `format_version = 2`.
+- A per-vocab unigram count column, one `u32` per vocab entry,
+  indexed by sorted-vocab id. The Swift reader uses this to rank
+  global prefix completions by corpus frequency when the current
+  bigram/trigram top-K doesn't cover the user's stem, so the bar is
+  never starved of useful entries even for rare context / common
+  stem combinations.
+
+Default knobs (defined in `export_lm.py`):
+
+| Knob | Value | Effect |
+|------|------:|--------|
+| vocab size | 80,000 | Reduces UNK target rate to 7.6% on the dev split |
+| top-K uni  | 10 | Global fallback depth |
+| top-K bi   | 30 | Per-bigram context depth (mid-word prefix filter wants this deep) |
+| top-K tri  | 15 | Per-trigram context depth |
+| min bigram count | 1 | Keep every observed bigram |
+| min trigram count | 1 | Keep every observed trigram... |
+| min bigram count for trigram | 3 | ...but only when the (w1, w2) bigram context is well attested. Rare contexts fall back to the bigram table at inference. This is the dominant size/quality knob. |
+
+Current build: ~55 MB, ~80K vocab, ~1.1M trigram contexts,
+~80K bigram contexts. Within the 60 MB budget Tonos has for a
+single artifact inside a keyboard extension.
+
+Held-out evaluation, keyboard-realistic regime (exclude `</s>` and
+UNK targets):
+
+| Dev split | training data | sentences | preds scored | top-1 | top-3 | top-5 | top-6 |
+|-----------|--------------|----------:|-------------:|------:|------:|------:|------:|
+| GLAUx only        | GLAUx           | 19,578 | 315,385 | 13.56% | 23.08% | 27.75% | 29.59% |
+| GLAUx only        | GLAUx+Diorisis  | 19,578 | 315,278 | 14.86% | 28.14% | 34.52% | 36.56% |
+| Diorisis only     | GLAUx+Diorisis  | 10,672 | 188,199 | 15.17% | 30.46% | 37.63% | 39.88% |
+| Combined          | GLAUx+Diorisis  | 30,250 | 503,477 | 14.97% | 29.00% | 35.68% | 37.77% |
+| Combined          | v2 (bi 30/tri 15) | 32,724 | 534,541 | 14.69% | 28.30% | 34.83% | 37.12% |
+
+The v2 row reports on the newer combined corpus (GLAUx + Diorisis +
+Katharevousa Wikisource + Byzantine vernacular). Top-1 / top-3 /
+top-5 are unchanged from the v1 row's combined baseline (as
+expected: widening top-K per context does not move top-N for N
+smaller than K); the new number to look at is top-6 at 37.1%.
+
+Adding Diorisis lifts top-3 accuracy on the identical held-out
+GLAUx sentences by +5.1 points and top-5 by +6.8 points; top-1 moves
+by +1.3 points. Dev sentences with identical sentence-id hashes
+across runs make this an apples-to-apples comparison.
+
+Backoff level breakdown: ~74% of predictions hit the trigram table,
+~26% fall back to bigrams, <0.01% fall to unigram. Perplexity (stupid
+backoff, α=0.4) is reported in `eval_results.txt` but is **not** a
+clean perplexity: because the binary only stores the top-K
+continuations per context, off-list targets are assigned a floor
+probability, which drives PPL up. The top-K accuracies are the real
+quality metric for this artifact; PPL is a sanity signal, not a
+headline number.
+
+Expectations, honest:
+
+- **Top-1 ~14% is the expected order of magnitude for polytonic
+  Ancient Greek.** AG has highly variable constituent order, rich
+  inflectional morphology, and a training corpus orders of magnitude
+  smaller than English keyboard LMs. English QuickType-style
+  predictors typically hit 15-30% top-1 on in-domain text; for AG,
+  top-5 around 25-30% is a respectable baseline.
+- **UNK rate is 7.9%** on the combined dev split even at 80K vocab.
+  Polytonic inflection multiplies forms (a typical verb has 300+
+  forms), so long-tail coverage is inherently hard. Tonos can let
+  the user type any form; the LM just won't propose it.
+- **Homographs are preserved.** ἦ (past indicative) and ἤ
+  (disjunction) remain distinct. No accent stripping is done at any
+  stage.
+- **Diorisis beta code is converted to NFC polytonic** via the
+  `betacode` PyPI package. A small cleanup handles elision-after-
+  consonant encoded as `)` rather than `'` (e.g. `par)` for παρ’).
+  Elision-after-vowel (`ou)` = οὐ with smooth breathing) stays
+  untouched.
+
+Reader contract for Tonos: the binary format is versioned in the
+header (`format_version = 2`) and in `grc_ngram.version`. Any on-disk
+layout change will bump `format_version`. The sidecar version file
+also carries the dilemma commit hash, vocab size, and trigram /
+bigram context counts so a Tonos build can detect staleness and
+refuse mismatched artifacts. The Swift reader rejects any file whose
+`format_version` doesn't match the version it was compiled against;
+the v2 reader does not read v1 files (and vice versa).
+
 ## Data
 
 ### Sources and scale
