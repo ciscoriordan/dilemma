@@ -49,4 +49,15 @@ ag_form_freq.json
 med_ranked_forms.json
 med_form_freq.json
 mg_ranked_forms_verbose.json
+ag_ranked_forms_verbose.json
+med_ranked_forms_verbose.json
 mg_lookup_scored.json
+
+# Env / local dev
+.env
+
+# Training / run logs
+progress.log
+
+# Stray sqlite artifacts at repo root
+dilemma_grc.db
