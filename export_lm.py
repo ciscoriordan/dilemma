@@ -6,7 +6,7 @@ the Tonos iOS keyboard extension.
 This is the on-disk contract with the Swift reader. Once tonos ships a
 reader against this, bumping the file format requires a version bump.
 
-BINARY FORMAT (v1)
+BINARY FORMAT (v2)
 ==================
 
 All multi-byte integers are little-endian. Offsets are byte offsets
@@ -18,11 +18,12 @@ Overall layout:
     [ HEADER                      ] 128 bytes, fixed
     [ VOCAB OFFSETS               ] 4 * (V+1) bytes  -- u32 into pool
     [ VOCAB STRING POOL           ] UTF-8 bytes, sorted alphabetically
-    [ UNIGRAM TOP-K               ] K * (4+2) bytes  -- id + logprob_q16
+    [ VOCAB COUNTS                ] 4 * V bytes     -- u32 unigram count
+    [ UNIGRAM TOP-K               ] Kuni * (4+2) bytes  -- id + logprob_q16
     [ BIGRAM CONTEXT INDEX        ] sorted by w1; see below
-    [ BIGRAM SUGGESTION TABLE     ] packed top-K per context
+    [ BIGRAM SUGGESTION TABLE     ] packed top-Kbi per context
     [ TRIGRAM CONTEXT INDEX       ] sorted by (w1, w2); see below
-    [ TRIGRAM SUGGESTION TABLE    ] packed top-K per context
+    [ TRIGRAM SUGGESTION TABLE    ] packed top-Ktri per context
 
 Integers:
     u16 = uint16          u32 = uint32           u64 = uint64
@@ -30,20 +31,36 @@ Integers:
     q16 = int16 fixed-point: value / 1024.0 gives a natural-log prob
           in the range roughly (-32, 0]. Good to ~0.001 nat resolution.
 
+Version 2 changes from v1
+-------------------------
+
+* Split ``top_k`` into three independent values ``top_k_uni`` /
+  ``top_k_bi`` / ``top_k_tri``. The keyboard asks for up to 6
+  suggestions but also filters by diacritic-blind prefix during
+  mid-word completion, so bigram contexts need deeper lists than
+  trigram contexts. Defaults: 10 / 30 / 15.
+* Adds a ``VOCAB COUNTS`` section: one u32 unigram count per vocab
+  entry, in vocab id order. Used by the Swift reader to rank global
+  prefix completions by corpus frequency rather than alphabetically
+  when the current bigram/trigram top-K doesn't cover the stem. Cheap
+  to produce (data is already in ``unigrams.json``), cheap to carry
+  (~320 KB for a 80 K vocab), and lets the mid-word completion path
+  always return something useful even outside the context's top-K.
+
 Header (128 bytes, zero-padded)
 -------------------------------
 
     off  size  field
       0    4   magic = "GNLM"
-      4    4   format_version (u32)       = 1
+      4    4   format_version (u32)       = 2
       8    4   order (u32)                = 3
-     12    4   top_k (u32)                = 10
+     12    4   top_k_uni (u32)            = 10
      16    4   vocab_size (u32)            V
      20    4   id_pad  (u32)              sorted-vocab index of <PAD>
      24    4   id_unk  (u32)              sorted-vocab index of <UNK>
      28    4   id_bos  (u32)              sorted-vocab index of <s>
      32    4   id_eos  (u32)              sorted-vocab index of </s>
-     36    4   reserved
+     36    4   top_k_bi (u32)             (v2) per-bigram top-K cap
      40    8   total_tokens (u64)         training corpus size
      48    8   vocab_offsets_off (u64)
      56    8   string_pool_off (u64)
@@ -57,6 +74,16 @@ Header (128 bytes, zero-padded)
     112    4   trigram_index_len (u32)     number of (w1,w2,range) rows
     116    4   trigram_suggestions_len (u32)
     120    8   trigram_suggestions_off (u64)
+
+v2 addendum at offsets beyond 127:  the header runs 128 bytes but
+only up through 127 was ever addressed in v1. The vocab-counts
+section is recorded via its own pair of u64/u32 offsets which we
+squeeze into the previously-reserved slots at 36 (for top_k_bi) and
+via appending counts right after the string pool (so the reader
+can compute its offset from ``string_pool_off + string_pool_size``
+without another header field). ``top_k_tri`` is implied by the
+largest ``suggestion_count`` stored in any trigram row; the reader
+never needs to know the global cap, only the per-row count.
 
 Vocab
 -----
@@ -185,9 +212,11 @@ BUILD_DIR = SCRIPT_DIR / "build" / "lm"
 VERSION_FILE = SCRIPT_DIR / "VERSION"
 
 MAGIC = b"GNLM"
-FORMAT_VERSION = 1
+FORMAT_VERSION = 2
 ORDER = 3
-TOP_K = 10            # suggestions stored per context
+TOP_K_UNI = 10        # global fallback top-K
+TOP_K_BI = 30         # per-bigram top-K (mid-word prefix filtering wants depth)
+TOP_K_TRI = 15        # per-trigram top-K
 LOGP_SCALE = 1024.0   # q16 fixed-point scale
 
 
@@ -305,6 +334,7 @@ def build_trigram_contexts(
 def write_binary(
     out_path: Path,
     id2tok: list[str],
+    vocab_counts: list[int],
     unigram_topk: list[tuple[int, float]],
     bigram_ctx: list[tuple[int, list[tuple[int, float]]]],
     trigram_ctx: list[tuple[tuple[int, int], list[tuple[int, float]]]],
@@ -312,6 +342,7 @@ def write_binary(
     reserved_ids: dict[str, int],
 ):
     V = len(id2tok)
+    assert len(vocab_counts) == V, "vocab_counts must be one-per-vocab-id"
 
     # serialize vocab string pool + offsets
     pool_parts = []
@@ -329,9 +360,15 @@ def write_binary(
     string_pool_off = vocab_offsets_off + vocab_offsets_bytes
     string_pool_size = len(pool)
 
-    unigram_topk_off = string_pool_off + string_pool_size
+    # v2: per-vocab counts column right after the string pool.
+    # The reader locates it at string_pool_off + string_pool_size,
+    # so no new header field is needed.
+    vocab_counts_off = string_pool_off + string_pool_size
+    vocab_counts_bytes = 4 * V
 
-    bigram_index_off = unigram_topk_off + TOP_K * 6  # (u32 + i16) per entry
+    unigram_topk_off = vocab_counts_off + vocab_counts_bytes
+
+    bigram_index_off = unigram_topk_off + TOP_K_UNI * 6  # (u32 + i16) per entry
     bigram_index_len = len(bigram_ctx)
     bigram_index_bytes = bigram_index_len * 12
     bigram_suggestions_off = bigram_index_off + bigram_index_bytes
@@ -352,13 +389,16 @@ def write_binary(
     header[0:4] = MAGIC
     struct.pack_into("<I", header, 4, FORMAT_VERSION)
     struct.pack_into("<I", header, 8, ORDER)
-    struct.pack_into("<I", header, 12, TOP_K)
+    # top_k_uni held at offset 12 for compatibility with v1 field layout.
+    struct.pack_into("<I", header, 12, TOP_K_UNI)
     struct.pack_into("<I", header, 16, V)
     struct.pack_into("<I", header, 20, reserved_ids["<PAD>"])
     struct.pack_into("<I", header, 24, reserved_ids["<UNK>"])
     struct.pack_into("<I", header, 28, reserved_ids["<s>"])
     struct.pack_into("<I", header, 32, reserved_ids["</s>"])
-    struct.pack_into("<I", header, 36, 0)   # reserved
+    # v2: formerly-reserved slot now carries top_k_bi so the reader
+    # knows the maximum per-bigram count to expect.
+    struct.pack_into("<I", header, 36, TOP_K_BI)
     struct.pack_into("<Q", header, 40, total_tokens)
     struct.pack_into("<Q", header, 48, vocab_offsets_off)
     struct.pack_into("<Q", header, 56, string_pool_off)
@@ -381,9 +421,19 @@ def write_binary(
     # string pool
     parts.append(pool)
 
+    # v2: per-vocab counts (u32 * V). Clamped to u32 max if ever bigger.
+    counts_bytes = bytearray(vocab_counts_bytes)
+    for i, c in enumerate(vocab_counts):
+        if c < 0:
+            c = 0
+        if c > 0xFFFFFFFF:
+            c = 0xFFFFFFFF
+        struct.pack_into("<I", counts_bytes, i * 4, c)
+    parts.append(bytes(counts_bytes))
+
     # unigram top-K
-    uni_bytes = bytearray(TOP_K * 6)
-    for i in range(TOP_K):
+    uni_bytes = bytearray(TOP_K_UNI * 6)
+    for i in range(TOP_K_UNI):
         if i < len(unigram_topk):
             wid, logp = unigram_topk[i]
         else:
@@ -482,8 +532,16 @@ def main():
     )
     unigram_topk = [
         (wid, math.log(c / total_tokens))
-        for wid, c in unigram_ranked[:TOP_K]
+        for wid, c in unigram_ranked[:TOP_K_UNI]
     ]
+
+    # v2: dense per-vocab counts column, indexed by sorted-vocab id.
+    # Reserved tokens get 0 so the reader can trivially rank them last.
+    vocab_counts = [0] * len(sorted_vocab)
+    for wid, c in uni_by_new.items():
+        if wid in reserved_new_ids:
+            continue
+        vocab_counts[wid] = c
 
     # bigrams
     bigram_counts: dict[tuple[int, int], int] = {}
@@ -511,9 +569,10 @@ def main():
     }
 
     bigram_ctx = build_bigram_contexts(
-        remapped_bigrams, w1_totals, TOP_K, excluded
+        remapped_bigrams, w1_totals, TOP_K_BI, excluded
     )
-    print(f"  built {len(bigram_ctx):,} bigram contexts", flush=True)
+    print(f"  built {len(bigram_ctx):,} bigram contexts "
+          f"(top_k={TOP_K_BI})", flush=True)
 
     # trigrams (stream rather than hold everything)
     remapped_trigrams = []
@@ -527,12 +586,14 @@ def main():
     print(f"  loaded {len(remapped_trigrams):,} trigrams", flush=True)
 
     trigram_ctx = build_trigram_contexts(
-        remapped_trigrams, bigram_counts, TOP_K, excluded
+        remapped_trigrams, bigram_counts, TOP_K_TRI, excluded
     )
-    print(f"  built {len(trigram_ctx):,} trigram contexts", flush=True)
+    print(f"  built {len(trigram_ctx):,} trigram contexts "
+          f"(top_k={TOP_K_TRI})", flush=True)
 
     write_binary(
-        out, sorted_vocab, unigram_topk, bigram_ctx, trigram_ctx,
+        out, sorted_vocab, vocab_counts, unigram_topk,
+        bigram_ctx, trigram_ctx,
         total_tokens, reserved_ids,
     )
 
@@ -548,7 +609,9 @@ def main():
         "dilemma_commit": commit,
         "format_version": FORMAT_VERSION,
         "n_gram_order": ORDER,
-        "top_k": TOP_K,
+        "top_k_uni": TOP_K_UNI,
+        "top_k_bi": TOP_K_BI,
+        "top_k_tri": TOP_K_TRI,
         "vocab_size": len(sorted_vocab),
         "bigram_contexts": len(bigram_ctx),
         "trigram_contexts": len(trigram_ctx),

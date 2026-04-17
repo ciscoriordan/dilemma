@@ -1142,7 +1142,7 @@ Output layout:
 
 ```
 build/lm/
-  grc_ngram.bin                 mmap-friendly binary, ~45 MB
+  grc_ngram.bin                 mmap-friendly binary, ~55 MB (v2)
   grc_ngram.version             semver + dilemma commit + vocab/context counts
   eval_results.txt              from eval_lm.py (combined dev split)
   eval_results_glaux.txt        eval restricted to GLAUx dev sentences
@@ -1159,37 +1159,62 @@ build/lm/
 
 Artifact layout at a glance (full spec in the docstring of
 `export_lm.py`): a 128-byte little-endian header, a sorted UTF-8
-vocab (binary-searchable by the Swift reader), and three flat sorted
-tables, unigram top-K, bigram top-K-per-w1, and trigram top-K-per-w1,w2.
-Each suggestion entry is 6 bytes: a `u32` word id and an `i16`
-fixed-point log probability (scale 1024). Lookup is a binary search
-on the trigram context (w1, w2); on miss, fall back to bigram (w1);
-on miss, fall back to the global unigram top-K. All tables are
-mmap'd and accessed by offset; nothing needs to be read into RAM.
+vocab (binary-searchable by the Swift reader), a per-vocab unigram
+count column, and three flat sorted tables: unigram top-K,
+bigram top-K-per-w1, and trigram top-K-per-w1,w2. Each suggestion
+entry is 6 bytes: a `u32` word id and an `i16` fixed-point log
+probability (scale 1024). Lookup is a binary search on the trigram
+context (w1, w2); on miss, fall back to bigram (w1); on miss, fall
+back to the global unigram top-K. All tables are mmap'd and accessed
+by offset; nothing needs to be read into RAM.
 
-Default knobs (defined in `train_lm.py`):
+Typeahead v2 (format_version = 2) adds two things versus v1:
+
+- Independent top-K per table. Bigram contexts now store the top 30
+  continuations and trigram contexts the top 15, so the keyboard's
+  mid-word prefix filter has enough candidates to work with even
+  after a user has typed a character or two. The global unigram
+  fallback stays at 10. Old v1 files are not forward-compatible:
+  the Swift reader refuses anything below `format_version = 2`.
+- A per-vocab unigram count column, one `u32` per vocab entry,
+  indexed by sorted-vocab id. The Swift reader uses this to rank
+  global prefix completions by corpus frequency when the current
+  bigram/trigram top-K doesn't cover the user's stem, so the bar is
+  never starved of useful entries even for rare context / common
+  stem combinations.
+
+Default knobs (defined in `export_lm.py`):
 
 | Knob | Value | Effect |
 |------|------:|--------|
 | vocab size | 80,000 | Reduces UNK target rate to 7.6% on the dev split |
-| top-K per context | 10 | Bigram/trigram suggestion fan-out |
+| top-K uni  | 10 | Global fallback depth |
+| top-K bi   | 30 | Per-bigram context depth (mid-word prefix filter wants this deep) |
+| top-K tri  | 15 | Per-trigram context depth |
 | min bigram count | 1 | Keep every observed bigram |
 | min trigram count | 1 | Keep every observed trigram... |
 | min bigram count for trigram | 3 | ...but only when the (w1, w2) bigram context is well attested. Rare contexts fall back to the bigram table at inference. This is the dominant size/quality knob. |
 
-Current build: ~45 MB, ~80K vocab, ~1.03M trigram contexts,
-~80K bigram contexts. Within the 30-50 MB budget Tonos has for a
+Current build: ~55 MB, ~80K vocab, ~1.1M trigram contexts,
+~80K bigram contexts. Within the 60 MB budget Tonos has for a
 single artifact inside a keyboard extension.
 
 Held-out evaluation, keyboard-realistic regime (exclude `</s>` and
 UNK targets):
 
-| Dev split | training data | sentences | preds scored | top-1 | top-3 | top-5 |
-|-----------|--------------|----------:|-------------:|------:|------:|------:|
-| GLAUx only        | GLAUx           | 19,578 | 315,385 | 13.56% | 23.08% | 27.75% |
-| GLAUx only        | GLAUx+Diorisis  | 19,578 | 315,278 | 14.86% | 28.14% | 34.52% |
-| Diorisis only     | GLAUx+Diorisis  | 10,672 | 188,199 | 15.17% | 30.46% | 37.63% |
-| Combined          | GLAUx+Diorisis  | 30,250 | 503,477 | 14.97% | 29.00% | 35.68% |
+| Dev split | training data | sentences | preds scored | top-1 | top-3 | top-5 | top-6 |
+|-----------|--------------|----------:|-------------:|------:|------:|------:|------:|
+| GLAUx only        | GLAUx           | 19,578 | 315,385 | 13.56% | 23.08% | 27.75% | 29.59% |
+| GLAUx only        | GLAUx+Diorisis  | 19,578 | 315,278 | 14.86% | 28.14% | 34.52% | 36.56% |
+| Diorisis only     | GLAUx+Diorisis  | 10,672 | 188,199 | 15.17% | 30.46% | 37.63% | 39.88% |
+| Combined          | GLAUx+Diorisis  | 30,250 | 503,477 | 14.97% | 29.00% | 35.68% | 37.77% |
+| Combined          | v2 (bi 30/tri 15) | 32,724 | 534,541 | 14.69% | 28.30% | 34.83% | 37.12% |
+
+The v2 row reports on the newer combined corpus (GLAUx + Diorisis +
+Katharevousa Wikisource + Byzantine vernacular). Top-1 / top-3 /
+top-5 are unchanged from the v1 row's combined baseline (as
+expected: widening top-K per context does not move top-N for N
+smaller than K); the new number to look at is top-6 at 37.1%.
 
 Adding Diorisis lifts top-3 accuracy on the identical held-out
 GLAUx sentences by +5.1 points and top-5 by +6.8 points; top-1 moves
@@ -1227,11 +1252,13 @@ Expectations, honest:
   untouched.
 
 Reader contract for Tonos: the binary format is versioned in the
-header (`format_version = 1`) and in `grc_ngram.version`. Any on-disk
+header (`format_version = 2`) and in `grc_ngram.version`. Any on-disk
 layout change will bump `format_version`. The sidecar version file
 also carries the dilemma commit hash, vocab size, and trigram /
 bigram context counts so a Tonos build can detect staleness and
-refuse mismatched artifacts.
+refuse mismatched artifacts. The Swift reader rejects any file whose
+`format_version` doesn't match the version it was compiled against;
+the v2 reader does not read v1 files (and vice versa).
 
 ## Data
 

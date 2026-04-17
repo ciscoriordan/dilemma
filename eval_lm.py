@@ -69,12 +69,18 @@ class NgramLM:
         assert h[:4] == b"GNLM", "bad magic"
         self.format_version = struct.unpack_from("<I", h, 4)[0]
         self.order = struct.unpack_from("<I", h, 8)[0]
-        self.top_k = struct.unpack_from("<I", h, 12)[0]
+        self.top_k_uni = struct.unpack_from("<I", h, 12)[0]
+        # legacy alias
+        self.top_k = self.top_k_uni
         self.V = struct.unpack_from("<I", h, 16)[0]
         self.id_pad = struct.unpack_from("<I", h, 20)[0]
         self.id_unk = struct.unpack_from("<I", h, 24)[0]
         self.id_bos = struct.unpack_from("<I", h, 28)[0]
         self.id_eos = struct.unpack_from("<I", h, 32)[0]
+        # v2: header offset 36 now carries top_k_bi. v1 had a reserved
+        # 0 there; treat that as "same as top_k" so old artifacts keep
+        # working in the reference reader.
+        self.top_k_bi = struct.unpack_from("<I", h, 36)[0] or self.top_k_uni
         self.total_tokens = struct.unpack_from("<Q", h, 40)[0]
         self.vocab_offsets_off = struct.unpack_from("<Q", h, 48)[0]
         self.string_pool_off = struct.unpack_from("<Q", h, 56)[0]
@@ -88,6 +94,14 @@ class NgramLM:
         self.trigram_index_len = struct.unpack_from("<I", h, 112)[0]
         self.trigram_suggestions_len = struct.unpack_from("<I", h, 116)[0]
         self.trigram_suggestions_off = struct.unpack_from("<Q", h, 120)[0]
+        # v2: per-vocab counts sits between the string pool and the
+        # unigram top-K table. Present only when format_version >= 2.
+        if self.format_version >= 2:
+            self.vocab_counts_off = (
+                self.string_pool_off + self.string_pool_size
+            )
+        else:
+            self.vocab_counts_off = None
 
     def _build_vocab_index(self):
         """Materialize token strings for binary search.
@@ -261,8 +275,8 @@ def main():
     #   "all"     : every scoreable position (incl. </s>, UNK targets)
     #   "kbd"     : keyboard-realistic; skip </s> and UNK targets, which
     #               the keyboard never needs to propose as suggestions
-    n_all = n_all_top1 = n_all_top3 = n_all_top5 = 0
-    n_kbd = n_kbd_top1 = n_kbd_top3 = n_kbd_top5 = 0
+    n_all = n_all_top1 = n_all_top3 = n_all_top5 = n_all_top6 = 0
+    n_kbd = n_kbd_top1 = n_kbd_top3 = n_kbd_top5 = n_kbd_top6 = 0
     n_unk_targets = 0
     n_eos_targets = 0
     level_counts = {"trigram": 0, "bigram": 0, "unigram": 0}
@@ -300,6 +314,8 @@ def main():
                 n_all_top3 += 1
             if target in sug_ids[:5]:
                 n_all_top5 += 1
+            if target in sug_ids[:6]:
+                n_all_top6 += 1
 
             if not is_unk and not is_eos:
                 n_kbd += 1
@@ -309,6 +325,8 @@ def main():
                     n_kbd_top3 += 1
                 if target in sug_ids[:5]:
                     n_kbd_top5 += 1
+                if target in sug_ids[:6]:
+                    n_kbd_top6 += 1
 
             # perplexity component (all positions)
             lp = lm.score_word(prev, target)
@@ -329,7 +347,10 @@ def main():
 
     rows = [
         f"artifact            : {args.bin}",
+        f"format version      : {lm.format_version}",
         f"vocab size          : {lm.V:,}",
+        f"top_k uni/bi/tri    : "
+        f"{lm.top_k_uni}/{lm.top_k_bi}/max per-row",
         f"bigram contexts     : {lm.bigram_index_len:,}",
         f"trigram contexts    : {lm.trigram_index_len:,}",
         f"dev sentences       : {len(sents):,}",
@@ -339,6 +360,7 @@ def main():
         f"  top-1 accuracy    : {100 * n_all_top1 / max(1, n_all):.2f}%",
         f"  top-3 accuracy    : {100 * n_all_top3 / max(1, n_all):.2f}%",
         f"  top-5 accuracy    : {100 * n_all_top5 / max(1, n_all):.2f}%",
+        f"  top-6 accuracy    : {100 * n_all_top6 / max(1, n_all):.2f}%",
         f"  perplexity (SB)   : {ppl:,.1f}",
         f"  UNK target share  : "
         f"{100 * n_unk_targets / max(1, n_all):.2f}%",
@@ -350,6 +372,7 @@ def main():
         f"  top-1 accuracy    : {100 * n_kbd_top1 / max(1, n_kbd):.2f}%",
         f"  top-3 accuracy    : {100 * n_kbd_top3 / max(1, n_kbd):.2f}%",
         f"  top-5 accuracy    : {100 * n_kbd_top5 / max(1, n_kbd):.2f}%",
+        f"  top-6 accuracy    : {100 * n_kbd_top6 / max(1, n_kbd):.2f}%",
         "",
         "level breakdown (which n-gram table supplied the suggestion):",
         f"  trigram           : {level_counts['trigram']:,} "
