@@ -10,13 +10,12 @@ Large data files and models are stored on HuggingFace at `hf.co/ciscoriordan/dil
 1. `build_data.py --kaikki kaikki` - extract Wiktionary data from kaikki dumps
 2. `build/expand_lsj.py --expand` - expand LSJ noun paradigms via Wiktionary Lua modules
 3. `build/expand_lsj.py --expand-verbs` - expand LSJ verb paradigms
-4. **Delete `data/raw_lookups.db`** before step 4 - otherwise it takes priority over `ag_lookup.json` and the LSJ expansion is lost (2.36M entries vs 9.97M)
-5. `build_lookup_db.py` - build SQLite lookup from JSON files
-6. `train.py --lang all --scale 3` - retrain transformer
-7. `export_onnx.py` - export ONNX models
+4. `build_lookup_db.py` - build SQLite lookup from JSON files
+5. `train.py --lang all --scale 3` - retrain transformer
+6. `export_onnx.py` - export ONNX models
 
-### Critical: raw_lookups.db priority issue
-`build_lookup_db.py` prefers `raw_lookups.db` (SQLite, from `build_data.py`) over JSON files. But `raw_lookups.db` only has base Wiktionary entries (~2.36M AG), while `ag_lookup.json` has the LSJ expansion (~9.97M AG). Always delete `raw_lookups.db` before rebuilding if you've run `expand_lsj.py`.
+### raw_lookups.db vs JSON priority
+`build_lookup_db.py` loads from both `raw_lookups.db` (SQLite, from `build_data.py`) and JSON files, and prefers whichever has more entries. This means `ag_lookup.json` with LSJ expansion (~9.97M AG) automatically wins over `raw_lookups.db` (~2.36M AG base Wiktionary). No need to manually delete `raw_lookups.db` before rebuilding.
 
 ### Concurrent build_lookup_db.py
 Never run multiple `build_lookup_db.py` instances simultaneously. They corrupt the SQLite output. Kill any stale processes before rebuilding.
