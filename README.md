@@ -1036,6 +1036,74 @@ Patrologia Graeca, Byzantine vernacular), letting consumers re-rank for
 mixed-period use cases (e.g., a Modern Greek dictionary for a book about
 ancient topics could boost forms with high `freq_glaux`).
 
+### Hunspell spell-check export
+
+`export_hunspell.py` produces compact Hunspell `.dic` + `.aff` pairs from
+`lookup.db`, aimed at mobile consumers (primarily the
+[Tonos](https://github.com/ciscoriordan/tonos) iOS polytonic keyboard)
+where the full 993 MB `lookup.db` and 482 MB `spell_index.db` do not
+fit inside the ~48 MB memory ceiling of a keyboard extension. Affix
+compression collapses each inflection class to a single SFX rule
+group, so ~12.5M forms compress to ~2M dictionary entries while
+preserving exact-match acceptance.
+
+Default output is the **grc** variant (Ancient + Medieval polytonic),
+which is what Tonos ships. An optional **el** variant (Modern Greek
+monotonic) is retained for other downstream consumers via
+`--variant el`. Output layout under `build/hunspell/`:
+
+| Variant | Script name | Lang tag | Contents |
+|--------|------------|---------|---------|
+| `grc_polytonic.{dic,aff,version}` | `grc` | `grc` | Ancient + Medieval polytonic forms (breathings, circumflex, iota subscript, grave). Acute-only fallback keys are dropped unless corpus-attested. AG function words (definite article, 1st/2nd person pronouns) are injected because `dilemma.py` resolves those via hardcoded rules rather than the lookup table. |
+| `el_GR_monotonic.{dic,aff,version}` | `el` | `el_GR` | Modern Greek monotonic forms, including MG-relevant vocabulary drawn from the AG side of `lookup.db` (articles, common verbs, proper names). Not shipped in Tonos. |
+
+Each dictionary entry carries a morphological field `fr:<bucket>` where
+the bucket is one of `C` (count >= 1000), `M` (count >= 100), `R`
+(count >= 1), or `X` (unseen in corpus). This lets consumers rank
+spelling candidates without shipping the full frequency table.
+
+```bash
+python export_hunspell.py                 # grc polytonic (default)
+python export_hunspell.py --variant both  # grc + el
+python export_hunspell.py --variant el    # el monotonic only
+python export_hunspell.py --sanity 10000  # 10K-lemma sanity pass
+```
+
+Output layout, with one sidecar `.version` file per variant so the
+consumer can detect updates:
+
+```
+build/hunspell/
+  el_GR_monotonic.dic
+  el_GR_monotonic.aff
+  el_GR_monotonic.version   # semver + dilemma commit hash + entry count
+  grc_polytonic.dic
+  grc_polytonic.aff
+  grc_polytonic.version
+  eval_results.txt          # from eval_hunspell.py
+```
+
+`eval_hunspell.py` is the quality gate. It samples mid-frequency real
+Greek words (ranks 100..10K in the corpus), generates synthetic typos
+at edit distance 1 and 2, and measures top-1/top-5 correction accuracy
+against the compact artifact. Add `--compare-full` to also benchmark
+Dilemma's own `suggest_spelling()` on the full `lookup.db`.
+
+```bash
+python eval_hunspell.py                    # default 500 targets per variant
+python eval_hunspell.py --n 100            # quick sanity eval
+python eval_hunspell.py --variant el       # only MG
+python eval_hunspell.py --compare-full     # compare vs full Dilemma (slower)
+```
+
+Requires `pip install spylls` for the Python-side Hunspell consumer.
+To regenerate both artifacts and the eval report end-to-end:
+
+```bash
+python export_hunspell.py
+python eval_hunspell.py --n 200
+```
+
 ## Data
 
 ### Sources and scale
