@@ -1111,38 +1111,50 @@ language model, `build/lm/grc_ngram.bin`, aimed at the Tonos iOS
 keyboard extension for a QuickType-style suggestion strip over
 polytonic Greek.
 
-This is a classical **stupid-backoff trigram** over GLAUx (~18.5M
-polytonic tokens, 948K sentences after a deterministic 2% dev split).
-Classical n-gram is a deliberate choice: inference is a couple of
-binary searches on mmap'd bytes (no ML runtime, no matmul), trivially
-under 1 ms per keystroke, and the artifact can be used directly from
-a keyboard extension without adding a Core ML dependency. A small
-neural LM would improve perplexity but cannot beat this on the cost
-side that keyboards are constrained by: cold-start memory and
-per-keystroke CPU.
+This is a classical **stupid-backoff trigram** over GLAUx + Diorisis
+(~29.6M polytonic tokens, 1.48M sentences after a deterministic 2%
+dev split). Classical n-gram is a deliberate choice: inference is a
+couple of binary searches on mmap'd bytes (no ML runtime, no matmul),
+trivially under 1 ms per keystroke, and the artifact can be used
+directly from a keyboard extension without adding a Core ML
+dependency. A small neural LM would improve perplexity but cannot
+beat this on the cost side that keyboards are constrained by:
+cold-start memory and per-keystroke CPU.
 
 Build
 
 ```bash
-python train_lm.py --sanity    # ~30 s, 40 XML files, proves pipeline
-python train_lm.py             # full GLAUx, ~2 min
-python export_lm.py            # writes grc_ngram.bin + .version, ~25 s
-python eval_lm.py              # writes eval_results.txt, ~60 s
+python train_lm.py --sanity         # few files per corpus, <1 min
+python train_lm.py                  # full GLAUx + Diorisis, ~5 min
+python train_lm.py --no-diorisis    # GLAUx-only baseline
+python export_lm.py                 # writes grc_ngram.bin + .version, ~30 s
+python eval_lm.py                   # writes eval_results.txt, ~90 s
 ```
+
+Corpus loaders live in ``train_lm.py`` (GLAUx, inline) and
+``extract_diorisis_lm.py`` (Diorisis, beta-code to NFC). To add
+another Ancient Greek corpus, write a loader that yields
+``(sentence_id, [<s>, ...NFC tokens..., </s>])`` and append one
+entry to ``build_corpus_sources`` in ``train_lm.py``; the counting,
+vocab, split, and eval stages do not need any changes.
 
 Output layout:
 
 ```
 build/lm/
-  grc_ngram.bin            mmap-friendly binary, ~34 MB
-  grc_ngram.version        semver + dilemma commit + vocab/context counts
-  eval_results.txt         from eval_lm.py
-  vocab.json               intermediate from train_lm.py
-  unigrams.json            intermediate
-  bigrams.tsv.gz           intermediate
-  trigrams.tsv.gz          intermediate
-  dev_sentences.txt        held-out dev set, deterministic split (seed 4242)
-  stats.json               training corpus statistics
+  grc_ngram.bin                 mmap-friendly binary, ~45 MB
+  grc_ngram.version             semver + dilemma commit + vocab/context counts
+  eval_results.txt              from eval_lm.py (combined dev split)
+  eval_results_glaux.txt        eval restricted to GLAUx dev sentences
+  eval_results_diorisis.txt     eval restricted to Diorisis dev sentences
+  vocab.json                    intermediate from train_lm.py
+  unigrams.json                 intermediate
+  bigrams.tsv.gz                intermediate
+  trigrams.tsv.gz               intermediate
+  dev_sentences.txt             held-out dev set, deterministic split (seed 4242)
+  dev_sentences_glaux.txt       same split, restricted to GLAUx sentences
+  dev_sentences_diorisis.txt    same split, restricted to Diorisis sentences
+  stats.json                    training corpus statistics
 ```
 
 Artifact layout at a glance (full spec in the docstring of
@@ -1165,19 +1177,27 @@ Default knobs (defined in `train_lm.py`):
 | min trigram count | 1 | Keep every observed trigram... |
 | min bigram count for trigram | 3 | ...but only when the (w1, w2) bigram context is well attested. Rare contexts fall back to the bigram table at inference. This is the dominant size/quality knob. |
 
-Current build: ~35 MB, ~80K vocab, ~654K trigram contexts,
+Current build: ~45 MB, ~80K vocab, ~1.03M trigram contexts,
 ~80K bigram contexts. Within the 30-50 MB budget Tonos has for a
 single artifact inside a keyboard extension.
 
-Held-out evaluation on 19,578 dev sentences (362,684 predictions):
+Held-out evaluation, keyboard-realistic regime (exclude `</s>` and
+UNK targets):
 
-| Regime | top-1 | top-3 | top-5 |
-|--------|------:|------:|------:|
-| All positions (research baseline, incl. `</s>` and UNK targets) | 11.8% | 20.1% | 24.1% |
-| Keyboard-realistic (exclude `</s>` and UNK targets) | 13.6% | 23.1% | 27.8% |
+| Dev split | training data | sentences | preds scored | top-1 | top-3 | top-5 |
+|-----------|--------------|----------:|-------------:|------:|------:|------:|
+| GLAUx only        | GLAUx           | 19,578 | 315,385 | 13.56% | 23.08% | 27.75% |
+| GLAUx only        | GLAUx+Diorisis  | 19,578 | 315,278 | 14.86% | 28.14% | 34.52% |
+| Diorisis only     | GLAUx+Diorisis  | 10,672 | 188,199 | 15.17% | 30.46% | 37.63% |
+| Combined          | GLAUx+Diorisis  | 30,250 | 503,477 | 14.97% | 29.00% | 35.68% |
 
-Backoff level breakdown: ~69% of predictions hit the trigram table,
-~31% fall back to bigrams, <0.01% fall to unigram. Perplexity (stupid
+Adding Diorisis lifts top-3 accuracy on the identical held-out
+GLAUx sentences by +5.1 points and top-5 by +6.8 points; top-1 moves
+by +1.3 points. Dev sentences with identical sentence-id hashes
+across runs make this an apples-to-apples comparison.
+
+Backoff level breakdown: ~74% of predictions hit the trigram table,
+~26% fall back to bigrams, <0.01% fall to unigram. Perplexity (stupid
 backoff, α=0.4) is reported in `eval_results.txt` but is **not** a
 clean perplexity: because the binary only stores the top-K
 continuations per context, off-list targets are assigned a floor
@@ -1193,18 +1213,18 @@ Expectations, honest:
   smaller than English keyboard LMs. English QuickType-style
   predictors typically hit 15-30% top-1 on in-domain text; for AG,
   top-5 around 25-30% is a respectable baseline.
-- **UNK rate is 7.6%** on the dev split even at 80K vocab. Polytonic
-  inflection multiplies forms (a typical verb has 300+ forms), so
-  long-tail coverage is inherently hard. Tonos can let the user type
-  any form; the LM just won't propose it.
+- **UNK rate is 7.9%** on the combined dev split even at 80K vocab.
+  Polytonic inflection multiplies forms (a typical verb has 300+
+  forms), so long-tail coverage is inherently hard. Tonos can let
+  the user type any form; the LM just won't propose it.
 - **Homographs are preserved.** ἦ (past indicative) and ἤ
   (disjunction) remain distinct. No accent stripping is done at any
   stage.
-- **GLAUx only.** The Diorisis XML is also on disk but encoded in
-  Beta Code (not polytonic Unicode), so its surface forms are not
-  directly usable without a beta-to-polytonic transliteration pass
-  that we haven't written yet. GLAUx at 17M polytonic tokens is
-  enough for a credible first cut.
+- **Diorisis beta code is converted to NFC polytonic** via the
+  `betacode` PyPI package. A small cleanup handles elision-after-
+  consonant encoded as `)` rather than `'` (e.g. `par)` for παρ’).
+  Elision-after-vowel (`ou)` = οὐ with smooth breathing) stays
+  untouched.
 
 Reader contract for Tonos: the binary format is versioned in the
 header (`format_version = 1`) and in `grc_ngram.version`. Any on-disk

@@ -308,6 +308,10 @@ def main():
     t0 = time.time()
     train_sents: list[list[str]] = []
     dev_sents: list[list[str]] = []
+    # Parallel list: corpus-of-origin for every entry in dev_sents, so
+    # we can write per-corpus dev files for apples-to-apples evaluation
+    # against the GLAUx-only baseline.
+    dev_sent_corpora: list[str] = []
     n_raw_tokens = 0
     per_corpus_stats: dict[str, dict[str, int]] = {}
 
@@ -320,6 +324,7 @@ def main():
             c_tokens += len(toks)
             if sentence_goes_to_dev(sid):
                 dev_sents.append(toks)
+                dev_sent_corpora.append(corpus_name)
                 c_dev += 1
             else:
                 train_sents.append(toks)
@@ -377,6 +382,17 @@ def main():
     with open(out / "dev_sentences.txt", "w", encoding="utf-8") as f:
         for toks in dev_sents:
             f.write(" ".join(toks) + "\n")
+
+    # Per-corpus dev files let downstream eval compare against
+    # single-corpus baselines on the identical held-out sentences.
+    per_corpus_dev: dict[str, list[list[str]]] = {}
+    for toks, name in zip(dev_sents, dev_sent_corpora):
+        per_corpus_dev.setdefault(name, []).append(toks)
+    for name, toks_list in per_corpus_dev.items():
+        path = out / f"dev_sentences_{name}.txt"
+        with open(path, "w", encoding="utf-8") as f:
+            for toks in toks_list:
+                f.write(" ".join(toks) + "\n")
 
     oov_share = 1.0 - (
         sum(raw_counts[w] for w in raw_counts if w in tok2id)

@@ -46,6 +46,7 @@ lacuna-dominated words are rare.
 
 from __future__ import annotations
 
+import re
 import unicodedata
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -106,9 +107,29 @@ def _run_sanity_checks() -> None:
     _SANITY_DONE = True
 
 
+# In a small fraction (~0.13%) of Diorisis forms, elision after a
+# consonant is encoded with a right paren ``)`` (the smooth-breathing
+# marker) instead of an apostrophe ``'``. Example: ``par)`` for
+# ``παρ’``. This confuses beta-to-Unicode into treating the ``)`` as a
+# breathing mark on the final consonant, which is nonsensical and
+# leaves the raw ``)`` in the output. We rewrite trailing
+# ``<consonant>)`` to ``<consonant>'`` before conversion. Vowel + ``)``
+# (e.g. ``ou)`` / ``ei)``) is legitimate smooth breathing and is left
+# untouched.
+_BETA_CONSONANTS = "bgdzqklmnprstfxcBGDZQKLMNPRSTFXC"
+_ELISION_PAREN_RE = re.compile(
+    rf"(?<=[{_BETA_CONSONANTS}])\)$"
+)
+
+
+def _fix_elision_artifact(beta: str) -> str:
+    return _ELISION_PAREN_RE.sub("'", beta)
+
+
 def beta_to_nfc(beta: str) -> str:
     """Convert a single beta-code token to polytonic Unicode (NFC)."""
     conv = _get_beta_conv()
+    beta = _fix_elision_artifact(beta)
     return unicodedata.normalize("NFC", conv(beta))
 
 
