@@ -61,11 +61,26 @@ def strip_accents(s: str) -> str:
     )
 
 
+def strip_key(s: str) -> str:
+    """Stripped-lowercase key matching corpus_freq.json form keys."""
+    nfd = unicodedata.normalize("NFD", s).lower()
+    return unicodedata.normalize(
+        "NFC", "".join(c for c in nfd if unicodedata.category(c) != "Mn")
+    )
+
+
 POLYTONIC = {0x0313, 0x0314, 0x0342, 0x0345, 0x0300}
 
 
 def has_polytonic(s: str) -> bool:
     return any(ord(c) in POLYTONIC for c in unicodedata.normalize("NFD", s))
+
+
+def has_any_diacritic(s: str) -> bool:
+    return any(
+        unicodedata.category(c) == "Mn"
+        for c in unicodedata.normalize("NFD", s)
+    )
 
 
 GREEK_LETTERS = "αβγδεζηθικλμνξοπρστυφχψωάέήίόύώϊϋΐΰᾳῃῳ"
@@ -103,29 +118,40 @@ def sample_target_words(variant: str, n: int, seed: int = 42) -> list[str]:
         with open(DATA / "corpus_freq.json", encoding="utf-8") as f:
             raw = json.load(f)
         forms = raw.get("forms", {})
-        # corpus_freq keys are already stripped-lowercase. We use them
-        # to pick target stripped forms and then reconstruct a polytonic
-        # form by looking up lookup.db for that stripped form. Fallback:
-        # use the stripped form itself (acute-only AG words accepted
-        # in the polytonic variant per our inclusion rules).
+        # corpus_freq keys are stripped-lowercase. We use them to pick
+        # target stripped forms, then reconstruct an accented form by
+        # indexing lookup.db src='grc' by computed stripped(form). The
+        # shipped grc_polytonic dict contains polytonic + acute-only
+        # forms (but not fully-stripped forms), so we must return an
+        # accented sibling - not the stripped key itself - or Hunspell
+        # will never accept the target and accuracy collapses to 0.
         candidates = [
             w for w, counts in forms.items()
             if counts and counts[0] >= 100 and 3 <= len(w) <= 20
         ]
-        # Reconstruct polytonic forms from lookup.db
+        # Build stripped -> [accented forms] index once.
         import sqlite3
+        from collections import defaultdict
         conn = sqlite3.connect(str(DATA / "lookup.db"))
+        idx: dict[str, list[str]] = defaultdict(list)
+        for (f,) in conn.execute("SELECT form FROM lookup WHERE src='grc'"):
+            idx[strip_key(f)].append(f)
         reconstructed: list[str] = []
         for stripped in candidates:
-            row = conn.execute(
-                "SELECT k.form FROM lookup k "
-                "WHERE k.src='grc' AND k.form = ? LIMIT 1",
-                (stripped,)
-            ).fetchone()
-            if row:
-                reconstructed.append(row[0])
-            else:
-                reconstructed.append(stripped)
+            matches = idx.get(stripped, [])
+            # Prefer polytonic (breathing / circumflex / grave / iota sub)
+            poly = [m for m in matches if has_polytonic(m)]
+            if poly:
+                reconstructed.append(poly[0])
+                continue
+            # Fall back to acute-only (still in the dict per inclusion rules)
+            acute = [m for m in matches if has_any_diacritic(m)]
+            if acute:
+                reconstructed.append(acute[0])
+                continue
+            # No accented sibling attested: skip (testing the stripped form
+            # against a polytonic-only dict is not a meaningful correction
+            # task, it's a coverage miss).
         candidates = reconstructed
     else:
         raise ValueError(variant)
