@@ -112,6 +112,10 @@ AG_FUNCTION_WORDS = {
 LOOKUP_DB = DATA / "lookup.db"
 CORPUS_FREQ = DATA / "corpus_freq.json"
 MG_FORM_FREQ = DATA / "mg_form_freq.json"
+# Curated iconic AG polytonic surface forms and lemmas that are always
+# promoted to bucket C, regardless of raw corpus token count. See the
+# file's own _comment field for rationale.
+CANONICAL_AG_FORMS = DATA / "canonical_ag_forms.json"
 
 # Greek combining marks considered polytonic (absent in monotonic text)
 POLYTONIC_MARKS = {0x0313, 0x0314, 0x0342, 0x0345}
@@ -174,6 +178,99 @@ def freq_bucket(count: int) -> str:
     return "X"
 
 
+# Lemma-aggregate thresholds. A lemma whose combined corpus count
+# across all its inflected forms exceeds the C threshold is considered
+# culturally common enough that every one of its polytonic forms should
+# land in bucket C, even if individual inflections are rare. This
+# corrects for the corpus-mass dilution effect where highly-inflected
+# classical lemmas (e.g. Ζεύς, λόγος, ἀείδω) have their frequency mass
+# spread across 100+ surface forms. Numbers were chosen so the C promo
+# triggers for lemmas that are unambiguously famous in the classical
+# canon; they are higher than per-form thresholds to keep the bucket
+# precise (roughly: Zeus-famous, not hapax-famous).
+LEMMA_AGG_C_MIN = 20_000
+LEMMA_AGG_M_MIN = 5_000
+
+
+def load_canonical_ag_sets() -> tuple[set[str], set[str]]:
+    """Load (canonical_forms, canonical_lemmas) from CANONICAL_AG_FORMS.
+
+    Both sets contain NFC-normalized polytonic strings. The forms set
+    is matched by exact surface equality (so monotonic variants do not
+    get promoted along with their polytonic siblings). The lemmas set
+    is matched against each (form, lemma) pair's lemma text; any form
+    of a canonical lemma gets promoted to at least C.
+    """
+    if not CANONICAL_AG_FORMS.exists():
+        return set(), set()
+    with open(CANONICAL_AG_FORMS, encoding="utf-8") as f:
+        raw = json.load(f)
+    forms = {unicodedata.normalize("NFC", s)
+             for s in raw.get("forms_c", [])}
+    lemmas = {unicodedata.normalize("NFC", s)
+              for s in raw.get("lemmas_c", [])}
+    return forms, lemmas
+
+
+def compute_lemma_totals(
+    form_lemma: list[tuple[str, str]],
+    freq_map: dict[str, int],
+) -> dict[str, int]:
+    """Return lemma -> sum of corpus counts across all its surface forms.
+
+    Each form's count is looked up via freq_lookup (which tries NFC,
+    lowercase, and accent-stripped lowercase keys). A form shared by
+    multiple lemmas is counted once per lemma, which is a mild double-
+    count, but acceptable because we only use the aggregate to cross a
+    fairly conservative promotion threshold, not as a precise measure.
+    """
+    by_lemma: dict[str, set[str]] = defaultdict(set)
+    for form, lemma in form_lemma:
+        by_lemma[lemma].add(form)
+    totals: dict[str, int] = {}
+    for lemma, forms in by_lemma.items():
+        t = 0
+        for f in forms:
+            t += freq_lookup(f, freq_map)
+        totals[lemma] = t
+    return totals
+
+
+def bucket_for(
+    form: str,
+    lemma: str,
+    form_count: int,
+    lemma_total: int,
+    canonical_forms: set[str],
+    canonical_lemmas: set[str],
+) -> str:
+    """Choose a frequency bucket taking canonical seed and lemma total
+    into account. Rules, from strongest to weakest:
+
+      1. If the exact polytonic form is in the canonical seed -> C.
+      2. If the lemma is in the canonical seed AND this particular form
+         carries any polytonic mark (breathing, circumflex, grave, iota
+         subscript) -> C. Acute-only or fully-stripped forms of a
+         canonical lemma are NOT promoted, so that a polytonic form
+         always outranks a monotonic sibling at tiebreak.
+      3. Lemma-aggregate: count across all forms of this lemma >= 20K -> C;
+         >= 5K -> at least M. Same polytonic-only gating applies.
+      4. Otherwise use the per-form corpus count with the default edges.
+    """
+    if form in canonical_forms:
+        return "C"
+    form_is_polytonic = has_polytonic(form)
+    if lemma in canonical_lemmas and form_is_polytonic:
+        return "C"
+    if lemma_total >= LEMMA_AGG_C_MIN and form_is_polytonic:
+        return "C"
+    base = freq_bucket(form_count)
+    if (lemma_total >= LEMMA_AGG_M_MIN and form_is_polytonic
+            and base == "R"):
+        return "M"
+    return base
+
+
 def load_freq_maps() -> tuple[dict[str, int], dict[str, int]]:
     """Return (mg_freq, ag_freq). Both map stripped-lowercase form to count."""
     mg_freq: dict[str, int] = {}
@@ -225,7 +322,11 @@ def gen_flag_names():
         i += 1
 
 
-def select_forms(conn: sqlite3.Connection, variant: str) -> list[tuple[str, str]]:
+def select_forms(
+    conn: sqlite3.Connection,
+    variant: str,
+    keep_lemmas: set[str] | None = None,
+) -> list[tuple[str, str]]:
     """Return [(form, lemma_text)] for the given variant.
 
     variant='el'  -> Modern Greek monotonic forms. This is the union of:
@@ -240,6 +341,13 @@ def select_forms(conn: sqlite3.Connection, variant: str) -> list[tuple[str, str]
                      This is the Ancient + Medieval vocabulary with
                      diacritics. We exclude the stripped monotonic
                      duplicate keys the DB carries as fallback.
+                     If keep_lemmas is provided, any lemma whose text
+                     is in that set is kept even if none of its forms
+                     carry a breathing/circumflex/grave/iota-subscript
+                     mark. This rescues canonical AG lemmas whose
+                     spellings are entirely acute-only (e.g. Πλάτων,
+                     Μένανδρος, πόλεμος) which would otherwise be
+                     excluded as 'pure-monotonic, not AG'.
     """
     cur = conn.cursor()
 
@@ -292,12 +400,15 @@ def select_forms(conn: sqlite3.Connection, variant: str) -> list[tuple[str, str]
 
         seen: set[tuple[str, str]] = set()
         out: list[tuple[str, str]] = []
+        keep = keep_lemmas or set()
         for lemma, forms in by_lemma.items():
-            if not any(has_polytonic(f) for f in forms):
-                continue  # pure-monotonic lemma, not AG
-            # also require lemma text itself is diacritic-bearing
-            if not has_any_diacritic(lemma):
-                continue
+            is_canonical_keep = lemma in keep
+            if not is_canonical_keep:
+                if not any(has_polytonic(f) for f in forms):
+                    continue  # pure-monotonic lemma, not AG
+                # also require lemma text itself is diacritic-bearing
+                if not has_any_diacritic(lemma):
+                    continue
             for f in forms:
                 key = (f, lemma)
                 if key in seen:
@@ -374,6 +485,8 @@ def build_sfx_rules(
     form_lemma: list[tuple[str, str]],
     freq_map: dict[str, int],
     max_singletons_to_inline: int = 1,
+    canonical_forms: set[str] | None = None,
+    canonical_lemmas: set[str] | None = None,
 ) -> tuple[list[str], list[str]]:
     """Given (form, lemma) pairs, produce (aff_lines, dic_lines).
 
@@ -385,7 +498,17 @@ def build_sfx_rules(
       - Singleton lemmas (1 form) just go in .dic as plain words.
 
     The .aff returned contains only the SFX rule blocks, not the header.
+
+    Frequency bucketing uses bucket_for(), which combines per-form
+    corpus count, per-lemma aggregate count, and the canonical seed
+    lists passed in. When canonical_forms/canonical_lemmas are None,
+    behaviour reduces to the original per-form-count bucketing.
     """
+    if canonical_forms is None:
+        canonical_forms = set()
+    if canonical_lemmas is None:
+        canonical_lemmas = set()
+    lemma_totals = compute_lemma_totals(form_lemma, freq_map)
     # Group by lemma
     by_lemma: dict[str, set[str]] = defaultdict(set)
     for form, lemma in form_lemma:
@@ -451,32 +574,47 @@ def build_sfx_rules(
     # Build .dic lines
     dic_lines: list[str] = []
 
-    # Helper to format a .dic line with morph field
-    def fmt_entry(word: str, flag: str | None, freq_count: int) -> str:
-        bucket = freq_bucket(freq_count)
+    def fmt_entry(word: str, flag: str | None, bucket: str) -> str:
         morph = f"fr:{bucket}"
         if flag:
             return f"{word}/{flag}\t{morph}"
         return f"{word}\t{morph}"
 
-    # Emit stems with flags (shared-signature lemmas)
+    def pick_bucket(form: str, lemma: str, form_count: int) -> str:
+        return bucket_for(
+            form=form,
+            lemma=lemma,
+            form_count=form_count,
+            lemma_total=lemma_totals.get(lemma, 0),
+            canonical_forms=canonical_forms,
+            canonical_lemmas=canonical_lemmas,
+        )
+
+    # Emit stems with flags (shared-signature lemmas). A stem line
+    # represents all forms of possibly-several lemmas sharing the
+    # same suffix signature; we pick the strongest (highest) bucket
+    # across the covered forms so the stem does not under-rank any
+    # iconic form it expands to. Canonical seed membership is checked
+    # against each individual expanded form.
     emitted_stems: set[tuple[str, str]] = set()
+    bucket_rank = {"C": 3, "M": 2, "R": 1, "X": 0}
     for sig, lemma_info in sorted_sigs:
         if sig not in sig_to_flag:
             continue
         flag = sig_to_flag[sig]
         for lemma, stem, suffixes in lemma_info:
-            best_count = 0
+            best_bucket = "X"
             for suf in set(suffixes):
                 full = stem + suf
                 c = freq_lookup(full, freq_map)
-                if c > best_count:
-                    best_count = c
+                b = pick_bucket(full, lemma, c)
+                if bucket_rank[b] > bucket_rank[best_bucket]:
+                    best_bucket = b
             key = (stem, flag)
             if key in emitted_stems:
                 continue
             emitted_stems.add(key)
-            dic_lines.append(fmt_entry(stem, flag, best_count))
+            dic_lines.append(fmt_entry(stem, flag, best_bucket))
 
     # Emit inlined lemmas (unique-signature, expanded to individual forms)
     emitted_plain: set[str] = set()
@@ -486,7 +624,7 @@ def build_sfx_rules(
                 continue
             emitted_plain.add(form)
             c = freq_lookup(form, freq_map)
-            dic_lines.append(fmt_entry(form, None, c))
+            dic_lines.append(fmt_entry(form, None, pick_bucket(form, lemma, c)))
 
     # Emit singletons as plain words
     for form, lemma in singletons:
@@ -494,7 +632,7 @@ def build_sfx_rules(
             continue
         emitted_plain.add(form)
         c = freq_lookup(form, freq_map)
-        dic_lines.append(fmt_entry(form, None, c))
+        dic_lines.append(fmt_entry(form, None, pick_bucket(form, lemma, c)))
 
     return aff_blocks, dic_lines
 
@@ -508,11 +646,17 @@ def write_variant(
     lang_tag: str,
     version: str,
     commit: str,
+    canonical_forms: set[str] | None = None,
+    canonical_lemmas: set[str] | None = None,
 ) -> dict:
     """Emit <dic_name>.dic, <dic_name>.aff, <dic_name>.version. Return stats."""
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    aff_blocks, dic_lines = build_sfx_rules(form_lemma, freq_map)
+    aff_blocks, dic_lines = build_sfx_rules(
+        form_lemma, freq_map,
+        canonical_forms=canonical_forms,
+        canonical_lemmas=canonical_lemmas,
+    )
 
     # .aff header
     aff_header = [
@@ -594,6 +738,9 @@ def run_export(sanity: int | None, variants: list[str],
     mg_freq, ag_freq = load_freq_maps()
     print(f"  MG freq: {len(mg_freq):,} entries")
     print(f"  AG freq: {len(ag_freq):,} entries")
+    canonical_forms, canonical_lemmas = load_canonical_ag_sets()
+    print(f"  AG canonical forms (pin to C): {len(canonical_forms):,}")
+    print(f"  AG canonical lemmas (pin to C): {len(canonical_lemmas):,}")
     print()
 
     conn = sqlite3.connect(str(LOOKUP_DB))
@@ -601,7 +748,8 @@ def run_export(sanity: int | None, variants: list[str],
 
     for variant in variants:
         print(f"=== Variant: {variant} ===")
-        form_lemma = select_forms(conn, variant)
+        keep = canonical_lemmas if variant == "grc" else None
+        form_lemma = select_forms(conn, variant, keep_lemmas=keep)
         print(f"  {len(form_lemma):,} raw (form, lemma) pairs from lookup.db")
 
         if variant == "grc":
@@ -696,6 +844,8 @@ def run_export(sanity: int | None, variants: list[str],
                 lang_tag="grc",
                 version=version,
                 commit=commit,
+                canonical_forms=canonical_forms,
+                canonical_lemmas=canonical_lemmas,
             )
 
         print(f"  entries: {stats['entries']:,}")

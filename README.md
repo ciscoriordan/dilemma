@@ -1058,9 +1058,32 @@ monotonic) is retained for other downstream consumers via
 | `el_GR_monotonic.{dic,aff,version}` | `el` | `el_GR` | Modern Greek monotonic forms, including MG-relevant vocabulary drawn from the AG side of `lookup.db` (articles, common verbs, proper names). Not shipped in Tonos. |
 
 Each dictionary entry carries a morphological field `fr:<bucket>` where
-the bucket is one of `C` (count >= 1000), `M` (count >= 100), `R`
-(count >= 1), or `X` (unseen in corpus). This lets consumers rank
-spelling candidates without shipping the full frequency table.
+the bucket is one of `C` (common), `M` (medium), `R` (rare), or `X`
+(unseen in corpus). This lets consumers rank spelling candidates
+without shipping the full frequency table.
+
+The bucket is chosen from three signals, in priority order:
+
+1. **Canonical seed.** `data/canonical_ag_forms.json` pins ~194 iconic
+   polytonic surface forms to `C` (Iliad/Odyssey/Herodotus incipits,
+   Olympians, Homeric heroes). These are low-token-count forms whose
+   cultural weight exceeds their corpus frequency - `ἄειδε` appears
+   only 71 times in corpus but is the opening word of the Iliad.
+2. **Canonical lemmas.** ~168 famous lemmas (`ἀείδω`, `μῆνις`, `Πλάτων`,
+   etc.) promote any polytonic-marked form of theirs to `C`. This
+   catches canonical inflections beyond what the seed enumerates.
+3. **Lemma aggregate.** For polytonic forms, the lemma's total corpus
+   count promotes the form: `>= 20K -> C`, `>= 5K -> M`. Highly-
+   inflected lemmas (`ἀείδω` has 1289 surface forms) would otherwise
+   dilute frequency across the paradigm so no single form crosses the
+   per-form threshold.
+4. **Per-form count fallback.** `count >= 1000 -> C`, `>= 100 -> M`,
+   `>= 1 -> R`, else `X`.
+
+Only polytonic-marked forms receive the canonical promotions, so
+monotonic leaks like `άειδε` (acute-only, no breathing) stay at `R`
+and downstream rankers can pick the polytonic variant when the two
+otherwise tie.
 
 ```bash
 python export_hunspell.py                 # grc polytonic (default)
