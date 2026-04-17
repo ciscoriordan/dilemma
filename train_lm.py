@@ -21,6 +21,7 @@ Currently registered:
     - GLAUx             (``iter_glaux_sentences``, inline below)
     - Diorisis          (``extract_diorisis_lm.iter_diorisis_sentences``)
     - Polytonic MG      (``extract_polytonic_mg.iter_polytonic_mg_sentences``)
+    - Byzantine         (``extract_byzantine.iter_byzantine_sentences``)
 
 Pipeline
 --------
@@ -299,6 +300,20 @@ def build_corpus_sources(args, max_files):
             ),
         ))
 
+    if not args.no_byzantine:
+        # Lazy import; the Byzantine loader just does filesystem reads,
+        # but keeping the same shape as the other entries makes the
+        # registry pattern uniform.
+        from extract_byzantine import iter_byzantine_sentences
+
+        byz_dir = (
+            Path(args.byzantine_dir) if args.byzantine_dir else None
+        )
+        sources.append((
+            "byzantine",
+            iter_byzantine_sentences(corpus_dir=byz_dir),
+        ))
+
     return sources
 
 
@@ -315,6 +330,13 @@ def main():
     ap.add_argument("--polytonic-mg-parquet", type=str, default=None,
                     help="Override path to the Wikisource parquet "
                          "(defaults to the HF cache location).")
+    ap.add_argument("--no-byzantine", action="store_true",
+                    help="Skip the Byzantine vernacular corpus "
+                         "(extract_byzantine.py).")
+    ap.add_argument("--byzantine-dir", type=str, default=None,
+                    help="Override the Byzantine corpus directory "
+                         "(defaults to "
+                         "~/Documents/byzantine-vernacular-corpus/texts).")
     ap.add_argument("--out", type=str, default=str(BUILD_DIR))
     ap.add_argument("--vocab-size", type=int, default=80_000)
     ap.add_argument("--min-count-bi", type=int, default=1)
@@ -437,6 +459,10 @@ def main():
         "polytonic_mg_parquet": (
             None if args.no_polytonic_mg
             else (args.polytonic_mg_parquet or "<hf_cache_default>")
+        ),
+        "byzantine_dir": (
+            None if args.no_byzantine
+            else (args.byzantine_dir or "<default>")
         ),
         "per_corpus": per_corpus_stats,
         "sanity": args.sanity,
