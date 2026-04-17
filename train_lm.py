@@ -1,25 +1,44 @@
 #!/usr/bin/env python3
-"""Extract sentence-level n-gram counts from GLAUx for the polytonic
-next-word prediction LM.
+"""Extract sentence-level n-gram counts from Ancient Greek corpora for
+the polytonic next-word prediction LM.
 
 Produces intermediate JSON/NPZ files under ``build/lm/`` which the
 companion ``export_lm.py`` compiles into the mmap-friendly binary
 artifact ``grc_ngram.bin`` consumed by the Tonos iOS keyboard extension.
 
+Corpora
+-------
+
+Each corpus has its own loader that yields ``(sentence_id, [tokens])``
+in the same shape (``BOS`` + polytonic NFC tokens + ``EOS``). ``main``
+chains them through a single ingest loop. Adding a new corpus means
+dropping in a new loader module and appending one entry to
+``build_corpus_sources``; the counting, vocab-building, split, and eval
+logic stay unchanged. This keeps parallel branches that add new corpora
+mergeable without rework.
+
+Currently registered:
+    - GLAUx             (``iter_glaux_sentences``, inline below)
+    - Diorisis          (``extract_diorisis_lm.iter_diorisis_sentences``)
+
 Pipeline
 --------
 
-1. Walk GLAUx XML files, collect one token list per sentence in document
-   order, preserving NFC polytonic forms exactly (no accent stripping,
-   no case folding).
+1. Walk each corpus's XML files, collect one token list per sentence in
+   document order, preserving NFC polytonic forms exactly (no accent
+   stripping, no case folding).
 2. Deterministic train/dev split on sentence hash (seed=4242): 98%
-   train / 2% dev. Same split across runs so eval numbers are
-   reproducible.
-3. Tokens: all surface forms with AGDT POS code != ``u`` (punctuation).
-   Common sentence-ending punctuation (``.`` ``;`` ``·``) is collapsed
-   to ``</s>`` and a ``<s>`` token is prepended to every sentence.
-4. Truncate vocabulary to the top --vocab-size most frequent types
-   (default 32000). Everything else -> ``<UNK>``.
+   train / 2% dev. Sentence ids from different corpora share the same
+   hash space but use per-corpus prefixes so the GLAUx dev bucket stays
+   identical to the GLAUx-only baseline run. Same split across runs so
+   eval numbers are reproducible.
+3. Tokens: all surface forms with at least one Greek letter.
+   Sentence-ending punctuation in GLAUx (``.`` ``;`` ``·`` etc.) is
+   collapsed to ``</s>`` and a ``<s>`` token is prepended to every
+   sentence. Diorisis has explicit ``<sentence>`` structure and no
+   internal punctuation tokens, so ``</s>`` is appended unconditionally.
+4. Truncate vocabulary to the top --vocab-size most frequent types.
+   Everything else -> ``<UNK>``.
 5. Count unigrams, bigrams, trigrams on the training split. Discard
    n-grams whose count falls below --min-count-{bi,tri}, and discard
    trigrams whose underlying (w1, w2) bigram was seen fewer than
@@ -37,9 +56,11 @@ Pipeline
 Usage
 -----
 
-    python train_lm.py --sanity               # 10K sentences, < 1 min
-    python train_lm.py                        # full GLAUx, few minutes
+    python train_lm.py --sanity               # few files per corpus, < 1 min
+    python train_lm.py                        # full GLAUx + Diorisis
+    python train_lm.py --no-diorisis          # GLAUx-only baseline
     python train_lm.py --glaux /path/to/xml   # custom GLAUx location
+    python train_lm.py --diorisis /path       # custom Diorisis location
 
 The sanity pass is deliberately small so the rest of the pipeline
 (``export_lm.py``, ``eval_lm.py``) can be exercised end-to-end in under
@@ -62,6 +83,15 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 BUILD_DIR = SCRIPT_DIR / "build" / "lm"
 DEFAULT_GLAUX = Path.home() / "Documents" / "glaux" / "xml"
+# Diorisis lives under dilemma/data/diorisis/xml in the canonical
+# checkout. Fall back to that checkout if this script runs from a
+# git worktree that doesn't have the XML unpacked locally.
+DEFAULT_DIORISIS = SCRIPT_DIR / "data" / "diorisis" / "xml"
+if not DEFAULT_DIORISIS.exists():
+    _alt = (Path.home() / "Documents" / "dilemma"
+            / "data" / "diorisis" / "xml")
+    if _alt.exists():
+        DEFAULT_DIORISIS = _alt
 
 # Sentence-ending punctuation treated as </s>
 SENT_END = {".", ";", "·", "!", "?"}
@@ -216,9 +246,45 @@ def count_ngrams(
     return uni, bi, tri, total_tokens
 
 
+def build_corpus_sources(args, max_files):
+    """Return list of (corpus_name, iterator) for the ingest loop.
+
+    Each iterator yields ``(sentence_id, [tokens])`` with the same
+    shape. Parallel branches that add new corpora should import their
+    loader and append one line here; they should not modify the ingest
+    loop in ``main`` itself.
+
+    ``sentence_id`` must be stable across runs and unique across the
+    whole registry so the hash-based dev split is deterministic. The
+    GLAUx loader yields bare ``doc_id:sid`` strings (unprefixed, so the
+    GLAUx bucket assignments match the GLAUx-only baseline run); every
+    other loader namespaces its ids (e.g. ``diorisis:...``) to keep
+    hash spaces independent.
+    """
+    sources: list[tuple[str, object]] = []
+
+    glaux = Path(args.glaux)
+    sources.append(("glaux", iter_glaux_sentences(glaux, max_files)))
+
+    if not args.no_diorisis:
+        # Imported lazily so GLAUx-only runs don't require the betacode
+        # dependency.
+        from extract_diorisis_lm import iter_diorisis_sentences
+        diorisis = Path(args.diorisis)
+        sources.append(
+            ("diorisis", iter_diorisis_sentences(diorisis, max_files))
+        )
+
+    return sources
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--glaux", type=str, default=str(DEFAULT_GLAUX))
+    ap.add_argument("--diorisis", type=str, default=str(DEFAULT_DIORISIS))
+    ap.add_argument("--no-diorisis", action="store_true",
+                    help="Skip the Diorisis corpus; GLAUx only "
+                         "(reproduces the original baseline).")
     ap.add_argument("--out", type=str, default=str(BUILD_DIR))
     ap.add_argument("--vocab-size", type=int, default=80_000)
     ap.add_argument("--min-count-bi", type=int, default=1)
@@ -230,11 +296,10 @@ def main():
                          "on contexts the user is actually likely to "
                          "type.")
     ap.add_argument("--sanity", action="store_true",
-                    help="Only read ~40 XML files (~10K sentences). "
-                         "Runs the full pipeline end-to-end in ~30 s.")
+                    help="Only read ~40 XML files per corpus. "
+                         "Runs the full pipeline end-to-end in <1 min.")
     args = ap.parse_args()
 
-    glaux = Path(args.glaux)
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
 
@@ -243,18 +308,38 @@ def main():
     t0 = time.time()
     train_sents: list[list[str]] = []
     dev_sents: list[list[str]] = []
+    # Parallel list: corpus-of-origin for every entry in dev_sents, so
+    # we can write per-corpus dev files for apples-to-apples evaluation
+    # against the GLAUx-only baseline.
+    dev_sent_corpora: list[str] = []
     n_raw_tokens = 0
+    per_corpus_stats: dict[str, dict[str, int]] = {}
 
-    print(f"Scanning GLAUx at {glaux} ...", flush=True)
-    for i, (sid, toks) in enumerate(iter_glaux_sentences(glaux, max_files)):
-        n_raw_tokens += len(toks)
-        if sentence_goes_to_dev(sid):
-            dev_sents.append(toks)
-        else:
-            train_sents.append(toks)
-        if (i + 1) % 50_000 == 0:
-            print(f"  ...{i+1:,} sentences ({n_raw_tokens:,} tokens)",
-                  flush=True)
+    for corpus_name, iterator in build_corpus_sources(args, max_files):
+        c0 = time.time()
+        c_train = c_dev = c_tokens = 0
+        print(f"Scanning {corpus_name} ...", flush=True)
+        for i, (sid, toks) in enumerate(iterator):
+            n_raw_tokens += len(toks)
+            c_tokens += len(toks)
+            if sentence_goes_to_dev(sid):
+                dev_sents.append(toks)
+                dev_sent_corpora.append(corpus_name)
+                c_dev += 1
+            else:
+                train_sents.append(toks)
+                c_train += 1
+            if (i + 1) % 50_000 == 0:
+                print(f"  ...{corpus_name}: {i+1:,} sentences "
+                      f"({c_tokens:,} tokens)", flush=True)
+        per_corpus_stats[corpus_name] = {
+            "train_sentences": c_train,
+            "dev_sentences": c_dev,
+            "tokens": c_tokens,
+        }
+        print(f"  {corpus_name}: {c_train:,} train / {c_dev:,} dev "
+              f"sentences ({c_tokens:,} tokens) "
+              f"in {time.time() - c0:.1f}s", flush=True)
 
     print(f"Collected {len(train_sents):,} train / {len(dev_sents):,} dev "
           f"sentences ({n_raw_tokens:,} tokens) "
@@ -298,13 +383,28 @@ def main():
         for toks in dev_sents:
             f.write(" ".join(toks) + "\n")
 
+    # Per-corpus dev files let downstream eval compare against
+    # single-corpus baselines on the identical held-out sentences.
+    per_corpus_dev: dict[str, list[list[str]]] = {}
+    for toks, name in zip(dev_sents, dev_sent_corpora):
+        per_corpus_dev.setdefault(name, []).append(toks)
+    for name, toks_list in per_corpus_dev.items():
+        path = out / f"dev_sentences_{name}.txt"
+        with open(path, "w", encoding="utf-8") as f:
+            for toks in toks_list:
+                f.write(" ".join(toks) + "\n")
+
     oov_share = 1.0 - (
         sum(raw_counts[w] for w in raw_counts if w in tok2id)
         / max(1, sum(raw_counts.values()))
     )
 
     stats = {
-        "glaux_dir": str(glaux),
+        "glaux_dir": str(Path(args.glaux)),
+        "diorisis_dir": (
+            None if args.no_diorisis else str(Path(args.diorisis))
+        ),
+        "per_corpus": per_corpus_stats,
         "sanity": args.sanity,
         "n_train_sentences": len(train_sents),
         "n_dev_sentences": len(dev_sents),
