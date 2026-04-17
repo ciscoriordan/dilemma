@@ -1104,6 +1104,115 @@ python export_hunspell.py
 python eval_hunspell.py --n 200
 ```
 
+### Polytonic next-word prediction LM
+
+`train_lm.py` + `export_lm.py` produce a compact next-word prediction
+language model, `build/lm/grc_ngram.bin`, aimed at the Tonos iOS
+keyboard extension for a QuickType-style suggestion strip over
+polytonic Greek.
+
+This is a classical **stupid-backoff trigram** over GLAUx (~18.5M
+polytonic tokens, 948K sentences after a deterministic 2% dev split).
+Classical n-gram is a deliberate choice: inference is a couple of
+binary searches on mmap'd bytes (no ML runtime, no matmul), trivially
+under 1 ms per keystroke, and the artifact can be used directly from
+a keyboard extension without adding a Core ML dependency. A small
+neural LM would improve perplexity but cannot beat this on the cost
+side that keyboards are constrained by: cold-start memory and
+per-keystroke CPU.
+
+Build
+
+```bash
+python train_lm.py --sanity    # ~30 s, 40 XML files, proves pipeline
+python train_lm.py             # full GLAUx, ~2 min
+python export_lm.py            # writes grc_ngram.bin + .version, ~25 s
+python eval_lm.py              # writes eval_results.txt, ~60 s
+```
+
+Output layout:
+
+```
+build/lm/
+  grc_ngram.bin            mmap-friendly binary, ~34 MB
+  grc_ngram.version        semver + dilemma commit + vocab/context counts
+  eval_results.txt         from eval_lm.py
+  vocab.json               intermediate from train_lm.py
+  unigrams.json            intermediate
+  bigrams.tsv.gz           intermediate
+  trigrams.tsv.gz          intermediate
+  dev_sentences.txt        held-out dev set, deterministic split (seed 4242)
+  stats.json               training corpus statistics
+```
+
+Artifact layout at a glance (full spec in the docstring of
+`export_lm.py`): a 128-byte little-endian header, a sorted UTF-8
+vocab (binary-searchable by the Swift reader), and three flat sorted
+tables, unigram top-K, bigram top-K-per-w1, and trigram top-K-per-w1,w2.
+Each suggestion entry is 6 bytes: a `u32` word id and an `i16`
+fixed-point log probability (scale 1024). Lookup is a binary search
+on the trigram context (w1, w2); on miss, fall back to bigram (w1);
+on miss, fall back to the global unigram top-K. All tables are
+mmap'd and accessed by offset; nothing needs to be read into RAM.
+
+Default knobs (defined in `train_lm.py`):
+
+| Knob | Value | Effect |
+|------|------:|--------|
+| vocab size | 80,000 | Reduces UNK target rate to 7.6% on the dev split |
+| top-K per context | 10 | Bigram/trigram suggestion fan-out |
+| min bigram count | 1 | Keep every observed bigram |
+| min trigram count | 1 | Keep every observed trigram... |
+| min bigram count for trigram | 3 | ...but only when the (w1, w2) bigram context is well attested. Rare contexts fall back to the bigram table at inference. This is the dominant size/quality knob. |
+
+Current build: ~35 MB, ~80K vocab, ~654K trigram contexts,
+~80K bigram contexts. Within the 30-50 MB budget Tonos has for a
+single artifact inside a keyboard extension.
+
+Held-out evaluation on 19,578 dev sentences (362,684 predictions):
+
+| Regime | top-1 | top-3 | top-5 |
+|--------|------:|------:|------:|
+| All positions (research baseline, incl. `</s>` and UNK targets) | 11.8% | 20.1% | 24.1% |
+| Keyboard-realistic (exclude `</s>` and UNK targets) | 13.6% | 23.1% | 27.8% |
+
+Backoff level breakdown: ~69% of predictions hit the trigram table,
+~31% fall back to bigrams, <0.01% fall to unigram. Perplexity (stupid
+backoff, α=0.4) is reported in `eval_results.txt` but is **not** a
+clean perplexity: because the binary only stores the top-K
+continuations per context, off-list targets are assigned a floor
+probability, which drives PPL up. The top-K accuracies are the real
+quality metric for this artifact; PPL is a sanity signal, not a
+headline number.
+
+Expectations, honest:
+
+- **Top-1 ~14% is the expected order of magnitude for polytonic
+  Ancient Greek.** AG has highly variable constituent order, rich
+  inflectional morphology, and a training corpus orders of magnitude
+  smaller than English keyboard LMs. English QuickType-style
+  predictors typically hit 15-30% top-1 on in-domain text; for AG,
+  top-5 around 25-30% is a respectable baseline.
+- **UNK rate is 7.6%** on the dev split even at 80K vocab. Polytonic
+  inflection multiplies forms (a typical verb has 300+ forms), so
+  long-tail coverage is inherently hard. Tonos can let the user type
+  any form; the LM just won't propose it.
+- **Homographs are preserved.** ἦ (past indicative) and ἤ
+  (disjunction) remain distinct. No accent stripping is done at any
+  stage.
+- **GLAUx only.** The Diorisis XML is also on disk but encoded in
+  Beta Code (not polytonic Unicode), so its surface forms are not
+  directly usable without a beta-to-polytonic transliteration pass
+  that we haven't written yet. GLAUx at 17M polytonic tokens is
+  enough for a credible first cut.
+
+Reader contract for Tonos: the binary format is versioned in the
+header (`format_version = 1`) and in `grc_ngram.version`. Any on-disk
+layout change will bump `format_version`. The sidecar version file
+also carries the dilemma commit hash, vocab size, and trigram /
+bigram context counts so a Tonos build can detect staleness and
+refuse mismatched artifacts.
+
 ## Data
 
 ### Sources and scale
