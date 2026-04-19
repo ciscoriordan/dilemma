@@ -20,11 +20,15 @@ Usage:
 """
 
 import json
+import sys
 import unicodedata
 from collections import Counter
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+from form_sanitize import sanitize_form  # noqa: E402
+
 DATA_DIR = SCRIPT_DIR / "data"
 OUTPUT_PATH = DATA_DIR / "perseus_pairs.json"
 
@@ -62,7 +66,11 @@ def _is_greek(s: str) -> bool:
 
 
 def _normalize_nfc(s: str) -> str:
-    return unicodedata.normalize("NFC", s)
+    # NFC + fix misplaced combining breathings (Perseus encodes elision and
+    # aphaeresis with a combining psili U+0313; canonical AG orthography
+    # uses U+1FBD GREEK KORONIS, and a leading mark should be reordered
+    # onto the following base letter). See form_sanitize for the rules.
+    return sanitize_form(unicodedata.normalize("NFC", s))
 
 
 def parse_conllu(path: Path) -> list[dict]:

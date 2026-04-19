@@ -17,11 +17,15 @@ Usage:
 
 import json
 import sqlite3
+import sys
 import time
 import unicodedata
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+from form_sanitize import sanitize_form  # noqa: E402
+
 DATA_DIR = SCRIPT_DIR / "data"
 DB_PATH = DATA_DIR / "lookup.db"
 SPELL_DB_PATH = DATA_DIR / "spell_index.db"
@@ -391,6 +395,35 @@ def build():
     def _is_article_map(form, lemma):
         return (strip_accents(form.lower()) in {strip_accents(a.lower()) for a in _EXCLUDED_ARTICLE_MAPS}
                 and strip_accents(lemma.lower()) == strip_accents(_ARTICLE_LEMMA.lower()))
+
+    # Sanitise every form and lemma so a stray combining breathing mark
+    # (leading U+0313/U+0314/U+1FBF/U+1FFE, or trailing U+0313/U+0314 used
+    # as an apostrophe) cannot leak into lookup.db from any upstream source.
+    # LSJ paradigm expansion produces leading combining-psili forms like
+    # `̓Αβαρικός`, and treebank exports encode elision as trailing psili
+    # (`μετ̓`). See form_sanitize.sanitize_form for the rules.
+    def _sanitize_table(name: str, table: dict) -> dict:
+        out: dict = {}
+        changed = 0
+        for k, v in table.items():
+            sk = sanitize_form(k)
+            sv = sanitize_form(v) if isinstance(v, str) else v
+            if not sk:
+                continue
+            if sk != k:
+                changed += 1
+            # If sanitisation collides two keys, keep the first-seen value
+            # (the tables are already merged by priority upstream).
+            if sk not in out:
+                out[sk] = sv
+        if changed:
+            print(f"  Sanitised {changed:,} {name} forms "
+                  f"(misplaced breathing marks)")
+        return out
+
+    print("\nSanitising form-and-lemma tables...")
+    ag = _sanitize_table("AG", ag)
+    el = _sanitize_table("EL", el)
 
     # Build combined lookup (AG-first priority)
     print("\nBuilding combined lookup (AG-first)...")

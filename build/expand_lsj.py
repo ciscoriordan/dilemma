@@ -26,6 +26,9 @@ from collections import Counter
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(SCRIPT_DIR))
+from form_sanitize import sanitize_form  # noqa: E402
+
 DATA_DIR = SCRIPT_DIR / "data"
 LSJ9_DIR = Path.home() / "Documents" / "lsj9"
 LSJ9_FORMS = LSJ9_DIR / "lsj9_forms.tsv"
@@ -919,21 +922,29 @@ def expand_all():
 
         stats["expanded"] += 1
 
-        for form in forms:
+        # Wiktionary's Lua modules occasionally emit forms with a misplaced
+        # leading combining psili (U+0313 + base letter) for proper-noun
+        # lemmas whose citation form starts with U+1FBF. sanitize_form()
+        # reattaches the breathing to the base letter and NFC-composes.
+        hw_clean = sanitize_form(hw)
+        for raw_form in forms:
+            form = sanitize_form(raw_form)
+            if not form:
+                continue
             # Accented version
             if form not in lookup:
-                lookup[form] = hw
+                lookup[form] = hw_clean
                 stats["new_forms"] += 1
-            elif lookup[form] != hw:
+            elif lookup[form] != hw_clean:
                 stats["collisions"] += 1
 
             # Accent-stripped version
             plain = strip_diacritics(form)
             if plain != form:
                 if plain not in lookup:
-                    lookup[plain] = hw
+                    lookup[plain] = hw_clean
                     stats["new_forms"] += 1
-                elif lookup[plain] != hw:
+                elif lookup[plain] != hw_clean:
                     stats["collisions"] += 1
 
         if (i + 1) % 1000 == 0:
@@ -1004,19 +1015,24 @@ def expand_verbs():
 
         stats["expanded"] += 1
 
-        for form in forms:
+        # See sanitize_form() rationale in expand_all() above.
+        hw_clean = sanitize_form(hw)
+        for raw_form in forms:
+            form = sanitize_form(raw_form)
+            if not form:
+                continue
             if form not in lookup:
-                lookup[form] = hw
+                lookup[form] = hw_clean
                 stats["new_forms"] += 1
-            elif lookup[form] != hw:
+            elif lookup[form] != hw_clean:
                 stats["collisions"] += 1
 
             plain = strip_diacritics(form)
             if plain != form:
                 if plain not in lookup:
-                    lookup[plain] = hw
+                    lookup[plain] = hw_clean
                     stats["new_forms"] += 1
-                elif lookup[plain] != hw:
+                elif lookup[plain] != hw_clean:
                     stats["collisions"] += 1
 
         if (i + 1) % 500 == 0:

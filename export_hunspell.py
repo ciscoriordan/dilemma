@@ -83,6 +83,8 @@ import unicodedata
 from collections import defaultdict
 from pathlib import Path
 
+from form_sanitize import sanitize_form
+
 ROOT = Path(__file__).parent
 DATA = ROOT / "data"
 OUT = ROOT / "build" / "hunspell"
@@ -822,6 +824,30 @@ def run_export(sanity: int | None, variants: list[str],
             form_lemma = [(f, l) for f, l in form_lemma if l in seen_lemmas]
             print(f"  Sanity pass: {len(seen_lemmas):,} lemmas, "
                   f"{len(form_lemma):,} forms")
+
+        # Belt-and-braces guard: sanitize every form so a misplaced combining
+        # breathing (leading U+0313/U+0314 or trailing U+0313/U+0314 used as
+        # an apostrophe) never reaches the .dic. See form_sanitize.sanitize_form
+        # for the full rules. Lemmas are sanitized too so that two lemma
+        # spellings that differ only by this bug collapse onto one paradigm.
+        sanitized: list[tuple[str, str]] = []
+        changed_forms = 0
+        dedup: set[tuple[str, str]] = set()
+        for f, l in form_lemma:
+            sf = sanitize_form(f)
+            sl = sanitize_form(l)
+            if not sf:
+                continue
+            if (sf, sl) in dedup:
+                continue
+            dedup.add((sf, sl))
+            if sf != f:
+                changed_forms += 1
+            sanitized.append((sf, sl))
+        if changed_forms:
+            print(f"  Guard: sanitized {changed_forms:,} forms "
+                  f"(misplaced/orphan breathing marks)")
+        form_lemma = sanitized
 
         if variant == "el":
             stats = write_variant(

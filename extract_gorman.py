@@ -18,10 +18,14 @@ Usage:
 """
 
 import json
+import sys
 import unicodedata
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+from form_sanitize import sanitize_form  # noqa: E402
+
 DATA_DIR = SCRIPT_DIR / "data"
 OUTPUT_PATH = DATA_DIR / "gorman_pairs.json"
 
@@ -42,8 +46,13 @@ def _is_greek(s: str) -> bool:
 
 
 def _normalize_nfc(s: str) -> str:
-    """Normalize to NFC form."""
-    return unicodedata.normalize("NFC", s)
+    """Normalize to NFC and fix misplaced combining breathing marks.
+
+    Gorman encodes elision with a trailing combining psili (U+0313);
+    the canonical spacing mark is U+1FBD GREEK KORONIS. A leading
+    combining breathing is reordered onto the following base letter.
+    """
+    return sanitize_form(unicodedata.normalize("NFC", s))
 
 
 def extract_gorman_pairs(gorman_dir: Path = GORMAN_DIR) -> list[dict]:
