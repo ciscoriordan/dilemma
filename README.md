@@ -4,7 +4,7 @@
   <img width="640" alt="dilemma" src="social.jpg">
 </p>
 
-Dilemma is a holistic Greek lemmatizer spanning Ancient Greek (Classical,
+Dilemma is a diachronic Greek lemmatizer spanning Ancient Greek (Classical,
 Homeric, Hellenistic), Medieval/Byzantine Greek (both vernacular and
 literary), and Modern Greek (Demotic and Katharevousa). It combines multiple strategies into a unified pipeline:
 
