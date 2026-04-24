@@ -4,7 +4,7 @@ Drop-in replacement for the PyTorch model's generate() method.
 Uses ONNX Runtime instead of PyTorch, eliminating the ~2GB dependency.
 
 Usage (called automatically by Dilemma when ONNX files exist):
-    from onnx_inference import OnnxLemmaModel
+    from dilemma.onnx_inference import OnnxLemmaModel
     model = OnnxLemmaModel("/path/to/model_dir")
     results = model.generate(src_ids, src_pad_mask, num_beams=4)
 """

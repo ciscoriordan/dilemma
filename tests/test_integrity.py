@@ -149,7 +149,7 @@ def test_onnx_produces_valid_output():
     except Exception:
         # Fall back to direct ONNX loading
         sys.path.insert(0, str(DILEMMA_DIR))
-        from onnx_inference import OnnxLemmaModel, CharVocabLight
+        from dilemma.onnx_inference import OnnxLemmaModel, CharVocabLight
         vocab = CharVocabLight(vocab_path)
         model = OnnxLemmaModel(DEFAULT_MODEL)
 

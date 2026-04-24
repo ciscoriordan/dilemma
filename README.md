@@ -80,8 +80,7 @@ novel is the combination and the scale:
 trains on 3.5M explicit form-to-lemma pairs from Wiktionary inflection
 tables, and the lookup table (which handles 95%+ of words) is literally a
 dictionary of correct answers. This is not unsupervised learning (pattern
-discovery from raw text with no labels). Some evaluations have incorrectly
-categorized Dilemma alongside unsupervised tools.
+discovery from raw text with no labels).
 
 **SQLite backend:** The lookup table loads from a pre-built SQLite database
 (instant startup, ~0.3s) instead of parsing 600MB of JSON (~11s). Falls
@@ -159,18 +158,31 @@ table (which handles 95%+ of words) needs neither.
 ### Installation
 
 ```bash
-git clone https://github.com/ciscoriordan/dilemma.git && cd dilemma
-pip install onnxruntime huggingface_hub  # lightweight dependencies
-huggingface-cli download ciscoriordan/dilemma --local-dir . --include "data/*" "model/*"
+pip install "dilemma[onnx] @ git+https://github.com/ciscoriordan/dilemma.git"
+python -m dilemma download
 ```
 
-This downloads the pre-built lookup tables and ONNX model files from
-HuggingFace. The lookup table handles 95%+ of words with no model at all.
-For the remaining ~5% (unseen forms), the ONNX model files provide
-transformer inference. If you already have PyTorch installed, that works
-too - both produce identical output.
+The first line installs the package plus ONNX Runtime (~50 MB, for unseen-form
+inference). If you already have PyTorch installed, use `dilemma[torch]`
+instead, or just plain `dilemma` to skip the model backend and rely on the
+lookup table alone. The second line downloads the lookup tables and ONNX
+model files from HuggingFace into `~/.cache/dilemma/` (~1.6 GB).
+
+Dilemma looks for data in this order: `$DILEMMA_DATA_DIR`,
+`~/.cache/dilemma/data/`, `<repo-root>/data/` (when running from a clone),
+and `<package>/data/`. Set `DILEMMA_DATA_DIR` to point at an existing copy
+if you have one.
+
+To work from a git checkout (for development or to rebuild the data):
+
+```bash
+git clone https://github.com/ciscoriordan/dilemma.git && cd dilemma
+pip install -e ".[onnx]"
+python -m dilemma download          # or use the build pipeline below
+```
 
 To build the data from scratch instead of downloading:
+
 ```bash
 python build_data.py --download        # downloads Wiktionary dumps, builds lookup tables
 python build_lookup_db.py              # builds SQLite DB for instant startup (optional)
@@ -296,10 +308,10 @@ evaluated with the same normalization (case-folded, accent-stripped)
 and lemma equivalence groups (see `data/benchmarks/bench_all.py`).
 
 **Test sets:**
-- **AG Classical**: Sextus Empiricus, *Pyrrhoniae Hypotyposes* 1.1-1.8 (357 tokens, [First1KGreek](https://opengreekandlatin.github.io/First1KGreek/), CC BY-SA). Not in any UD treebank or Gorman.
-- **Byzantine**: [Swaelens et al. (2024)](https://aclanthology.org/2024.lrec-main.899/) DBBE gold standard (8,342 tokens of unedited Byzantine epigrams, CC BY 4.0). Not in any tool's training data.
-- **Katharevousa**: Konstantinos Sathas, *Neoelliniki Filologia* (1868), biography of Bessarion (318 tokens, [el.wikisource.org](https://el.wikisource.org/), public domain). No Katharevousa treebank exists.
-- **Demotic MG**: Greek Wikipedia articles "[Σπήλαιο Πετραλώνων](https://el.wikipedia.org/wiki/Σπήλαιο_Πετραλώνων)" and "[Ελαιόλαδο](https://el.wikipedia.org/wiki/Ελαιόλαδο)" (400 tokens, CC BY-SA). Not in any MG treebank. A separate dev set (251 tokens from "[Μέλισσα](https://el.wikipedia.org/wiki/Μέλισσα)" and "[Σαμοθράκη](https://el.wikipedia.org/wiki/Σαμοθράκη)") is also available.
+- **AG Classical**: Sextus Empiricus, *Pyrrhoniae Hypotyposes* 1.1-1.8 (357 tokens, [First1KGreek](https://opengreekandlatin.github.io/First1KGreek/), [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)). Not in any UD treebank or Gorman.
+- **Byzantine**: [Swaelens et al. (2024)](https://aclanthology.org/2024.lrec-main.899/) DBBE gold standard (8,342 tokens of unedited Byzantine epigrams, [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)). Not in the training data of any tool in the table below.
+- **Katharevousa**: Konstantinos Sathas, *Neoelliniki Filologia* (1868), biography of Bessarion (318 tokens, [el.wikisource.org](https://el.wikisource.org/), [public domain](https://en.wikipedia.org/wiki/Public_domain)). No Katharevousa treebank exists.
+- **Demotic MG**: Greek Wikipedia articles "[Σπήλαιο Πετραλώνων](https://el.wikipedia.org/wiki/Σπήλαιο_Πετραλώνων)" and "[Ελαιόλαδο](https://el.wikipedia.org/wiki/Ελαιόλαδο)" (400 tokens, [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)). Not in any MG treebank. A separate dev set (251 tokens from "[Μέλισσα](https://el.wikipedia.org/wiki/Μέλισσα)" and "[Σαμοθράκη](https://el.wikipedia.org/wiki/Σαμοθράκη)") is also included at `data/benchmarks/demotic_dev.txt`.
 
 | Tool | AG Classical | Byzantine (literary) | Katharevousa | Demotic MG |
 |------|:--------:|:--------:|:--------:|:--------:|
@@ -312,7 +324,7 @@ and lemma equivalence groups (see `data/benchmarks/bench_all.py`).
 | [Swaelens et al. (2025)](https://aclanthology.org/2025.acl-long.430/) | -- | ~74-75% | -- | -- |
 | **Dilemma** (best convention per period) | **99.7%** | **92.7%** | **95.6%** | **96.0%**† |
 
-<sub>†`lang="el"` with `triantafyllidis` scores 95.8%, nearly matching `lang="all"` (96.0%). For MG-only workloads, `lang="el"` with `triantafyllidis` is recommended since it avoids AG false matches.</sub>
+<sub>†`lang="el"` with `triantafyllidis` scores 95.8%, nearly matching `lang="all"` (96.0%). For MG-only workloads, `lang="el"` with `triantafyllidis` is recommended since it avoids AG lemmas (e.g. σπήλαιον) being returned for MG words that have an AG lookalike.</sub>
 
 Cells marked `--` indicate the tool doesn't support that period or
 wasn't tested. Morpheus "oracle" picks the best candidate from all
@@ -505,9 +517,9 @@ so the Attic-heavy lookup table can match them.
 **Doric**: ᾱ/η alternation (Ἀθάνα → Ἀθήνη), word mappings
 (ποτί → πρός, τύ → σύ), Doric futures (-σέω → -σω).
 
-**Aeolic**: psilosis (smooth → rough breathing normalization).
+**Aeolic**: smooth breathing mapped back to Attic rough breathing (Aeolic systematically drops the rough breathing, a feature known as psilosis).
 
-**Koine**: σσ/ττ alternation (overlaps with Ionic and period rules).
+**Koine**: σσ/ττ alternation (overlaps with the Ionic rule above and with the period-specific normalization rules in the orthographic normalizer).
 
 ```python
 d = Dilemma(dialect="ionic")                              # Ionic texts
@@ -1202,8 +1214,8 @@ Typeahead v2 (format_version = 2) adds two things versus v1:
   continuations and trigram contexts the top 15, so the keyboard's
   mid-word prefix filter has enough candidates to work with even
   after a user has typed a character or two. The global unigram
-  fallback stays at 10. Old v1 files are not forward-compatible:
-  the Swift reader refuses anything below `format_version = 2`.
+  fallback stays at 10. The v2 reader refuses any file with
+  `format_version` below 2, so old v1 binaries must be rebuilt.
 - A per-vocab unigram count column, one `u32` per vocab entry,
   indexed by sorted-vocab id. The Swift reader uses this to rank
   global prefix completions by corpus frequency when the current
@@ -1305,7 +1317,7 @@ the v2 reader does not read v1 files (and vice versa).
 | [Gorman Treebanks](https://github.com/UD-Greek/UD_Ancient_Greek-Gorman) | 79K | 687K tokens across Herodotus, Thucydides, Xenophon, Demosthenes, Lysias, Polybius, etc. |
 | GLAUx corpus | 557K | 17M tokens, 98.8% accuracy ([Keersmaekers 2021](https://github.com/alekkeersmaekers/glaux)) |
 | Diorisis corpus | 76K new | 10M tokens, 91.4% accuracy ([Vatri & McGillivray 2018](https://figshare.com/articles/dataset/The_Diorisis_Ancient_Greek_Corpus/6187256)) |
-| HNC Golden Corpus | 1K new | 88K-token gold MG corpus ([CLARIN:EL](https://inventory.clarin.gr/corpus/870), openUnder-PSI) |
+| HNC Golden Corpus | 1K new | 88K-token gold MG corpus ([CLARIN:EL](https://inventory.clarin.gr/corpus/870), [openUnderPSI](https://www.clarin.eu/content/licenses-and-clarin-categories)) |
 | DGE headwords | 52K | Headword filter coverage from Diccionario Griego-Espanol |
 | LGPN names | 44K | Proper noun coverage from Lexicon of Greek Personal Names |
 | Perseus Digital Library headwords | 176K | Headword filter from L&S, Pape, Bailly, etc. |
@@ -1339,7 +1351,7 @@ We chose not to integrate one other large corpus:
   + LSJ, since the remaining lookup gaps are mostly Byzantine compounds
   not found in any classical corpus.
 
-All three are CC BY-SA 4.0. Compound decomposition (added in v1.5)
+All three are [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). Compound decomposition (added in v1.5)
 reduced the no-lookup-hit rate on DBBE from 4.4% to 2.5% by splitting
 compound words at linking vowels (ο/ι/υ), stripping known prefixes,
 and applying Byzantine-specific normalizations. The remaining 2.5%
@@ -1545,19 +1557,19 @@ vocabulary (~160 tokens), so the same word is ~10 steps. Combined with
 - Training data from [English Wiktionary](https://en.wiktionary.org/) and [Greek Wiktionary](https://el.wiktionary.org/) via [kaikki.org](https://kaikki.org/) JSONL dumps
 - LSJ headwords, forms, and POS data from [LSJ9](https://github.com/ciscoriordan/lsj9) processed exports (`lsj9_headwords_flat.json`, `lsj9_headword_pos.json`, `lsj9_frequency.json`, `lsj9_indeclinables.json`)
 - Sophocles lexicon TEI from [Ionian University / Internet Archive](https://archive.org/details/pateres)
-- [GLAUx](https://github.com/alekkeersmaekers/glaux) corpus data (Keersmaekers, 2021) (CC BY-SA 4.0)
-- [Diorisis](https://figshare.com/articles/dataset/The_Diorisis_Ancient_Greek_Corpus/6187256) corpus data (Vatri & McGillivray, 2018) (CC BY-SA 3.0)
-- [PROIEL Treebank](https://github.com/UniversalDependencies/UD_Ancient_Greek-PROIEL) gold-standard annotations (CC BY-NC-SA 3.0)
-- [Perseus Treebank](https://github.com/UniversalDependencies/UD_Ancient_Greek-Perseus) (AGDT) gold-standard annotations (CC BY-NC-SA 3.0)
-- [Gorman Treebanks](https://github.com/UD-Greek/UD_Ancient_Greek-Gorman) (Gorman) (CC BY-NC-SA 4.0)
-- [HNC Golden Corpus](https://inventory.clarin.gr/corpus/870) from CLARIN:EL (openUnder-PSI)
+- [GLAUx](https://github.com/alekkeersmaekers/glaux) corpus data (Keersmaekers, 2021) ([CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/))
+- [Diorisis](https://figshare.com/articles/dataset/The_Diorisis_Ancient_Greek_Corpus/6187256) corpus data (Vatri & McGillivray, 2018) ([CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/))
+- [PROIEL Treebank](https://github.com/UniversalDependencies/UD_Ancient_Greek-PROIEL) gold-standard annotations ([CC BY-NC-SA 3.0](https://creativecommons.org/licenses/by-nc-sa/3.0/))
+- [Perseus Treebank](https://github.com/UniversalDependencies/UD_Ancient_Greek-Perseus) (AGDT) gold-standard annotations ([CC BY-NC-SA 3.0](https://creativecommons.org/licenses/by-nc-sa/3.0/))
+- [Gorman Treebanks](https://github.com/UD-Greek/UD_Ancient_Greek-Gorman) (Gorman) ([CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/))
+- [HNC Golden Corpus](https://inventory.clarin.gr/corpus/870) from CLARIN:EL ([openUnderPSI](https://www.clarin.eu/content/licenses-and-clarin-categories))
 - DGE headwords from the [Diccionario Griego-Espanol](http://dge.cchs.csic.es/) (CSIC)
 - LGPN proper names from the [Lexicon of Greek Personal Names](https://www.lgpn.ox.ac.uk/) (Oxford)
 - Perseus Digital Library headwords (L&S, Pape, Bailly) from the [Perseus project](https://www.perseus.tufts.edu/)
 - MG polytonic frequencies from [glossAPI/Wikisource Greek texts](https://huggingface.co/datasets/glossAPI/Wikisource_Greek_texts) on HuggingFace
-- DBBE evaluation data from [Swaelens et al.](https://github.com/coswaele/ByzantineGreekDatasets) (CC BY 4.0)
+- DBBE evaluation data from [Swaelens et al.](https://github.com/coswaele/ByzantineGreekDatasets) ([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/))
 - Flag icons by [svg-flags](https://github.com/ciscoriordan/svg-flags)
 
 ## License
 
-MIT. Copyright Francisco Riordan.
+[MIT](https://opensource.org/license/mit). Copyright Francisco Riordan.

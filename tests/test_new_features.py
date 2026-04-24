@@ -24,9 +24,10 @@ DATA_DIR = PROJECT_ROOT / "data"
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from dilemma import (
-    Dilemma, LemmaCandidate, strip_accents, _ARTICLE_FEATURES,
+    Dilemma, LemmaCandidate, strip_accents,
 )
-from normalize import Normalizer, IONIC_WORD_MAP, DORIC_WORD_MAP
+from dilemma.core import _ARTICLE_FEATURES
+from dilemma.normalize import Normalizer, IONIC_WORD_MAP, DORIC_WORD_MAP
 
 
 # ---------------------------------------------------------------------------

@@ -83,7 +83,7 @@ import unicodedata
 from collections import defaultdict
 from pathlib import Path
 
-from form_sanitize import sanitize_form
+from dilemma.form_sanitize import sanitize_form
 
 ROOT = Path(__file__).parent
 DATA = ROOT / "data"

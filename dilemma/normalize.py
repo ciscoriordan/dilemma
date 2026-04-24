@@ -7,7 +7,7 @@ etc.) as well as dialect-specific forms (Ionic, Doric, Aeolic).
 Candidates are meant to be checked against a lookup table.
 
 Usage:
-    from normalize import Normalizer
+    from dilemma.normalize import Normalizer
 
     n = Normalizer()                        # all periods
     n = Normalizer(period="byzantine")      # period-specific rules

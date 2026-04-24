@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dilemma"
+version = "0.5.0"
+description = "Diachronic Greek lemmatizer (Ancient, Byzantine, and Modern Greek)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Francisco Riordan" }]
+keywords = ["greek", "ancient-greek", "lemmatization", "nlp", "morphology", "byzantine", "modern-greek"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: Greek",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Text Processing :: Linguistic",
+]
+dependencies = [
+    "huggingface_hub>=0.20",
+]
+
+[project.optional-dependencies]
+onnx = ["onnxruntime>=1.15", "numpy>=1.24"]
+torch = ["torch>=2.0", "numpy>=1.24"]
+lm = ["betacode"]
+dev = ["pytest>=7"]
+
+[project.urls]
+Homepage = "https://github.com/ciscoriordan/dilemma"
+Repository = "https://github.com/ciscoriordan/dilemma"
+
+[project.scripts]
+dilemma = "dilemma.__main__:main"
+
+[tool.setuptools]
+packages = ["dilemma"]
+
+[tool.setuptools.package-data]
+dilemma = []

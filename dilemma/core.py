@@ -31,34 +31,84 @@ Usage:
 
 import json
 import math
+import os
 import re
 import sqlite3
 import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
 
-MODEL_DIR = Path(__file__).parent / "model"
-LOOKUP_DB_PATH = Path(__file__).parent / "data" / "lookup.db"
-SPELL_INDEX_PATH = Path(__file__).parent / "data" / "spell_index.db"
-LSJ9_POS_LOOKUP_PATH = Path(__file__).parent / "data" / "lsj9_pos_lookup.json"
-LSJ9_INDECLINABLES_PATH = Path(__file__).parent / "data" / "lsj9_indeclinables.json"
-LSJ9_FREQUENCY_PATH = Path(__file__).parent / "data" / "lsj9_frequency.json"
-LOOKUP_PATH = Path(__file__).parent / "data" / "mg_lookup.json"
-AG_LOOKUP_PATH = Path(__file__).parent / "data" / "ag_lookup.json"
-MED_LOOKUP_PATH = Path(__file__).parent / "data" / "med_lookup.json"
-MG_POS_LOOKUP_PATH = Path(__file__).parent / "data" / "mg_pos_lookup.json"
-AG_POS_LOOKUP_PATH = Path(__file__).parent / "data" / "ag_pos_lookup.json"
-TREEBANK_POS_LOOKUP_PATH = Path(__file__).parent / "data" / "treebank_pos_lookup.json"
-GLAUX_POS_LOOKUP_PATH = Path(__file__).parent / "data" / "glaux_pos_lookup.json"
-LSJ_HEADWORDS_PATH = Path(__file__).parent / "data" / "lsj_headwords.json"
-CUNLIFFE_HEADWORDS_PATH = Path(__file__).parent / "data" / "cunliffe_headwords.json"
-MG_HEADWORDS_PATH = Path(__file__).parent / "data" / "mg_headwords.json"
-AG_HEADWORDS_PATH = Path(__file__).parent / "data" / "ag_headwords.json"
-DGE_HEADWORDS_PATH = Path(__file__).parent / "data" / "dge_headwords.json"
-LGPN_NAMES_PATH = Path(__file__).parent / "data" / "lgpn_names.json"
-LEMMA_EQUIVALENCES_PATH = Path(__file__).parent / "data" / "lemma_equivalences.json"
-CORPUS_FREQ_PATH = Path(__file__).parent / "data" / "corpus_freq.json"
-CONVENTION_DIR = Path(__file__).parent / "data"
+
+def _resolve_data_dir() -> Path:
+    """Return the directory holding Dilemma data files.
+
+    Resolution order:
+      1. $DILEMMA_DATA_DIR (if set and existing)
+      2. ~/.cache/dilemma/data/ (if existing)
+      3. <repo-root>/data/ (dev mode; repo root is the package's parent)
+      4. <package>/data/ (if someone bundled data inside the install)
+      5. Fallback: ~/.cache/dilemma/data/ even if it doesn't exist yet,
+         so callers get a stable path to write to.
+    """
+    env = os.environ.get("DILEMMA_DATA_DIR")
+    if env:
+        p = Path(env).expanduser()
+        if p.exists():
+            return p
+    cache = Path.home() / ".cache" / "dilemma" / "data"
+    if cache.exists():
+        return cache
+    dev = Path(__file__).resolve().parent.parent / "data"
+    if dev.exists():
+        return dev
+    bundled = Path(__file__).resolve().parent / "data"
+    if bundled.exists():
+        return bundled
+    return cache
+
+
+def _resolve_model_dir() -> Path:
+    """Return the directory holding trained model files. Same order as data."""
+    env = os.environ.get("DILEMMA_MODEL_DIR")
+    if env:
+        p = Path(env).expanduser()
+        if p.exists():
+            return p
+    cache = Path.home() / ".cache" / "dilemma" / "model"
+    if cache.exists():
+        return cache
+    dev = Path(__file__).resolve().parent.parent / "model"
+    if dev.exists():
+        return dev
+    bundled = Path(__file__).resolve().parent / "model"
+    if bundled.exists():
+        return bundled
+    return cache
+
+
+DATA_DIR = _resolve_data_dir()
+MODEL_DIR = _resolve_model_dir()
+LOOKUP_DB_PATH = DATA_DIR / "lookup.db"
+SPELL_INDEX_PATH = DATA_DIR / "spell_index.db"
+LSJ9_POS_LOOKUP_PATH = DATA_DIR / "lsj9_pos_lookup.json"
+LSJ9_INDECLINABLES_PATH = DATA_DIR / "lsj9_indeclinables.json"
+LSJ9_FREQUENCY_PATH = DATA_DIR / "lsj9_frequency.json"
+LOOKUP_PATH = DATA_DIR / "mg_lookup.json"
+AG_LOOKUP_PATH = DATA_DIR / "ag_lookup.json"
+MED_LOOKUP_PATH = DATA_DIR / "med_lookup.json"
+MG_POS_LOOKUP_PATH = DATA_DIR / "mg_pos_lookup.json"
+AG_POS_LOOKUP_PATH = DATA_DIR / "ag_pos_lookup.json"
+TREEBANK_POS_LOOKUP_PATH = DATA_DIR / "treebank_pos_lookup.json"
+GLAUX_POS_LOOKUP_PATH = DATA_DIR / "glaux_pos_lookup.json"
+LSJ_HEADWORDS_PATH = DATA_DIR / "lsj_headwords.json"
+CUNLIFFE_HEADWORDS_PATH = DATA_DIR / "cunliffe_headwords.json"
+MG_HEADWORDS_PATH = DATA_DIR / "mg_headwords.json"
+AG_HEADWORDS_PATH = DATA_DIR / "ag_headwords.json"
+DGE_HEADWORDS_PATH = DATA_DIR / "dge_headwords.json"
+LGPN_NAMES_PATH = DATA_DIR / "lgpn_names.json"
+LEMMA_EQUIVALENCES_PATH = DATA_DIR / "lemma_equivalences.json"
+CORPUS_FREQ_PATH = DATA_DIR / "corpus_freq.json"
+CONVENTION_DIR = DATA_DIR
 
 _VALID_CONVENTIONS = {None, "lsj", "cunliffe", "triantafyllidis", "wiktionary"}
 
@@ -770,7 +820,7 @@ class Dilemma:
         self._normalizer = None
         # Setting a dialect implicitly enables normalization
         if normalize or dialect is not None:
-            from normalize import Normalizer
+            from .normalize import Normalizer
             self._normalizer = Normalizer(period=period, dialect=dialect)
 
         # Lookup tables: SQLite-backed (instant startup) or dict (JSON fallback)
@@ -886,9 +936,15 @@ class Dilemma:
                 if self._convention_name == "triantafyllidis":
                     self._mg_lookup = LookupDB(LOOKUP_DB_PATH, lang='el')
             self._using_db = True
-        else:
-            # JSON fallback
+        elif LOOKUP_PATH.exists() or AG_LOOKUP_PATH.exists():
+            # JSON fallback (dev mode before lookup.db is built)
             self._load_lookups_json()
+        else:
+            raise FileNotFoundError(
+                f"Dilemma data not found at {DATA_DIR}. "
+                "Download with: python -m dilemma download  "
+                "(or set DILEMMA_DATA_DIR to point at an existing copy)."
+            )
 
         if not skip_pos:
             self._load_pos_lookups()
@@ -1163,11 +1219,10 @@ class Dilemma:
 
         # Lazy-load LSJ adjective set
         if not hasattr(self, "_lsj_adj_stripped"):
-            lsj_pos_path = (Path(__file__).parent.parent / "lsj9"
-                            / "lsj9_headword_pos.json")
+            lsj_pos_path = (Path(__file__).resolve().parent.parent.parent
+                            / "lsj9" / "lsj9_headword_pos.json")
             if not lsj_pos_path.exists():
-                lsj_pos_path = (Path(__file__).parent / "data"
-                                / "lsj9_headword_pos.json")
+                lsj_pos_path = DATA_DIR / "lsj9_headword_pos.json"
             self._lsj_adj_stripped = {}
             if lsj_pos_path.exists():
                 import json as _json
@@ -1247,8 +1302,8 @@ class Dilemma:
         if hasattr(self, "_sorted_hw_index"):
             return
         all_hws = set()
-        PD_HW_PATH = Path(__file__).parent / "data" / "pd_headwords.json"
-        BRILLDAG_HW_PATH = Path(__file__).parent / "data" / "brilldag_headwords.json"
+        PD_HW_PATH = DATA_DIR / "pd_headwords.json"
+        BRILLDAG_HW_PATH = DATA_DIR / "brilldag_headwords.json"
         for path in [LSJ_HEADWORDS_PATH, CUNLIFFE_HEADWORDS_PATH,
                      AG_HEADWORDS_PATH, DGE_HEADWORDS_PATH, LGPN_NAMES_PATH,
                      PD_HW_PATH, BRILLDAG_HW_PATH]:
@@ -1367,7 +1422,7 @@ class Dilemma:
 
     def _load_onnx(self, model_path):
         """Load ONNX model and lightweight vocab."""
-        from onnx_inference import OnnxLemmaModel, CharVocabLight
+        from .onnx_inference import OnnxLemmaModel, CharVocabLight
         vocab_path = model_path / "vocab.json"
         if not vocab_path.exists():
             raise FileNotFoundError(
@@ -1387,7 +1442,7 @@ class Dilemma:
         self._head_labels for inference use.
         """
         import torch
-        from model import CharVocab, LemmaTransformer
+        from .model import CharVocab, LemmaTransformer
 
         pt_path = model_path / "model.pt"
         if not pt_path.exists():
@@ -1908,7 +1963,7 @@ class Dilemma:
         stripped_lower = strip_accents(word.lower())
         if len(stripped_lower) >= 6:
             if not hasattr(self, '_byz_normalizer'):
-                from normalize import Normalizer
+                from .normalize import Normalizer
                 self._byz_normalizer = Normalizer(period="byzantine")
             norm = self._normalizer or self._byz_normalizer
 
@@ -2326,7 +2381,7 @@ class Dilemma:
 
         # Check crasis first (before lookup, since crasis forms are
         # Wiktionary headwords that self-map in the lookup)
-        from crasis import resolve_crasis
+        from .crasis import resolve_crasis
         crasis_result = resolve_crasis(word) or resolve_crasis(to_monotonic(word))
         if crasis_result is not None:
             return self._apply_convention(crasis_result)
@@ -2722,7 +2777,7 @@ class Dilemma:
                 return candidates
 
         # 2. Crasis
-        from crasis import resolve_crasis
+        from .crasis import resolve_crasis
         cr = resolve_crasis(word) or resolve_crasis(to_monotonic(word))
         if cr:
             _add(cr, source="crasis")
@@ -2910,7 +2965,7 @@ class Dilemma:
                 continue
 
             # Crasis
-            from crasis import resolve_crasis
+            from .crasis import resolve_crasis
             cr = resolve_crasis(word) or resolve_crasis(to_monotonic(word))
             if cr:
                 results.append(cr)

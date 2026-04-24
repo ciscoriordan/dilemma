@@ -31,7 +31,7 @@ from torch.utils.data import Dataset, DataLoader
 
 SEED = 42
 
-from model import CharVocab, LemmaTransformer
+from dilemma.model import CharVocab, LemmaTransformer
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DATA_DIR = SCRIPT_DIR / "data"

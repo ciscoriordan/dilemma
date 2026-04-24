@@ -24,7 +24,7 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 
-from model import CharVocab, LemmaTransformer
+from dilemma.model import CharVocab, LemmaTransformer
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 MODEL_DIR = SCRIPT_DIR / "model"

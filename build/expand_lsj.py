@@ -27,7 +27,7 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(SCRIPT_DIR))
-from form_sanitize import sanitize_form  # noqa: E402
+from dilemma.form_sanitize import sanitize_form  # noqa: E402
 
 DATA_DIR = SCRIPT_DIR / "data"
 LSJ9_DIR = Path.home() / "Documents" / "lsj9"

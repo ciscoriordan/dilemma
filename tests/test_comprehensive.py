@@ -20,10 +20,12 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from dilemma import (
     Dilemma, LemmaCandidate, to_monotonic, strip_accents, grave_to_acute,
+)
+from dilemma.core import (
     _is_self_map, _PARTICLE_SUFFIXES, _DEICTIC_STEMS, _ARTICLE_FEATURES,
 )
-from crasis import resolve_crasis, CRASIS_TABLE
-from normalize import Normalizer, PROFILES, SUBSCRIPTUM_MAP, IONIC_WORD_MAP, DORIC_WORD_MAP
+from dilemma.crasis import resolve_crasis, CRASIS_TABLE
+from dilemma.normalize import Normalizer, PROFILES, SUBSCRIPTUM_MAP, IONIC_WORD_MAP, DORIC_WORD_MAP
 
 
 # ---------------------------------------------------------------------------
