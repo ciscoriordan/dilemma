@@ -130,12 +130,17 @@ table (which handles 95%+ of words) needs neither.
   - [Export to ONNX](#export-to-onnx)
   - [Testing](#testing)
   - [Frequency-ranked inflection lists](#frequency-ranked-inflection-lists)
+  - [Hunspell spell-check export](#hunspell-spell-check-export)
+  - [Polytonic next-word prediction LM](#polytonic-next-word-prediction-lm)
 - [Data](#data)
   - [Sources and scale](#sources-and-scale)
   - [HuggingFace Hub dataset](#huggingface-hub-dataset)
   - [Confidence tiers](#confidence-tiers)
   - [Quality controls](#quality-controls)
+  - [Related work](#related-work)
+  - [Known issues](#known-issues)
 - [Architecture](#architecture)
+- [Projects using Dilemma](#projects-using-dilemma)
 - [Credits](#credits)
 - [License](#license)
 
@@ -1443,7 +1448,7 @@ present"). These are propagated to every form in that table section:
   headword (maps to itself in the lookup). Pairs with non-headword
   lemmas are resolved to the real headword or dropped.
 
-#### Related work
+### Related work
 
 [Vatri & McGillivray (2020)](https://brill.com/view/journals/jgl/20/2/article-p179_4.xml)
 assessed the state of the art in Ancient Greek lemmatization via a
@@ -1477,7 +1482,7 @@ character-level models as the next step. Dilemma's character-level
 encoder-decoder is this architecture, and its perfect tense oversampling
 and multi-task POS head are directly informed by their findings.
 
-#### Known issues
+### Known issues
 
 These are inherent limitations or Wiktionary coverage gaps, not code
 bugs. Most can be fixed by editing the relevant Wiktionary entry, which
@@ -1529,6 +1534,11 @@ vocabulary (~160 tokens), so the same word is ~10 steps. Combined with
 | Parameters | 300M | 4M |
 | Training (3.5M pairs, 3 epochs) | ~20 hours | ~95 min |
 | Dependencies | torch + transformers | torch only (or ONNX only) |
+
+## Projects using Dilemma
+
+- **[Lemma](https://github.com/ciscoriordan/lemma)** - Diachronic Greek dictionary app. Uses Dilemma's frequency-ranked inflection lists (`rank_forms.py`) and the MG equivalences derived from `mg_lookup_scored.json` to resolve looked-up words to their canonical headwords across Ancient, Byzantine, and Modern Greek.
+- **[Tonos](https://tonospolytonic.com/)** - iOS polytonic Greek keyboard. Ships Dilemma's compact Hunspell exports (`grc_polytonic.{dic,aff}`) for spell-check inside the keyboard extension's tight memory budget, plus the trigram language model (`grc_ngram.bin`) for QuickType-style next-word prediction over polytonic Ancient Greek.
 
 ## Credits
 
