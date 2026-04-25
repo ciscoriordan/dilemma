@@ -2621,6 +2621,17 @@ class Dilemma:
             # it comes from curated sources (treebank, GLAUx, Wiktionary).
             if len(candidates) == 1:
                 return pos_lemma_conv
+            # Also trust the POS table when every candidate is just a
+            # case/accent variant of the input form (i.e. nothing in
+            # the candidate list disagrees with the POS table). This
+            # catches forms like αυτού (homograph: pronoun gen sg of
+            # αυτός vs adverb "there") where the lookup has only the
+            # adverb's self-map and the αυτός pron form-of resolution
+            # got hidden under it.
+            word_stripped = strip_accents(word.lower())
+            if all(strip_accents(c.lemma.lower()) == word_stripped
+                   for c in candidates):
+                return pos_lemma_conv
 
         if len(candidates) == 1:
             return candidates[0].lemma
@@ -2799,9 +2810,18 @@ class Dilemma:
             (mono, "mono"), (stripped, "stripped"),
         ]
 
-        for table, lang in [(self._mg_lookup, "el"),
-                            (self._med_lookup, "med"),
-                            (self._ag_lookup, "grc")]:
+        # Respect self.lang: when constructed with lang='el' (MG mode),
+        # don't leak AG candidates (and vice versa). This matters for
+        # lemmatize_pos() which returns the first matching candidate:
+        # αυτό in MG mode must not match AG's αὐτός, and είναι (MG copula)
+        # must not match AG's εἰμί.
+        _tables: list[tuple[object, str]] = []
+        if self.lang in ("all", "el"):
+            _tables.append((self._mg_lookup, "el"))
+            _tables.append((self._med_lookup, "med"))
+        if self.lang in ("all", "grc"):
+            _tables.append((self._ag_lookup, "grc"))
+        for table, lang in _tables:
             for variant, via in variants:
                 lemma = table.get(variant)
                 if lemma:
@@ -2851,9 +2871,7 @@ class Dilemma:
                     (norm_mono, "normalize+mono"),
                     (norm_stripped, "normalize+stripped"),
                 ]
-                for table, lang in [(self._mg_lookup, "el"),
-                                    (self._med_lookup, "med"),
-                                    (self._ag_lookup, "grc")]:
+                for table, lang in _tables:
                     for variant, via in norm_variants:
                         lemma = table.get(variant)
                         if lemma:

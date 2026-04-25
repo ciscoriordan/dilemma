@@ -384,6 +384,13 @@ def build():
     # resolve_articles=True/False in Dilemma controls their resolution.
     # Without this, fresh Wiktionary data maps τοῦ -> ὁ etc. in the
     # lookup itself, bypassing the resolve_articles flag.
+    #
+    # Only AG article mappings are excluded (form -> polytonic ὁ/ἡ/τό
+    # or a polytonic article form). MG article self-maps like ο -> ο
+    # must stay in the lookup so MG lemmatization of function words
+    # works without requiring resolve_articles=True. The AG vs MG
+    # distinction is made by checking for breathing marks / polytonic
+    # diacritics on the lemma.
     _EXCLUDED_ARTICLE_MAPS = {
         "ὁ", "ἡ", "τό", "τοῦ", "τῆς", "τῶν", "τόν", "τήν",
         "τά", "τοῖς", "ταῖς", "τῷ", "τῇ", "τούς", "τάς", "τοῖν", "ταῖν",
@@ -391,10 +398,40 @@ def build():
         "τὸ", "τοὺς", "τὰ", "τὸν", "τὴν", "τὰς", "αἵ", "οἵ",
     }
     _ARTICLE_LEMMA = "ὁ"
+    _excluded_stripped = {strip_accents(a.lower()) for a in _EXCLUDED_ARTICLE_MAPS}
+
+    def _has_polytonic(s):
+        """True if the string carries a breathing or circumflex
+        (i.e. it's an AG polytonic form, not MG monotonic)."""
+        nfd = unicodedata.normalize("NFD", s)
+        for ch in nfd:
+            cp = ord(ch)
+            # Combining smooth/rough breathing, circumflex, iota subscript,
+            # psili/dasia precomposed glyphs
+            if cp in (0x0313, 0x0314, 0x0342, 0x0345, 0x1FBD, 0x1FBF,
+                      0x1FFE, 0x1FC0, 0x1FC1):
+                return True
+        return False
 
     def _is_article_map(form, lemma):
-        return (strip_accents(form.lower()) in {strip_accents(a.lower()) for a in _EXCLUDED_ARTICLE_MAPS}
-                and strip_accents(lemma.lower()) == strip_accents(_ARTICLE_LEMMA.lower()))
+        """True for form -> polytonic-AG-article mappings only.
+
+        Exclude mappings like ο -> ὁ, τοῦ -> ὁ (AG article paradigm),
+        but KEEP MG monotonic self-maps like ο -> ο so that MG
+        lemmatization of function words works without requiring
+        resolve_articles=True. The AG vs MG distinction is made by
+        checking for breathing marks / polytonic diacritics on the
+        lemma - MG lemmas are always monotonic.
+        """
+        if strip_accents(form.lower()) not in _excluded_stripped:
+            return False
+        if strip_accents(lemma.lower()) != strip_accents(_ARTICLE_LEMMA.lower()):
+            return False
+        # Lemma stripped matches ὁ (i.e. "ο"). Keep the entry if the
+        # lemma is a monotonic MG form (no breathings) - that's the
+        # legitimate MG self-map we want to preserve. Exclude only
+        # when the lemma is polytonic AG (ὁ, ὁ̓, ὅ, etc).
+        return _has_polytonic(lemma)
 
     # Sanitise every form and lemma so a stray combining breathing mark
     # (leading U+0313/U+0314/U+1FBF/U+1FFE, or trailing U+0313/U+0314 used
