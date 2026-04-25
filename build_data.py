@@ -100,6 +100,32 @@ DIALECT_PREFIXES = {
     "Homeric", "Laconian", "Boeotian", "Arcadocypriot",
 }
 
+# Tense labels found in verb table-tags headers. Each grc-conj invocation
+# emits one of these as a 'table-tags' form just before the cells in that
+# tense. kaikki's HTML parser preserves the column header (voice/person/
+# number) on each cell but drops the row label (tense) - we reattach it
+# by tracking which table the form came from.
+#
+# Map from the surface label to dilemma's canonical tense tag (matches
+# TENSE_TAGS in word_collector/dilemma_paradigms.py).
+VERB_TENSE_LABELS = {
+    "present": "present",
+    "imperfect": "imperfect",
+    "future": "future",
+    "aorist": "aorist",
+    "perfect": "perfect",
+    "pluperfect": "pluperfect",
+    "future perfect": "future-perfect",
+    # "contracted X" tables emit forms with the same morphology but
+    # contracted endings; the underlying tense is X.
+    "contracted present": "present",
+    "contracted imperfect": "imperfect",
+    "contracted future": "future",
+    "contracted aorist": "aorist",
+    "contracted perfect": "perfect",
+    "contracted pluperfect": "pluperfect",
+}
+
 # Wiktionary POS field -> UPOS mapping (for POS-indexed lookup tables)
 WIKT_TO_UPOS = {
     "noun": "NOUN", "verb": "VERB", "adj": "ADJ", "name": "PROPN",
@@ -172,6 +198,47 @@ def _parse_dialect(table_tag: str) -> str:
     for dialect in DIALECT_PREFIXES:
         if table_tag.startswith(dialect):
             return dialect
+    return ""
+
+
+def _parse_verb_tense(table_tag: str) -> str:
+    """Extract verb tense from a verb table-tags label.
+
+    Examples:
+      "present"            -> "present"
+      "Epic aorist"        -> "aorist"
+      "Attic imperfect"    -> "imperfect"
+      "future perfect"     -> "future-perfect"
+      "contracted future"  -> "future"
+      "Attic declension-3" -> ""  (noun-table label, not a verb tense)
+
+    Returns "" for non-verb labels and unknown verb labels (which we leave
+    untagged rather than guessing).
+    """
+    if not table_tag:
+        return ""
+    # Strip leading dialect prefix if present
+    rest = table_tag
+    for dialect in DIALECT_PREFIXES:
+        if rest.startswith(dialect + " "):
+            rest = rest[len(dialect) + 1:]
+            break
+        if rest == dialect:
+            return ""  # bare dialect, no tense info
+    rest_lower = rest.lower()
+    # Direct match against the known verb tense labels
+    if rest_lower in VERB_TENSE_LABELS:
+        return VERB_TENSE_LABELS[rest_lower]
+    # The contracted-* labels are double-prefixed sometimes
+    # (e.g. "Attic contracted future"), and the dialect strip above only
+    # peels one prefix. The remaining "contracted future" still resolves
+    # via the direct-match path. If we got here, the label was something
+    # like "perfect present" (a degenerate dual-tense table emitted by
+    # malformed Wiktionary entries) or "Epic Lyric-Ancient-Greek aorist";
+    # fall back to the first known tense word in the label.
+    for word in rest_lower.split():
+        if word in VERB_TENSE_LABELS:
+            return VERB_TENSE_LABELS[word]
     return ""
 
 
@@ -509,17 +576,31 @@ def extract_pairs(jsonl_path: Path, lang: str,
                         _add_lookup(lookup, form, form, confidence=3)
                 continue
 
-            # Track current dialect from table-tags headers
+            # Track current dialect and (for verbs) current tense from
+            # table-tags headers. kaikki preserves the table-tags label
+            # (e.g. "Epic aorist") just before each table's body forms,
+            # but the per-cell tags only carry voice/person/number/mood;
+            # the row label (tense) is dropped. We reattach it here so
+            # downstream consumers (dilemma_paradigms.py) can build full
+            # paradigms keyed by tense_voice_mood_personnumber.
             current_dialect = ""
+            current_tense = ""
 
             for f_entry in forms:
                 tags = f_entry.get("tags", [])
                 form_text = f_entry.get("form", "")
 
-                # Update dialect context from table-tags
+                # Update dialect / tense context from table-tags
                 if "table-tags" in tags:
                     current_dialect = _parse_dialect(form_text)
+                    if pos == "verb":
+                        current_tense = _parse_verb_tense(form_text)
+                    else:
+                        current_tense = ""
                     continue
+                # The 'inflection-template' marker doesn't carry context
+                # but we should not reset current_tense on it (the next
+                # form is the first cell of the same table).
 
                 if any(t in skip_tags for t in tags):
                     continue
@@ -571,6 +652,22 @@ def extract_pairs(jsonl_path: Path, lang: str,
                 if current_dialect and current_dialect not in morph_tags:
                     morph_tags.append(current_dialect)
                     dialect_tagged += 1
+
+                # Add tense tag for verbs if we're inside a tense-specific
+                # table (kaikki drops the row label). Only stamp on cells
+                # that look like verb forms - i.e. ones already carrying a
+                # voice or mood tag, so we don't accidentally tag the
+                # lemma's own canonical row.
+                if (pos == "verb" and current_tense
+                        and current_tense not in morph_tags):
+                    _verb_axes = {
+                        "active", "middle", "passive", "mediopassive",
+                        "indicative", "subjunctive", "optative",
+                        "imperative", "infinitive", "participle",
+                        "first-person", "second-person", "third-person",
+                    }
+                    if any(t in _verb_axes for t in tags):
+                        morph_tags.append(current_tense)
 
                 pairs.append({
                     "form": form,
@@ -776,6 +873,38 @@ def main():
                 if en_lemma and el_lemma and en_lemma == el_lemma:
                     all_lookup[k] = (lemma, 2)
                 # else stays at 1
+
+        # Merge in LSJ-only verb pairs (for AG only). These come from
+        # build/expand_lsj.py --expand-verbs, which generates tense-tagged
+        # tuples for verbs that have no Wiktionary entry. The presence of
+        # this file is optional; if the LSJ expansion hasn't been run we
+        # just skip.
+        if lang == "grc":
+            lsj_pairs_path = DATA_DIR / "ag_lsj_verb_pairs.json"
+            if lsj_pairs_path.exists():
+                with open(lsj_pairs_path, encoding="utf-8") as f:
+                    lsj_pairs = json.load(f)
+                print(f"\nMerging {len(lsj_pairs):,} LSJ-only verb pairs "
+                      f"from {lsj_pairs_path.name}")
+                all_pairs.extend(lsj_pairs)
+                # Also self-map every LSJ verb lemma into all_lookup so
+                # the chain-breaker / lemma-resolver below treats them
+                # as valid headwords. Otherwise the dedup loop drops the
+                # pairs (their lemma isn't a Wiktionary headword).
+                lsj_lemmas = set()
+                for p in lsj_pairs:
+                    lem = p.get("lemma")
+                    if lem:
+                        lsj_lemmas.add(lem)
+                added = 0
+                for lem in lsj_lemmas:
+                    if lem not in all_lookup:
+                        # Use confidence 1 (table-only) so a real Wiktionary
+                        # entry would still beat us if one is added later.
+                        all_lookup[lem] = (lem, 1)
+                        added += 1
+                if added:
+                    print(f"  + {added:,} LSJ verb lemmas added as self-maps")
 
         # Deduplicate pairs
         seen = set()
