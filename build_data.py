@@ -201,7 +201,7 @@ def download_dump(filename: str, dest_dir: Path):
 
 
 def _add_lookup(lookup: dict, form: str, lemma: str, confidence: int = 1,
-                proper_noun: bool = False):
+                proper_noun: bool = False, closed_class_capital: bool = False):
     """Add a form to the lookup under original, lowercase, monotonic, and stripped keys.
 
     Confidence levels (assigned during merge):
@@ -217,10 +217,22 @@ def _add_lookup(lookup: dict, form: str, lemma: str, confidence: int = 1,
     original form get reduced confidence (confidence - 1, min 0). This
     prevents proper noun forms (e.g. Φᾶσιν -> Φᾶσις) from winning over
     common words (e.g. φασίν -> φημί) on accent-stripped keys.
+
+    When closed_class_capital=True (a capitalized closed-class entry
+    like the formal MG pronouns Αυτού, Αυτής), the mapping is NOT
+    propagated to the lowercase / stripped keys. Otherwise the formal
+    pronoun Αυτής (self-map, conf 3) would block the regular pronoun
+    resolution αυτής -> αυτός (form-of, conf 1) on the key αυτής. The
+    capitalized entry is still accessible via its own exact key. This
+    only fires for closed-class POS tags (pron, det, adj) where the
+    uppercase / lowercase distinction is semantically meaningful;
+    general nouns or adjectives stay with propagation.
     """
     for key in (form, form.lower(), to_monotonic(form), to_monotonic(form).lower(),
                 strip_accents(form.lower())):
         if not key:
+            continue
+        if closed_class_capital and key != form:
             continue
         conf = confidence
         if proper_noun and key != form:
@@ -252,7 +264,7 @@ def _add_pos_map(pos_map: dict, form: str, lemma: str, wikt_pos: str):
 
 
 def extract_pairs(jsonl_path: Path, lang: str,
-                   skip_name_plurals: set = None) -> tuple[list[dict], dict, set, dict]:
+                   skip_name_plurals: set = None) -> tuple[list[dict], dict, set, dict, dict]:
     """Extract form->lemma pairs from a kaikki JSONL dump.
 
     Extracts from three sources per entry:
@@ -273,6 +285,8 @@ def extract_pairs(jsonl_path: Path, lang: str,
         lookup: {form: (lemma, confidence)} dict
         headwords: set of headwords that have their own page in this dump
         pos_map: {form: {upos: lemma}} dict for POS disambiguation
+        form_of_targets: {key_variant: target_lemma} for cross-source
+            self-map resolution after lookups are merged
     """
     if not jsonl_path.exists():
         print(f"  {lang}: not found at {jsonl_path}")
@@ -297,6 +311,27 @@ def extract_pairs(jsonl_path: Path, lang: str,
         "ὁ", "ἡ", "τό", "ο", "η", "το", "the",
     }
     filter_cross_forms_pos = {"pron"}
+
+    # Personal-pronoun templates that mix first-/second-/third-person forms
+    # into one shared table. When the headword is any personal pronoun
+    # (εγώ, εσύ, αυτός, τα, ...), the same table gets dumped on its entry,
+    # so for example αυτό appears as a "form" of τα, and εσύ appears as
+    # a form of αυτός. Extracting these as form -> headword mappings
+    # is pure contamination. Skip the forms[] table for these entries
+    # (headword still self-maps).
+    # Detected by the inflection-template identifier kaikki emits.
+    _SHARED_PERSON_TEMPLATES = {
+        # EN Wiktionary Modern Greek personal-pronoun grid (τα pron)
+        "g",
+        # EN Wiktionary MG weak/strong personal-pronoun grid (του, αυτός, αμφότεροι pron)
+        "l-self",
+        # EL Wiktionary Modern Greek personal-pronoun grid
+        "προσωπική αντωνυμία",
+        # EL Wiktionary Ancient Greek personal-pronoun grid
+        "grc-προσωπική αντωνυμία",
+        # EN Wiktionary Ancient Greek personal-pronoun grid
+        "grc-decl",
+    }
 
     # First pass: collect closed-class headwords and article forms.
     # Article forms leak into Katharevousa noun/adj declension templates
@@ -423,8 +458,13 @@ def extract_pairs(jsonl_path: Path, lang: str,
                     if any(p in gloss for p in _form_of_patterns):
                         is_form_of_page = True
             hw_confidence = 1 if is_form_of_page else 3
+            # Closed-class capitals like Αυτής (formal pronoun) must not
+            # hijack the lowercase αυτής key from regular αυτής -> αυτός.
+            _cc_cap = (pos in ("pron", "det", "adj")
+                       and lemma and lemma != lemma.lower())
             _add_lookup(lookup, lemma, lemma, confidence=hw_confidence,
-                        proper_noun=(pos == "name"))
+                        proper_noun=(pos == "name"),
+                        closed_class_capital=_cc_cap)
 
             has_data = False
 
@@ -432,9 +472,21 @@ def extract_pairs(jsonl_path: Path, lang: str,
             # Check both top-level form_of AND senses[].form_of.
             # AG entries in EN kaikki store form-of refs in senses,
             # not at the top level.
-            form_of_refs = list(entry.get("form_of", []))
+            #
+            # Ordering: sense-level refs come first. EL Wiktionary often
+            # lists spurious double-gen variants at the top level
+            # (αυτών -> αυτωνών) while the correct parent lemma shows up
+            # at the sense level. Sense-level refs are consistently
+            # better-curated, so we use them as the primary source for
+            # pass-2 form_of_targets. Top-level refs still register in
+            # the lookup table at conf 1 so their forms resolve, but
+            # they don't dictate which lemma a self-map gets replaced
+            # with.
+            sense_form_of = []
             for sense in entry.get("senses", []):
-                form_of_refs.extend(sense.get("form_of", []))
+                sense_form_of.extend(sense.get("form_of", []))
+            top_form_of = list(entry.get("form_of", []))
+            form_of_refs = sense_form_of + top_form_of
 
             for ref in form_of_refs:
                 ref_word = strip_length_marks(ref.get("word", ""))
@@ -509,16 +561,56 @@ def extract_pairs(jsonl_path: Path, lang: str,
                         _add_lookup(lookup, form, form, confidence=3)
                 continue
 
-            # Track current dialect from table-tags headers
-            current_dialect = ""
+            # Personal-pronoun template detection. If a pron entry uses
+            # a shared-person template (see _SHARED_PERSON_TEMPLATES above),
+            # skip its forms[] table entirely so that cross-person forms
+            # like αυτό don't map to unrelated headwords like τα or εσύ.
+            # The headword self-map from pass 1 above is still in place.
+            if pos == "pron":
+                uses_shared_person_template = False
+                for fe in forms:
+                    if "inflection-template" in fe.get("tags", []):
+                        tmpl = fe.get("form", "")
+                        if tmpl in _SHARED_PERSON_TEMPLATES:
+                            uses_shared_person_template = True
+                        break
+                if uses_shared_person_template:
+                    continue
+
+            # Track current dialect from table-tags headers.
+            # page_dialect is the entry-level dialect from sense tags
+            # (e.g. νοῦμμος is a "Doric spelling of νόμος"), and it
+            # initializes current_dialect so the entry's own forms get
+            # tagged with the page's dialect even when the table-tags
+            # header is missing or says something generic like
+            # "Attic declension-2" (grc-decl's default).
+            page_dialect = ""
+            for sense in entry.get("senses", []):
+                for tag in sense.get("tags") or []:
+                    if tag in DIALECT_PREFIXES:
+                        page_dialect = tag
+                        break
+                if page_dialect:
+                    break
+            current_dialect = page_dialect
 
             for f_entry in forms:
                 tags = f_entry.get("tags", [])
                 form_text = f_entry.get("form", "")
 
-                # Update dialect context from table-tags
+                # Update dialect context from table-tags. If a page-level
+                # dialect is set (from the entry's own sense tags), it
+                # wins over the table-tags header. Page dialect is a
+                # semantic claim about the entry (e.g. νοῦμμος is tagged
+                # Doric in its sense list), while table-tags only names
+                # the inflection template (e.g. "Attic declension-2" for
+                # grc-decl - a template name, not a content claim).
+                # Without this, Doric alt-forms get tagged 'Attic' and
+                # then leak into the parent lemma's Attic paradigm via
+                # the chain-break step.
                 if "table-tags" in tags:
-                    current_dialect = _parse_dialect(form_text)
+                    parsed = _parse_dialect(form_text)
+                    current_dialect = page_dialect or parsed
                     continue
 
                 if any(t in skip_tags for t in tags):
@@ -590,12 +682,20 @@ def extract_pairs(jsonl_path: Path, lang: str,
                     })
 
                 # Lookup: original, lowercase, monotonic, accent-stripped
-                _add_lookup(lookup, form, lemma, proper_noun=(pos == "name"))
+                _form_cc_cap = (pos in ("pron", "det", "adj")
+                                and form and form != form.lower())
+                _add_lookup(lookup, form, lemma, proper_noun=(pos == "name"),
+                            closed_class_capital=_form_cc_cap)
                 _add_pos_map(pos_map, form, lemma, pos)
 
                 # Also add the parenthetical-expanded form (e.g. ἐστίν from ἐστί(ν))
                 if extra_form and _is_greek(extra_form):
-                    _add_lookup(lookup, extra_form, lemma, proper_noun=(pos == "name"))
+                    _extra_cc_cap = (pos in ("pron", "det", "adj")
+                                     and extra_form
+                                     and extra_form != extra_form.lower())
+                    _add_lookup(lookup, extra_form, lemma,
+                                proper_noun=(pos == "name"),
+                                closed_class_capital=_extra_cc_cap)
                     _add_pos_map(pos_map, extra_form, lemma, pos)
                     pairs.append({
                         "form": extra_form,
@@ -621,10 +721,22 @@ def extract_pairs(jsonl_path: Path, lang: str,
             continue  # not a self-map, already has a correct mapping
         if conf >= 3:
             continue  # true headword, protected
-        if key in closed_class_headwords or key in article_forms:
-            continue  # pronoun/article headwords always self-map
+        # Article forms (ο, η, το, τα, etc.) stay as self-maps. EL
+        # Wiktionary lists them as "form of ὁ" via form_of, but for
+        # MG lemmatization purposes the monotonic article form is
+        # the lemma; opla / Klisy render it directly. The polytonic
+        # ὁ would surface as an AG leak in the MG UI.
+        if key in article_forms:
+            continue
         if key not in form_of_targets:
-            continue  # no form_of/alt_of target available
+            # No form_of/alt_of target available. Closed-class
+            # headwords without any form-of evidence stay as self-maps
+            # (εγώ, εσύ, τις, ...). They're real lemmas.
+            continue
+        # There is a form_of target. For pronoun/article inflected forms
+        # (αυτό, αυτές, αυτοί), the form_of target is the correct lemma
+        # (αυτός) and we should prefer it over the self-map, even though
+        # the form appears as a pronoun headword in its own right.
         target = form_of_targets[key]
         if target != key:
             lookup[key] = (target, conf)
@@ -641,7 +753,7 @@ def extract_pairs(jsonl_path: Path, lang: str,
         print(f"    dialect-tagged forms: {dialect_tagged:,}")
     if selfmap_resolved:
         print(f"    self-maps resolved via form_of/alt_of: {selfmap_resolved:,}")
-    return pairs, lookup, page_headwords, pos_map
+    return pairs, lookup, page_headwords, pos_map, form_of_targets
 
 
 def main():
@@ -680,12 +792,25 @@ def main():
         all_pos_map = {}  # {form: {upos: lemma}} for POS disambiguation
         source_lookups = []  # (wikt_lang, lookup, headwords)
 
+        # Per-source form_of_targets, kept separately so we can prefer
+        # EN's resolution when a key is a real lemma headword in EN but
+        # only a "dialect variant" listing in EL. After the per-source
+        # passes have merged into all_lookup, we run a final pass-2
+        # over the merged lookup using EN's form_of_targets first, then
+        # EL's only when EN doesn't claim the key as a real headword.
+        # This catches αυτούς (EL has no explicit form_of, EN has
+        # senses[].form_of=αυτός) without trashing θεός (EN has a real
+        # noun page, EL has misleading top-level form_of=[θεύς]).
+        en_form_of_targets: dict[str, str] = {}
+        el_form_of_targets: dict[str, str] = {}
+
         # Extract EN first to collect proper noun forms for corroboration
         en_name_forms = set()
         if "en" in DUMPS[lang]:
             en_path = resolve_dump(DUMPS[lang]["en"], dump_dir)
             print(f"\nScanning en Wiktionary: {DUMPS[lang]['en']}")
-            pairs, lookup, headwords, pos_map = extract_pairs(en_path, f"{lang}-en")
+            pairs, lookup, headwords, pos_map, fot = extract_pairs(en_path, f"{lang}-en")
+            en_form_of_targets.update(fot)
             all_pairs.extend(pairs)
             source_lookups.append(("en", lookup, headwords))
             # Merge POS map (first source wins per form+upos)
@@ -713,9 +838,12 @@ def main():
                 continue  # already processed
             path = resolve_dump(filename, dump_dir)
             print(f"\nScanning {wikt_lang} Wiktionary: {path.name}")
-            pairs, lookup, headwords, pos_map = extract_pairs(
+            pairs, lookup, headwords, pos_map, fot = extract_pairs(
                 path, f"{lang}-{wikt_lang}",
                 skip_name_plurals=en_name_forms if en_name_forms else None)
+            for k, v in fot.items():
+                if k not in el_form_of_targets:
+                    el_form_of_targets[k] = v
             all_pairs.extend(pairs)
             source_lookups.append((wikt_lang, lookup, headwords))
             # Merge POS map
@@ -746,6 +874,42 @@ def main():
             for k, (lemma, _) in lookup.items():
                 if k not in all_lookup:
                     all_lookup[k] = (lemma, 1)
+
+        # Cross-source self-map resolution. After per-source pass-2, any
+        # remaining self-maps (key == lemma) at the merged level got
+        # there because no individual source had a form_of/alt_of ref.
+        # Apply EN's form_of_target first (sense-level form-of refs
+        # from EN are the highest-quality "this is a form of X" signal),
+        # then EL's only when EN didn't have a target for the key. This
+        # fixes αυτούς (EN sense form_of=αυτός fires, EL had only a
+        # gloss match without a ref) without trashing θεός (EN has no
+        # form_of_target, so the bogus EL top-level form_of=[θεύς] is
+        # never applied; θεός stays as the EN-attested headword).
+        #
+        # Article forms (ο, η, το, ...) are skipped: we want the
+        # monotonic MG form to stay as the surface lemma. The polytonic
+        # AG ancestor (ὁ) is reachable via etymology bridges for
+        # callers that want it but should not surface as the MG lemma.
+        _MG_ARTICLE_FORMS = {
+            "ο", "η", "το", "τον", "την", "του", "της",
+            "τους", "τις", "τα", "των", "τη", "οι",
+        }
+        cross_resolved = 0
+        for k, (lemma, _) in list(all_lookup.items()):
+            if lemma != k:
+                continue  # not a self-map
+            if k in _MG_ARTICLE_FORMS:
+                continue
+            target = en_form_of_targets.get(k)
+            if target is None and k not in en_headwords:
+                # EN says nothing; only fall back to EL's target if EN
+                # also doesn't claim this key as a real lemma headword.
+                target = el_form_of_targets.get(k)
+            if target and target != k:
+                all_lookup[k] = (target, 1)
+                cross_resolved += 1
+        if cross_resolved:
+            print(f"Cross-source form-of resolutions: {cross_resolved:,}")
 
         # Second pass: assign confidence tiers based on page presence
         # 5 = both EN + EL have pages for this form

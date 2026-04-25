@@ -520,6 +520,91 @@ class TestLanguageFiltering:
         assert strip_accents(result.lower()) == strip_accents("φέρνω"), \
             f"φέρνοντας (el) -> expected φέρνω, got {result}"
 
+    # ------------------------------------------------------------------
+    # MG pronoun / article / copula regressions.
+    #
+    # Before the pronoun-template fix, the MG lookup had AG / cross-person
+    # contamination leaking in: αυτό -> τα (via EN τα-pron shared grid),
+    # αυτές -> τα, ο -> ὅς (polytonic AG relative pronoun via the ὅ stripped
+    # key), etc. lemmatize(lang='el') would return those bad lemmas to
+    # downstream consumers like opla + Klisy. These tests pin the correct
+    # behaviour so the contamination can't regress silently.
+    # ------------------------------------------------------------------
+
+    @pytest.mark.parametrize("form,expected", [
+        # αυτός paradigm: all inflected forms must resolve to αυτός.
+        # These used to land on τα / εσύ / accents-of-themselves after
+        # the EN / EL personal-pronoun template leaked every form into
+        # every pronoun headword's inflection table.
+        ("αυτό", "αυτός"),
+        ("αυτόν", "αυτός"),
+        ("αυτήν", "αυτός"),
+        ("αυτής", "αυτός"),
+        ("αυτών", "αυτός"),
+        ("αυτούς", "αυτός"),
+        ("αυτές", "αυτός"),
+        ("αυτοί", "αυτός"),
+        ("αυτά", "αυτός"),
+    ])
+    def test_el_autos_paradigm(self, d_el, form, expected):
+        """All αυτός forms must lemmatize to αυτός, not τα / εσύ / ο."""
+        result = d_el.lemmatize(form)
+        assert strip_accents(result.lower()) == strip_accents(expected.lower()), \
+            f"{form} (el) -> expected {expected}, got {result}"
+
+    def test_el_autou_pos_aware(self, d_el):
+        """αυτού is ambiguous (adv "there" or pron gen sg of αυτός).
+        POS-aware lookup should resolve it to αυτός when PRON."""
+        result = d_el.lemmatize_pos("αυτού", "PRON")
+        assert strip_accents(result.lower()) == strip_accents("αυτός"), \
+            f"αυτού PRON -> expected αυτός, got {result}"
+
+    @pytest.mark.parametrize("form", [
+        # MG articles and common monosyllables must NOT leak to AG
+        # polytonic lemmas. They either self-map (no AG leak) or resolve
+        # to the monotonic MG form. The assertion is defensive: the lemma
+        # must not be a polytonic AG form.
+        "ο", "η", "το", "τα", "τους", "τις", "των",
+        "ή",  # disjunction "or" (MG), not AG ἤ
+    ])
+    def test_el_mg_articles_no_ag_leak(self, d_el, form):
+        """MG function words must not lemmatize to polytonic AG forms."""
+        import unicodedata
+        result = d_el.lemmatize(form)
+        nfd = unicodedata.normalize("NFD", result)
+        has_breathing_or_circumflex = any(
+            ord(ch) in (0x0313, 0x0314, 0x0342) for ch in nfd
+        )
+        assert not has_breathing_or_circumflex, (
+            f"{form} (el) -> {result} which is polytonic AG; expected monotonic MG"
+        )
+
+    def test_el_einai_copula_not_ag(self, d_el):
+        """MG copula είναι must not leak to AG εἰμί."""
+        result = d_el.lemmatize("είναι")
+        # Accept either είναι (surface-form-as-lemma) or είμαι (Triantafyllidis);
+        # reject AG εἰμί.
+        assert result != "εἰμί", \
+            f"είναι (el) -> εἰμί (AG leak); expected MG είναι or είμαι"
+
+    def test_el_pos_aware_einai_aux(self, d_el):
+        """lemmatize_pos('είναι', 'AUX') must not fall through to AG εἰμί."""
+        result = d_el.lemmatize_pos("είναι", "AUX")
+        assert result != "εἰμί", \
+            f"lemmatize_pos('είναι', 'AUX') (el) -> εἰμί; expected MG lemma"
+
+    def test_el_pos_aware_einai_verb(self, d_el):
+        """lemmatize_pos('είναι', 'VERB') must not fall through to AG εἰμί."""
+        result = d_el.lemmatize_pos("είναι", "VERB")
+        assert result != "εἰμί", \
+            f"lemmatize_pos('είναι', 'VERB') (el) -> εἰμί; expected MG lemma"
+
+    def test_el_pos_aware_auto_pron(self, d_el):
+        """lemmatize_pos('αυτό', 'PRON') (el) must return αυτός, not τα/ο/εσύ."""
+        result = d_el.lemmatize_pos("αυτό", "PRON")
+        assert strip_accents(result.lower()) == strip_accents("αυτός"), \
+            f"lemmatize_pos('αυτό', 'PRON') (el) -> {result}; expected αυτός"
+
     def test_all_handles_both(self, d_all):
         """lang='all' should handle both AG and MG forms."""
         ag_result = d_all.lemmatize("θεούς")
