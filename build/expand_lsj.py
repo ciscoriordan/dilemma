@@ -690,21 +690,65 @@ def _apply_suffix_cache(stem, suffixes, headword):
     return forms
 
 
-def expand_verb(wtp, headword):
-    """Expand a verb using grc-conj template. Returns set of forms.
+def _shift_axes_to_stem(headword, stem, axes_list):
+    """Translate cached (suffix, axes) entries to a fresh stem.
 
-    Uses a cache keyed by conjugation type: if we've already expanded a verb
-    with the same conj_type, apply the suffix pattern instead of calling Lua.
+    The cache stores axes alongside an accent-stripped suffix; to apply
+    them to a new headword we just emit (stem_plain + suffix, axes).
+    """
+    stem_plain = strip_diacritics(stem.lower())
+    out = []
+    for suffix, axes in axes_list:
+        form = stem_plain + suffix
+        if len(form) > 1:
+            out.append((form, dict(axes)))
+    return out
+
+
+def _build_tagged_suffix_cache(tagged_forms, stem):
+    """Extract suffix patterns + axes from tagged extraction output."""
+    stem_plain = strip_diacritics(stem.lower())
+    out = []
+    for form, axes in tagged_forms:
+        form_plain = strip_diacritics(form.lower())
+        match_len = 0
+        for i in range(min(len(stem_plain), len(form_plain))):
+            if stem_plain[i] == form_plain[i]:
+                match_len = i + 1
+            else:
+                break
+        if match_len > 0:
+            out.append((form_plain[match_len:], axes))
+    return out
+
+
+def expand_verb(wtp, headword, tagged=False):
+    """Expand a verb using grc-conj template.
+
+    Returns (forms, err). When tagged=False, forms is a set of strings
+    (legacy bag-of-tokens output). When tagged=True, forms is a list of
+    (form, axes) tuples carrying tense/voice/mood/person/number plus
+    optional case/gender for participles.
     """
     conj_type, stem = _classify_verb(headword)
     if conj_type is None:
-        return set(), f"unknown-ending:{headword[-3:]}"
+        return ([] if tagged else set()), f"unknown-ending:{headword[-3:]}"
 
-    # Check cache
+    # Cache check. We store tagged data when available so the untagged
+    # path can reconstruct strings cheaply.
     if conj_type in _VERB_CACHE:
-        forms = _apply_suffix_cache(stem, _VERB_CACHE[conj_type], headword)
-        if forms:
-            return forms, ""
+        cached = _VERB_CACHE[conj_type]
+        if isinstance(cached, dict) and "tagged" in cached:
+            tagged_forms = _shift_axes_to_stem(headword, stem, cached["tagged"])
+            if tagged_forms:
+                if tagged:
+                    return tagged_forms, ""
+                return {f for f, _ in tagged_forms}, ""
+        elif isinstance(cached, list):
+            # Legacy untagged cache
+            forms = _apply_suffix_cache(stem, cached, headword)
+            if forms and not tagged:
+                return forms, ""
 
     # Cache miss - call Lua
     template = "{{grc-conj|" + conj_type + "|" + stem + "}}"
@@ -713,7 +757,7 @@ def expand_verb(wtp, headword):
         wtp.start_page(headword)
         html = wtp.expand(template)
     except Exception as e:
-        # For -μι verbs, try falling back to simpler conjugation types
+        # For -μι verbs, try falling back to simpler conjugation types.
         if conj_type.startswith("pres-") and conj_type != "pres":
             for fallback in ["pres-mi", "pres"]:
                 if fallback == conj_type:
@@ -722,27 +766,407 @@ def expand_verb(wtp, headword):
                     template = "{{grc-conj|" + fallback + "|" + stem + "}}"
                     wtp.start_page(headword)
                     html = wtp.expand(template)
-                    forms = parse_html_forms(html, headword)
-                    if forms:
-                        # Cache the working fallback under the original conj_type
-                        _VERB_CACHE[conj_type] = _build_suffix_cache(forms, stem)
-                        return forms, ""
+                    tagged_forms = parse_html_forms_tagged(
+                        html, headword, default_tense="present")
+                    if tagged_forms:
+                        _VERB_CACHE[conj_type] = {
+                            "tagged": _build_tagged_suffix_cache(tagged_forms, stem),
+                        }
+                        if tagged:
+                            return tagged_forms, ""
+                        return {f for f, _ in tagged_forms}, ""
                 except Exception:
                     continue
-        return set(), str(e)
+        return ([] if tagged else set()), str(e)
 
-    forms = parse_html_forms(html, headword)
-    # Cache the suffix pattern for this conjugation type
-    if forms and conj_type not in _VERB_CACHE:
-        _VERB_CACHE[conj_type] = _build_suffix_cache(forms, stem)
+    tagged_forms = parse_html_forms_tagged(
+        html, headword, default_tense="present")
+    if tagged_forms and conj_type not in _VERB_CACHE:
+        _VERB_CACHE[conj_type] = {
+            "tagged": _build_tagged_suffix_cache(tagged_forms, stem),
+        }
 
-    return forms, ""
+    if tagged:
+        return tagged_forms, ""
+    return {f for f, _ in tagged_forms}, ""
 
 
 ARTICLES = {"ὁ", "ἡ", "τό", "τοῦ", "τῆς", "τῷ", "τῇ", "τόν", "τήν",
             "τών", "τῶν", "τοῖς", "ταῖς", "τούς", "τάς", "τά",
             "τοῖν", "ταῖν", "τώ", "τὼ", "αἱ", "οἱ",
             "τὰς", "τὴν", "τὸ", "τὸν", "τοὺς", "τὰ"}
+
+# --- Tagged extraction for verb conjugation tables ----------------------
+#
+# wtp.expand returns wikitext (the template-expanded markup). For verb
+# conjugation tables, the output is a wikitable starting with `{|` and
+# ending with `|}`, wrapped in a NavFrame whose `<div class="NavHead">`
+# carries the tense label ("Present:", "Aorist:", ...). To preserve the
+# row/column axes lost by the bag-of-tokens regex, we parse the wikitable
+# cell-by-cell and emit (form, axes) tuples carrying any of {tense,
+# voice, mood, person, number, case, gender} that we could infer from
+# context. parse_html_forms() (set-of-strings) remains for the noun
+# expansion path which doesn't need structure.
+
+# Map NavHead tense words and grc-conj table class words to dilemma's
+# canonical tense tag.
+_NAVHEAD_TENSE = {
+    "present": "present",
+    "imperfect": "imperfect",
+    "future": "future",
+    "aorist": "aorist",
+    "perfect": "perfect",
+    "pluperfect": "pluperfect",
+    "future perfect": "future-perfect",
+    "futureperfect": "future-perfect",
+}
+
+_VOICE_LABELS = {
+    "active": "active",
+    "middle": "middle",
+    "passive": "passive",
+    "middle/passive": "mediopassive",
+    "mediopassive": "mediopassive",
+    "med./pass.": "mediopassive",
+    "med/pass": "mediopassive",
+}
+
+_MOOD_LABELS = {
+    "indicative": "indicative",
+    "subjunctive": "subjunctive",
+    "optative": "optative",
+    "imperative": "imperative",
+    "infinitive": "infinitive",
+    "participle": "participle",
+}
+
+_GENDER_LABELS = {
+    "m": "masculine", "masculine": "masculine",
+    "f": "feminine", "feminine": "feminine",
+    "n": "neuter", "neuter": "neuter",
+}
+
+
+def _strip_inline_markup(s):
+    """Remove HTML tags / wiki-link wrappers from a cell, leaving plain text."""
+    if not s:
+        return ""
+    s = re.sub(r'\[\[Category:[^\]]+\]\]', '', s)
+    s = re.sub(r'<templatestyles[^/]*/>', '', s)
+    s = re.sub(r'\[\[:?([^\]\|]+)\|([^\]]+)\]\]', r'\2', s)
+    s = re.sub(r'\[\[([^\]\|]+)\]\]', r'\1', s)
+    s = re.sub(r'<[^>]+>', '', s)
+    s = re.sub(r'&#(\d+);', lambda m: chr(int(m.group(1))), s)
+    s = s.replace('&nbsp;', ' ').replace('&amp;', '&')
+    return s.strip()
+
+
+def _label_norm(s):
+    return _strip_inline_markup(s).strip().lower()
+
+
+def _is_greek_token(tok):
+    return any('Ͱ' <= c <= 'Ͽ' or 'ἀ' <= c <= '῿'
+               for c in tok)
+
+
+def _extract_greek_tokens(cell_text):
+    """Pull Greek tokens out of a cell's plain text.
+
+    Cells may pack alternative forms separated by " / ", ", ", " or ", or
+    contain a parenthetical optional ν suffix like "γράφουσι(ν)"; we
+    expand the optional-suffix form to both base and suffixed variants
+    and split on alternation separators.
+    """
+    text = _strip_inline_markup(cell_text)
+    if not text:
+        return []
+    expanded = []
+    for chunk in re.split(r'\s*(?:,|/|;| or | ή | καί )\s*', text):
+        # Trim outer whitespace and surrounding punctuation other than
+        # parens (we need those for optional-suffix expansion).
+        chunk = chunk.strip(' .,;:[]—–')
+        if not chunk:
+            continue
+        m = re.match(r'^(.+?)\((.+?)\)$', chunk)
+        if m:
+            base, suffix = m.groups()
+            expanded.append(base)
+            expanded.append(base + suffix)
+        else:
+            # Strip any stray parens that snuck in from token-trim above.
+            chunk = chunk.strip('()')
+            expanded.append(chunk)
+
+    out = []
+    for tok in expanded:
+        tok = strip_length_marks(tok)
+        if not tok or len(tok) < 2:
+            continue
+        if tok in ARTICLES or tok.isupper() or tok.startswith('-'):
+            continue
+        if not _is_greek_token(tok):
+            continue
+        out.append(tok)
+    return out
+
+
+def _parse_navhead_tense(html):
+    """Read the tense label from the NavHead title (e.g. 'Aorist: ...')."""
+    m = re.search(r'<div class="NavHead">(.*?)</div>', html, re.DOTALL)
+    if not m:
+        return ""
+    head = _strip_inline_markup(m.group(1)).lower()
+    head = head.split(':', 1)[0].strip()
+    head = re.sub(r'^[^a-z]+', '', head)
+    for k in sorted(_NAVHEAD_TENSE.keys(), key=len, reverse=True):
+        if head.endswith(k):
+            return _NAVHEAD_TENSE[k]
+    return ""
+
+
+def _parse_table_class_tense(html):
+    """Fallback: pull tense from `class="grc-conj grc-conj-<tense>"`."""
+    m = re.search(r'class="grc-conj\s+grc-conj-([a-z]+)"', html)
+    if not m:
+        return ""
+    raw = m.group(1)
+    return _NAVHEAD_TENSE.get(raw, "")
+
+
+_ROWSPAN_RE = re.compile(r'rowspan="?(\d+)"?')
+
+
+def _parse_rowspan(attrs):
+    m = _ROWSPAN_RE.search(attrs or "")
+    return int(m.group(1)) if m else 1
+
+
+def _split_wikitable_rows(table_text):
+    """Split a wikitable body into rows of (marker, attrs, content) cells."""
+    rows = []
+    current = None
+    body = table_text.strip()
+    if body.startswith('{|'):
+        body = body.split('\n', 1)[1] if '\n' in body else ''
+    if body.endswith('|}'):
+        body = body[:-2]
+
+    for line in body.split('\n'):
+        line = line.rstrip()
+        if not line.strip():
+            continue
+        if line.startswith('|-'):
+            if current is not None:
+                rows.append(current)
+            current = []
+            continue
+        if current is None:
+            current = []
+        if line.startswith('!') or line.startswith('|'):
+            marker = line[0]
+            rest = line[1:]
+            sep = marker * 2
+            for cell in rest.split(sep):
+                cell = cell.strip()
+                attrs = ""
+                if '|' in cell:
+                    head, _, tail = cell.partition('|')
+                    if '=' in head and '"' in head:
+                        attrs = head.strip()
+                        cell = tail.strip()
+                current.append((marker, attrs, cell))
+        else:
+            if current:
+                marker, attrs, cell = current[-1]
+                current[-1] = (marker, attrs, cell + ' ' + line.strip())
+    if current is not None:
+        rows.append(current)
+    return rows
+
+
+def _parse_grc_conj_table(table_text, tense):
+    """Walk a grc-conj wikitable and emit (form, axes) tuples.
+
+    grc-conj layout (one tense per table):
+      - Header row 0: number axis (singular / dual / plural)
+      - Header row 1: person axis (first/second/third repeated)
+      - For each voice (active, middle/passive):
+          * one row whose first cell is the voice header (rowspan=4) +
+            mood label (indicative/subjunctive/optative/imperative)
+          * three more rows each beginning with a mood label
+      - One row with `colspan=2 | infinitive`, then 'active' and
+        'middle/passive' cells.
+      - One participle row (rowspan=3) with m/f/n sub-rows.
+
+    Column map for finite forms (8 cells per row):
+      0: 1sg, 1: 2sg, 2: 3sg, 3: 2du, 4: 3du, 5: 1pl, 6: 2pl, 7: 3pl.
+    """
+    person_number_cols = [
+        ("first-person", "singular"),
+        ("second-person", "singular"),
+        ("third-person", "singular"),
+        ("second-person", "dual"),
+        ("third-person", "dual"),
+        ("first-person", "plural"),
+        ("second-person", "plural"),
+        ("third-person", "plural"),
+    ]
+
+    rows = _split_wikitable_rows(table_text)
+    out = []
+    body_rows = rows[2:] if len(rows) >= 2 else rows
+
+    current_voice = None
+    voice_rows_left = 0
+    in_nonfinite = False
+    current_nonfinite = None
+    nonfinite_rows_left = 0
+    gender_label = ""
+    mood_label = ""
+
+    for row_cells in body_rows:
+        if not row_cells:
+            continue
+        idx = 0
+        first_marker, first_attrs, first_text = row_cells[0]
+
+        if voice_rows_left > 0 and first_marker == '!':
+            mood_label = _label_norm(first_text)
+            voice_rows_left -= 1
+            idx = 1
+        elif first_marker == '!':
+            lab = _label_norm(first_text)
+            voice = _VOICE_LABELS.get(lab)
+            if voice:
+                current_voice = voice
+                voice_rows_left = max(0, _parse_rowspan(first_attrs) - 1)
+                idx = 1
+                if idx < len(row_cells) and row_cells[idx][0] == '!':
+                    mood_label = _label_norm(row_cells[idx][2])
+                    idx += 1
+                else:
+                    continue
+            elif lab == "infinitive":
+                in_nonfinite = True
+                current_nonfinite = "infinitive"
+                nonfinite_rows_left = 1
+                idx = 1
+                mood_label = "infinitive"
+            elif lab == "participle":
+                in_nonfinite = True
+                current_nonfinite = "participle"
+                nonfinite_rows_left = max(1, _parse_rowspan(first_attrs))
+                idx = 1
+                if idx < len(row_cells) and row_cells[idx][0] == '!':
+                    gender_label = _label_norm(row_cells[idx][2])
+                    idx += 1
+                    mood_label = "participle"
+                else:
+                    continue
+            elif in_nonfinite and current_nonfinite == "participle":
+                gender_label = lab
+                idx = 1
+                mood_label = "participle"
+                nonfinite_rows_left = max(0, nonfinite_rows_left - 1)
+            else:
+                continue
+        else:
+            continue
+
+        data_cells = [c for c in row_cells[idx:] if c[0] == '|']
+        if not data_cells:
+            continue
+
+        if not in_nonfinite:
+            mood = _MOOD_LABELS.get(mood_label)
+            if not mood:
+                continue
+            for col_idx, (_, _, cell_text) in enumerate(data_cells):
+                if col_idx >= len(person_number_cols):
+                    break
+                person, number = person_number_cols[col_idx]
+                for tok in _extract_greek_tokens(cell_text):
+                    out.append((tok, {
+                        "tense": tense,
+                        "voice": current_voice,
+                        "mood": mood,
+                        "person": person,
+                        "number": number,
+                    }))
+        else:
+            if current_nonfinite == "infinitive":
+                voices = ["active", "middle"]
+                for col_idx, (_, _, cell_text) in enumerate(data_cells[:2]):
+                    for tok in _extract_greek_tokens(cell_text):
+                        out.append((tok, {
+                            "tense": tense,
+                            "voice": voices[col_idx],
+                            "mood": "infinitive",
+                        }))
+                in_nonfinite = False
+                current_nonfinite = None
+            elif current_nonfinite == "participle":
+                gender = _GENDER_LABELS.get(gender_label)
+                if gender:
+                    voices = ["active", "middle"]
+                    for col_idx, (_, _, cell_text) in enumerate(data_cells[:2]):
+                        for tok in _extract_greek_tokens(cell_text):
+                            out.append((tok, {
+                                "tense": tense,
+                                "voice": voices[col_idx],
+                                "mood": "participle",
+                                "gender": gender,
+                                "case": "nominative",
+                                "number": "singular",
+                            }))
+                if nonfinite_rows_left <= 0:
+                    in_nonfinite = False
+                    current_nonfinite = None
+    return out
+
+
+def parse_html_forms_tagged(html, headword, default_tense=""):
+    """Parse a grc-conj template expansion into tagged form tuples.
+
+    Returns a list of (form, axes). axes may include {tense, voice,
+    mood, person, number, case, gender}. Falls back to bag-of-tokens
+    when the table layout can't be recognized.
+    """
+    out = []
+    tense = (_parse_navhead_tense(html)
+             or _parse_table_class_tense(html)
+             or default_tense)
+
+    pos = 0
+    matched_any = False
+    while True:
+        start = html.find('{|', pos)
+        if start < 0:
+            break
+        end = html.find('|}', start)
+        if end < 0:
+            break
+        end += 2
+        table_text = html[start:end]
+        if 'grc-conj' in table_text:
+            try:
+                rows = _parse_grc_conj_table(table_text, tense)
+                if rows:
+                    out.extend(rows)
+                    matched_any = True
+            except Exception:
+                pass
+        pos = end
+
+    if matched_any:
+        return out
+
+    # Fallback: bag-of-tokens with the inferred tense attached.
+    text = re.sub(r'<[^>]+>', ' ', html)
+    base_axes = {"tense": tense} if tense else {}
+    return [(t, dict(base_axes)) for t in _extract_greek_tokens(text)]
+
 
 def parse_html_forms(html, headword):
     """Extract Greek word forms from expanded HTML table."""
@@ -790,8 +1214,20 @@ def test_one(word):
         forms, err = expand_noun(wtp, word, entry["gender"], entry["genitive"])
         print(f"\ngrc-decl result: {len(forms)} forms" + (f" (error: {err})" if err else ""))
     else:
-        forms, err = expand_verb(wtp, word)
-        print(f"\ngrc-conj result: {len(forms)} forms" + (f" (error: {err})" if err else ""))
+        # Run the tagged path so the tense/voice/mood/person/number axes
+        # are visible in the test output. We then derive the plain set
+        # from the same tagged output so the Wiktionary overlap check
+        # below uses accent-preserved tokens.
+        tagged_forms, err = expand_verb(wtp, word, tagged=True)
+        print(f"\ngrc-conj result: {len(tagged_forms)} forms"
+              + (f" (error: {err})" if err else ""))
+        if tagged_forms:
+            print("Tagged samples (first 10):")
+            for f, axes in tagged_forms[:10]:
+                tag_summary = " ".join(
+                    f"{k}={v}" for k, v in axes.items() if v)
+                print(f"  {f}  -> {tag_summary}")
+        forms = {f for f, _ in tagged_forms}
 
     if forms:
         print(f"Sample forms: {sorted(forms)[:20]}")
@@ -973,8 +1409,28 @@ def expand_all():
     print(f"  {size_mb:.1f} MB written")
 
 
+AG_LSJ_VERB_PAIRS = DATA_DIR / "ag_lsj_verb_pairs.json"
+
+
+def _axes_to_tag_list(axes):
+    """Convert an axes dict to a flat tag list compatible with ag_pairs.json."""
+    out = []
+    for k in ("tense", "voice", "mood", "person", "number",
+              "case", "gender", "dialect"):
+        v = axes.get(k)
+        if v:
+            # dialect tags are TitleCase elsewhere in dilemma; rest stay
+            # lowercase. Capitalize first char for dialect.
+            if k == "dialect":
+                out.append(v.capitalize() if v.islower() else v)
+            else:
+                out.append(v)
+    return out
+
+
 def expand_verbs():
-    """Expand LSJ verbs and merge into ag_lookup.json."""
+    """Expand LSJ-only verbs and emit both ag_lookup.json (form->lemma)
+    and ag_lsj_verb_pairs.json (tagged form/lemma/tags pairs)."""
     import time
 
     print("Loading data...")
@@ -1003,13 +1459,15 @@ def expand_verbs():
 
     wtp = get_wtp()
 
-    stats = {"expanded": 0, "failed": 0, "new_forms": 0, "collisions": 0}
+    stats = {"expanded": 0, "failed": 0, "new_forms": 0, "collisions": 0,
+             "tagged_pairs": 0}
     t0 = time.time()
+    tagged_pairs = []  # records of {form, lemma, pos: 'verb', tags: [...]}
 
     for i, hw in enumerate(candidates):
-        forms, err = expand_verb(wtp, hw)
+        tagged_forms, err = expand_verb(wtp, hw, tagged=True)
 
-        if err or not forms:
+        if err or not tagged_forms:
             stats["failed"] += 1
             continue
 
@@ -1017,16 +1475,19 @@ def expand_verbs():
 
         # See sanitize_form() rationale in expand_all() above.
         hw_clean = sanitize_form(hw)
-        for raw_form in forms:
+
+        # First pass: write to flat lookup table (legacy behaviour).
+        seen_forms = set()
+        for raw_form, axes in tagged_forms:
             form = sanitize_form(raw_form)
-            if not form:
+            if not form or form in seen_forms:
                 continue
+            seen_forms.add(form)
             if form not in lookup:
                 lookup[form] = hw_clean
                 stats["new_forms"] += 1
             elif lookup[form] != hw_clean:
                 stats["collisions"] += 1
-
             plain = strip_diacritics(form)
             if plain != form:
                 if plain not in lookup:
@@ -1035,13 +1496,31 @@ def expand_verbs():
                 elif lookup[plain] != hw_clean:
                     stats["collisions"] += 1
 
+        # Second pass: emit tagged pairs (one per (form, axes) combo, kept
+        # at the granularity dilemma_paradigms.py expects).
+        for raw_form, axes in tagged_forms:
+            form = sanitize_form(raw_form)
+            if not form:
+                continue
+            tag_list = _axes_to_tag_list(axes)
+            if not tag_list:
+                continue
+            tagged_pairs.append({
+                "form": form,
+                "lemma": hw_clean,
+                "pos": "verb",
+                "tags": tag_list,
+            })
+            stats["tagged_pairs"] += 1
+
         if (i + 1) % 500 == 0:
             elapsed = time.time() - t0
             rate = (i + 1) / elapsed
             remaining = (len(candidates) - i - 1) / rate
             print(f"  {i+1:,}/{len(candidates):,} "
                   f"({stats['expanded']:,} ok, {stats['failed']:,} fail, "
-                  f"{stats['new_forms']:,} new forms) "
+                  f"{stats['new_forms']:,} new forms, "
+                  f"{stats['tagged_pairs']:,} tagged pairs) "
                   f"[{elapsed:.0f}s elapsed, ~{remaining:.0f}s remaining]")
 
     elapsed = time.time() - t0
@@ -1050,6 +1529,7 @@ def expand_verbs():
     print(f"  Failed: {stats['failed']:,}")
     print(f"  New forms added: {stats['new_forms']:,}")
     print(f"  Collisions (kept existing): {stats['collisions']:,}")
+    print(f"  Tagged pairs emitted: {stats['tagged_pairs']:,}")
     print(f"  Lookup size: {original_size:,} -> {len(lookup):,}")
 
     print(f"\nSaving to {AG_LOOKUP}...")
@@ -1057,6 +1537,12 @@ def expand_verbs():
         json.dump(lookup, f, ensure_ascii=False)
     size_mb = AG_LOOKUP.stat().st_size / (1024 * 1024)
     print(f"  {size_mb:.1f} MB written")
+
+    print(f"\nSaving tagged pairs to {AG_LSJ_VERB_PAIRS}...")
+    with open(AG_LSJ_VERB_PAIRS, "w", encoding="utf-8") as f:
+        json.dump(tagged_pairs, f, ensure_ascii=False)
+    size_mb = AG_LSJ_VERB_PAIRS.stat().st_size / (1024 * 1024)
+    print(f"  {size_mb:.1f} MB written ({len(tagged_pairs):,} pairs)")
 
 
 def main():
