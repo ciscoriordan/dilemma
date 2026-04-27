@@ -18,16 +18,16 @@ import xml.etree.ElementTree as ET
 from collections import defaultdict
 from pathlib import Path
 
-OPLA_DATA = Path.home() / "Documents" / "opla" / "data"
+MORPHY_DATA = Path.home() / "Documents" / "morphy" / "data"
 OUTPUT_PATH = Path(__file__).parent.parent / "data" / "treebank_pos_lookup.json"
 
 TREEBANK_DIRS = [
-    OPLA_DATA / "UD_Ancient_Greek-Perseus",
-    OPLA_DATA / "UD_Ancient_Greek-PROIEL",
-    OPLA_DATA / "DiGreC",
+    MORPHY_DATA / "UD_Ancient_Greek-Perseus",
+    MORPHY_DATA / "UD_Ancient_Greek-PROIEL",
+    MORPHY_DATA / "DiGreC",
 ]
 
-GORMAN_DIR = OPLA_DATA / "Greek-Dependency-Trees" / "xml versions"
+GORMAN_DIR = MORPHY_DATA / "Greek-Dependency-Trees" / "xml versions"
 
 # AGDT POS code (position 1 of postag) -> UD UPOS
 _AGDT_TO_UPOS = {
