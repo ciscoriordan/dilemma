@@ -33,7 +33,7 @@ DATA_DIR = SCRIPT_DIR / "data"
 OUTPUT_PATH = DATA_DIR / "perseus_pairs.json"
 
 # Default location for Perseus CoNLL-U files
-PERSEUS_DIR = Path.home() / "Documents" / "opla" / "data" / "UD_Ancient_Greek-Perseus"
+PERSEUS_DIR = Path.home() / "Documents" / "morphy" / "data" / "UD_Ancient_Greek-Perseus"
 
 # UPOS tags to skip
 SKIP_UPOS = {"PUNCT", "NUM", "X", "SYM"}

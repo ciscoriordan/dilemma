@@ -897,7 +897,7 @@ class Dilemma:
     def export_cache(self) -> dict[str, str]:
         """Export the full lookup table as a {form: lemma} dict.
 
-        Useful for passing to downstream tools (e.g. Opla's lemma_cache
+        Useful for passing to downstream tools (e.g. Morphy's lemma_cache
         parameter) so they can skip Dilemma calls for known forms.
         Convention remapping is applied if a convention is set.
         """

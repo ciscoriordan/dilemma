@@ -30,7 +30,7 @@ DATA_DIR = SCRIPT_DIR / "data"
 OUTPUT_PATH = DATA_DIR / "gorman_pairs.json"
 
 # Default location for Gorman CoNLL-U files (sibling repo)
-GORMAN_DIR = SCRIPT_DIR.parent / "opla" / "data" / "Gorman"
+GORMAN_DIR = SCRIPT_DIR.parent / "morphy" / "data" / "Gorman"
 
 # UPOS tags to skip (punctuation, symbols)
 SKIP_UPOS = {"PUNCT", "SYM", "X", "NUM"}

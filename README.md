@@ -650,7 +650,7 @@ on demand rather than loading the full 12M-entry table into memory.
 
 ### POS-aware disambiguation
 
-When a POS tagger (e.g. [Opla](https://github.com/ciscoriordan/opla))
+When a POS tagger (e.g. [Morphy](https://github.com/ciscoriordan/morphy))
 provides UPOS tags, `lemmatize_pos` uses POS to disambiguate between
 multiple candidates from the regular lookup:
 
@@ -787,7 +787,7 @@ label still appears in `LemmaCandidate.lang` for forms from the
 medieval Wiktionary dump, but these are merged into the `el` lookup
 at build time.
 
-Note: [Opla](https://github.com/ciscoriordan/opla) (POS tagging +
+Note: [Morphy](https://github.com/ciscoriordan/morphy) (POS tagging +
 dependency parsing) uses `lang="grc"` for Byzantine text. Byzantine
 literary syntax (polytonic, full case system, optative mood) is closer
 to Ancient Greek, so the AG-trained POS tagger handles it well.

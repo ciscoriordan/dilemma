@@ -38,8 +38,8 @@ AG_HEADWORDS_PATH = DATA_DIR / "ag_headwords.json"
 EQUIV_PATH = DATA_DIR / "lemma_equivalences.json"
 
 # Treebank paths
-PROIEL_DIR = Path.home() / "Documents" / "opla" / "data" / "UD_Ancient_Greek-PROIEL"
-GORMAN_DIR = Path.home() / "Documents" / "opla" / "data" / "Gorman"
+PROIEL_DIR = Path.home() / "Documents" / "morphy" / "data" / "UD_Ancient_Greek-PROIEL"
+GORMAN_DIR = Path.home() / "Documents" / "morphy" / "data" / "Gorman"
 
 # Sextus Empiricus benchmark
 SEXTUS_GOLD = DATA_DIR / "benchmarks" / "ag_gold.tsv"
