@@ -413,12 +413,52 @@ def extract_pairs(jsonl_path: Path, lang: str,
             page_headwords.add(lemma)
             page_headwords.add(lemma.lower())
 
+            # EL Wiktionary uses entry-level top "form_of"/"alt_of" as an
+            # etymology / register / spelling-variant pointer template
+            # (kaikki maps the {{form of}} / {{ετυμολογία}} template into
+            # this field), NOT as an inflection-form-of relationship.
+            # Real inflection-form-of refs in EL show up under
+            # senses[].form_of with a matching gloss like "ονομαστική
+            # πληθυντικού του X". A survey of the current dumps shows
+            # 31,795 EL entries with top-level form_of where the gloss
+            # is a substantive lemma definition (etymology), vs only ~14
+            # where the gloss is genuinely inflectional - and even those
+            # are spelling-variant pointers ("άλλη μορφή του Y") rather
+            # than canonical case/number forms.
+            #
+            # Treating the top-level field as inflectional caused a
+            # regression on Demotic Modern Greek headwords whose EL
+            # Wiktionary page lists the Katharevousa/Ancient ancestor
+            # via this template: e.g. ποτήρι has top form_of=[ποτήριον,
+            # αρχαιοπρεπές] (literally "archaicizing"), άντρας has
+            # form_of=[άνδρας, ανήρ, αρχαιοπρεπές], σεντόνι has
+            # form_of=[σινδών, αρχαιοπρεπές]. These are real Demotic
+            # headwords with full noun inflection tables; the ancestor
+            # word should not surface as the lemma for their inflected
+            # plural / oblique forms.
+            #
+            # EN Wiktionary never uses entry-level top form_of (0 entries
+            # across both Greek and Ancient Greek dumps), so this only
+            # filters EL data.
+            wikt_source = lang.split("-", 1)[1] if "-" in lang else lang
+            if wikt_source == "el":
+                top_form_of_for_detection = []
+                top_alt_of_for_detection = []
+            else:
+                top_form_of_for_detection = list(entry.get("form_of") or [])
+                top_alt_of_for_detection = list(entry.get("alt_of") or [])
+
             # Headword self-mapping. True lemma entries (their own
             # dictionary definition) get confidence 3 so they can't be
             # overridden by another entry's inflection table. Form-of
             # pages (e.g. θεοί saying "plural of θεός") get confidence 1;
             # these are resolved in pass 2 using form_of/alt_of targets.
-            is_form_of_page = bool(entry.get("form_of") or entry.get("alt_of"))
+            sense_has_form_of = any(
+                s.get("form_of") or s.get("alt_of")
+                for s in entry.get("senses") or [])
+            is_form_of_page = bool(top_form_of_for_detection
+                                   or top_alt_of_for_detection
+                                   or sense_has_form_of)
             if not is_form_of_page:
                 # Check gloss for "X of Y" pattern (kaikki often doesn't
                 # populate form_of for AG form-of pages)
@@ -473,20 +513,22 @@ def extract_pairs(jsonl_path: Path, lang: str,
             # AG entries in EN kaikki store form-of refs in senses,
             # not at the top level.
             #
-            # Ordering: sense-level refs come first. EL Wiktionary often
-            # lists spurious double-gen variants at the top level
-            # (αυτών -> αυτωνών) while the correct parent lemma shows up
-            # at the sense level. Sense-level refs are consistently
-            # better-curated, so we use them as the primary source for
-            # pass-2 form_of_targets. Top-level refs still register in
-            # the lookup table at conf 1 so their forms resolve, but
-            # they don't dictate which lemma a self-map gets replaced
-            # with.
+            # For EL Wiktionary, top-level form_of is an etymology /
+            # register / variant pointer (see is_form_of_page comment
+            # above), NOT inflection. We skip it entirely here so that
+            # real Demotic headwords like ποτήρι, άντρας, σεντόνι don't
+            # get rewired to their Katharevousa ancestor.
+            #
+            # Ordering for non-EL sources: sense-level refs come first.
+            # EL Wiktionary occasionally lists spurious double-gen
+            # variants at the top level (αυτών -> αυτωνών) while the
+            # correct parent lemma shows up at the sense level. Sense
+            # refs are consistently better-curated, so we use them as
+            # the primary source for pass-2 form_of_targets.
             sense_form_of = []
             for sense in entry.get("senses", []):
                 sense_form_of.extend(sense.get("form_of", []))
-            top_form_of = list(entry.get("form_of", []))
-            form_of_refs = sense_form_of + top_form_of
+            form_of_refs = sense_form_of + list(top_form_of_for_detection)
 
             for ref in form_of_refs:
                 ref_word = strip_length_marks(ref.get("word", ""))
@@ -515,7 +557,17 @@ def extract_pairs(jsonl_path: Path, lang: str,
                 has_data = True
 
             # --- Source 2: alt_of (alternative form of another word) ---
-            for ref in entry.get("alt_of", []):
+            # For EL Wiktionary, top-level alt_of has the same etymology
+            # / variant-pointer semantics as top-level form_of (see above
+            # comment). Use sense-level alt_of refs as the primary signal
+            # and the (already filtered) top_alt_of_for_detection list
+            # for non-EL sources.
+            sense_alt_of = []
+            for sense in entry.get("senses", []):
+                sense_alt_of.extend(sense.get("alt_of", []))
+            alt_of_refs = sense_alt_of + list(top_alt_of_for_detection)
+
+            for ref in alt_of_refs:
                 ref_word = strip_length_marks(ref.get("word", ""))
                 if not ref_word or not _is_greek(ref_word.replace(" ", "")):
                     continue

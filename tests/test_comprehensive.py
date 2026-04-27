@@ -338,16 +338,7 @@ class TestCoreLemmatization:
 
     # -- MG words that have AG counterparts (need lang='el' for MG lemma) --
     @pytest.mark.parametrize("form,expected", [
-        pytest.param(
-            "ποτήρια", "ποτήρι",
-            marks=pytest.mark.xfail(
-                reason="Regression in v0.5.0 rebuild: ποτήρια -> ποτήριον "
-                "(Katharevousa) instead of ποτήρι (Demotic). Passed at v0.2.0; "
-                "flipped after the form_of resolution / closed-class refactor "
-                "in 122e54d or after a kaikki dump refresh. Pending data fix.",
-                strict=True,
-            ),
-        ),
+        ("ποτήρια", "ποτήρι"),
         ("γυναίκες", "γυναίκα"),
     ])
     def test_mg_words_el_only(self, d_el, form, expected):
