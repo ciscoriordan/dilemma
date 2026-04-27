@@ -2177,24 +2177,32 @@ class Dilemma:
 
             # For the original (accented) form, try cutting the suffix
             # from the actual word. We try multiple cuts since accent
-            # position may shift.
-            candidates = set()
-            # Cut from the accent-stripped form and look up
-            candidates.add(base)
-            # Also try cutting the suffix from the original lowercase
+            # position may shift. Order matters: accented variants are
+            # tried before the accent-stripped fallback, since accented
+            # forms disambiguate homographs like ἔμοι (dat. of ἐγώ) vs
+            # εμοι (which the lookup also resolves to a verb of ἐμέω).
+            # Use a list with explicit dedup rather than a set, since
+            # set iteration order is hash-seed-dependent.
+            candidates: list[str] = []
+            def _add(c: str) -> None:
+                if c and c not in candidates:
+                    candidates.append(c)
+
+            # Accented variants first (more specific)
             for suf_len in (len(suffix), len(suffix_stripped)):
                 if len(lower) > suf_len:
-                    candidates.add(lower[:-suf_len])
+                    _add(lower[:-suf_len])
+            # Accent-stripped fallback
+            _add(base)
 
             # After stripping a suffix, a medial sigma (σ) that was
             # word-internal may now be at the end of the base. Convert
             # to final sigma (ς) so lookup matches dictionary forms
-            # (e.g. ὅσπερ -> ὅσ needs to find ὅς).
-            sigma_fixed = set()
-            for c in candidates:
+            # (e.g. ὅσπερ -> ὅσ needs to find ὅς). Append in the same
+            # priority order as the source candidates.
+            for c in list(candidates):
                 if c.endswith("σ"):
-                    sigma_fixed.add(c[:-1] + "ς")
-            candidates |= sigma_fixed
+                    _add(c[:-1] + "ς")
 
             for candidate in candidates:
                 lemma = self._lookup_word(candidate)
