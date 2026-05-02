@@ -246,9 +246,16 @@ def _detect_temporal_augment(form_base: str, lemma_base: str) -> int:
 def _detect_reduplication(form_base: str, lemma_base: str) -> int:
     """Detect Cε- reduplication of a consonant-initial stem.
 
-    Returns 2 if form_base starts with `<C>ε` where <C> is the lemma's
-    initial consonant (or the de-aspirated equivalent for φ/θ/χ -> π/τ/κ),
-    else 0.
+    Returns 2 if form_base starts with `<C>ε<lemma_stem>...` where <C>
+    is the lemma's initial consonant (or the de-aspirated equivalent
+    for φ/θ/χ -> π/τ/κ), else 0.
+
+    Crucially, the remainder after `<C>ε` must continue with the lemma
+    stem — otherwise plain present-tense forms like φέρε / φέρει /
+    λέει look like reduplication just because their first two letters
+    happen to be `<lemma_initial_consonant>ε`. Real reduplication is
+    γέγραφα / λέλυκα / πέφευγα where the third character onward
+    recovers the lemma stem.
     """
     if len(form_base) < 3 or not lemma_base:
         return 0
@@ -262,11 +269,25 @@ def _detect_reduplication(form_base: str, lemma_base: str) -> int:
     if not _is_consonant_letter(l0):
         return 0
     # Exact match (e.g. γέγραφα <- γράφω: γ matches γ).
-    if c1 == l0:
-        return 2
-    # Aspirate de-aspiration (πέφευγα <- φεύγω: π reduplicates φ).
     deaspirate = {"φ": "π", "θ": "τ", "χ": "κ"}
-    if deaspirate.get(l0) == c1:
+    is_match = (c1 == l0) or (deaspirate.get(l0) == c1)
+    if not is_match:
+        return 0
+    # Verify the form continues with the lemma stem after the Cε
+    # prefix. We allow either an exact stem match or a prefix match
+    # (the form may carry an internal vowel change after reduplication
+    # but should at least share the lemma's initial consonant cluster).
+    rest = form_base[2:]
+    if rest.startswith(lemma_base):
+        return 2
+    # Short-stem fallback: accept when at least the lemma's initial
+    # consonant cluster reappears (e.g. λέλυκα -> rest "λυκα" starts
+    # with "λυ" which is the full lemma_base for λύω). Already covered
+    # above. We additionally accept a single-char match for very short
+    # stems to keep coverage on contracted verbs, but only when the
+    # lemma_base is at least 2 chars long — single-letter "stems" are
+    # too noisy.
+    if len(lemma_base) >= 2 and rest.startswith(lemma_base[:2]):
         return 2
     return 0
 

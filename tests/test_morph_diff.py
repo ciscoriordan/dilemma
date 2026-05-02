@@ -87,6 +87,24 @@ class TestAncientGreek:
         assert 0 in d.irregular_indices
         assert 1 in d.irregular_indices
 
+    def test_ferw_present_imperative_no_false_reduplication(self):
+        """φέρω → φέρε: present-tense form starts with `Cε` but isn't
+        reduplication — the rest of the form ('ρε') doesn't recover the
+        lemma stem 'φερ'. Regression: an earlier reduplication detector
+        only checked the leading `Cε` pair and falsely flagged every
+        consonant-initial `Cε…` form as reduplicated."""
+        d = diff_form("φέρω", "φέρε", lang="grc")
+        assert d.irregular_indices == []
+        assert d.roles[0] == Role.STEM
+        assert d.roles[1] == Role.STEM
+
+    def test_lew_mg_present_no_false_reduplication(self):
+        """λέω → λέμε (MG): regular present 1pl. Lemma λέω has stem
+        'λε', form λέμε also starts with 'λε' followed by 'με' which
+        is the ending. No reduplication, no irregular flagging."""
+        d = diff_form("λέω", "λέμε", lang="el")
+        assert d.irregular_indices == []
+
     def test_luw_present_no_stem_change(self):
         """λύω → λύεις: regular present indicative, no stem change."""
         d = diff_form("λύω", "λύεις", lang="grc")
