@@ -208,7 +208,12 @@ import re as _re  # local alias so the module-top imports stay tidy
 _MG_LEADING_PREFIX_RE = _re.compile(
     r'^(?:(?:θα|να|ας)\s+)?'
     r'(?:(?:έχω|έχεις|έχει|έχουμε|έχομε|έχετε|έχουν|έχουνε|'
-    r'είχα|είχες|είχε|είχαμε|είχατε|είχαν|είχανε|έχε)\s+)?'
+    r'είχα|είχες|είχε|είχαμε|είχατε|είχαν|είχανε|έχε|'
+    # MG perfect non-finite participle is periphrastic, e.g.
+    # `έχοντας φέρει`. The έχοντας gerund is regular for the
+    # construction; treat it like the finite auxiliaries above so
+    # the diff doesn't flag its 8 chars as irregular_stem.
+    r'έχοντας|έχοντα)\s+)?'
 )
 
 
