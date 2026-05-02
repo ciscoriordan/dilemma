@@ -116,6 +116,7 @@ table (which handles 95%+ of words) needs neither.
   - [Batch processing](#batch-processing)
   - [POS-aware disambiguation](#pos-aware-disambiguation)
   - [Spelling correction](#spelling-correction)
+  - [Paradigm generation](#paradigm-generation)
   - [Elision expansion](#elision-expansion)
 - [POS tagger and dependency parser](#pos-tagger-and-dependency-parser)
 - [Greek Coverage](#greek-coverage)
@@ -726,6 +727,70 @@ d.is_headword("θεός")              # True  (LSJ headword)
 d.is_headword("θεοί")              # False (inflected form, not a headword)
 d.is_headword("θεός", "cunliffe")  # check against Cunliffe headwords
 ```
+
+### Paradigm generation
+
+`dilemma.paradigm` resolves Ancient Greek inflection cells by source
+precedence (jtauber > Morpheus > dilemma_corpus > template), with a
+small template fallback for the simplest regular cases. Useful when
+a build pipeline needs full inflection paradigms for every lemma but
+the kaikki / corpus extracts only carry the cells that happened to
+be attested.
+
+```python
+from dilemma.paradigm import generate, generate_paradigm, ParadigmSlot
+
+slot = ParadigmSlot.verb_finite(
+    voice="active", tense="aorist", mood="indicative",
+    person="1", number="sg",
+)
+generate("γράφω", slot)
+# ParadigmForm(form="ἔγραψα", source="jtauber")
+
+generate_paradigm("γράφω", "verb")
+# {"active_aorist_indicative_1sg": ParadigmForm(...), ...}
+```
+
+Each form is wrapped in `ParadigmForm(form, source)` so callers can
+decide whether to trust a cell — corpus / paradigm-table sources are
+safe to ship as-is, template fallbacks are best-effort. Inflection
+keys match the canonical shapes:
+
+| Shape | Example |
+|-------|---------|
+| Verb finite | `active_aorist_indicative_1sg` |
+| Verb infinitive | `active_aorist_infinitive` |
+| Verb participle | `active_aorist_participle_nom_m_sg` |
+| Noun | `genitive_pl` |
+| Adjective | `nominative_m_sg` |
+
+The orchestrator reads paradigm JSONs from `$DILEMMA_PARADIGM_DATA`
+(set this to a directory containing `jtauber_ag_paradigms.json`,
+`ag_verb_paradigms.json`, `ag_noun_paradigms.json`,
+`dilemma_ag_verb_paradigms.json`, and/or
+`dilemma_ag_noun_paradigms.json`). Missing files yield empty per-source
+dicts; the orchestrator falls through to whichever sources are
+available and finally to the template fallback.
+
+Templates handle thematic -ω verbs (present-system active only),
+vowel-stem 1st / 2nd-declension nouns, and three-termination -ος /
+-η / -ον adjectives. Anything that needs accent re-placement or stem
+allomorphy (contract -άω / -έω / -όω, athematic μι-verbs, suppletive
+verbs, 3rd-decl consonant stems) returns None so callers can leave
+the cell empty rather than ship a bogus form. Pass `allow_template=False`
+to skip the template path entirely and only return cells with explicit
+source attribution.
+
+A CLI entry point fills missing inflection cells across a build's
+canonical hash, mapping `{filepath: entry}`:
+
+```sh
+python -m dilemma paradigm fill --in pending.json --out filled.json [--with-templates]
+```
+
+Each filled cell is recorded in a sidecar `inflections_source.<dialect>.<key>`
+field on the entry so downstream consumers can render generator-filled
+cells distinctly from corpus-attested ones.
 
 ### Elision expansion
 

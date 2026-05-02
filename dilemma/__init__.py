@@ -29,6 +29,14 @@ from .morph_diff import (
     MorphDiff,
     Role,
 )
+from .paradigm import (
+    generate,
+    generate_paradigm,
+    iter_slots,
+    ParadigmForm,
+    ParadigmSlot,
+    ParadigmSource,
+)
 
 
 def __getattr__(name):
@@ -56,4 +64,10 @@ __all__ = [
     "MorphDiff",
     "Role",
     "Tagger",
+    "generate",
+    "generate_paradigm",
+    "iter_slots",
+    "ParadigmForm",
+    "ParadigmSlot",
+    "ParadigmSource",
 ]
