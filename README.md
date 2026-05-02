@@ -1607,4 +1607,4 @@ vocabulary (~160 tokens), so the same word is ~10 steps. Combined with
 
 ## License
 
-[MIT](https://opensource.org/license/mit). Copyright Francisco Riordan.
+[MIT](https://opensource.org/license/mit). © Francisco Riordan.
