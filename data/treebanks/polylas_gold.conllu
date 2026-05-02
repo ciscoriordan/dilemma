@@ -1,0 +1,1232 @@
+# sent_id = book01-line107
+# text = και ο νους σου πάντα αγαπά κακά να προμαντεύη·
+1	και	_	CCONJ	_	_	6	cc	_	_
+2	ο	_	DET	_	Case=Nom|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	3	det	_	_
+3	νους	_	NOUN	_	Case=Nom|Gender=Masc|Number=Sing	6	nsubj	_	_
+4	σου	_	PRON	_	Case=Gen|Gender=Masc|Number=Sing|Person=3|Poss=Yes|PronType=Prs	3	nmod	_	_
+5	πάντα	_	ADV	_	_	6	advmod	_	_
+6	αγαπά	_	VERB	_	Aspect=Imp|Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin|Voice=Act	0	root	_	_
+7	κακά	_	ADJ	_	Case=Acc|Gender=Neut|Number=Plur	6	obj	_	_
+8	να	_	AUX	_	_	9	aux	_	_
+9	προμαντεύη	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Sing|Person=3|VerbForm=Fin|Voice=Act	6	xcomp	_	_
+10	·	·	PUNCT	_	_	6	punct	_	_
+
+# sent_id = book01-line410
+# text = να σφάζωνται για να χαρούν τον βασιλιά τους όλοι.
+1	να	_	AUX	_	_	2	aux	_	_
+2	σφάζωνται	_	VERB	_	Aspect=Imp|Mood=Ind|Number=Plur|Person=3|Tense=Pres|VerbForm=Fin|Voice=Pass	0	root	_	_
+3	για	_	ADP	_	_	5	mark	_	_
+4	να	_	AUX	_	_	5	aux	_	_
+5	χαρούν	_	VERB	_	Aspect=Imp|Mood=Ind|Number=Plur|Person=3|Tense=Pres|VerbForm=Fin|Voice=Act	2	advcl	_	_
+6	τον	_	DET	_	Case=Acc|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	7	det	_	_
+7	βασιλιά	_	NOUN	_	Case=Acc|Gender=Masc|Number=Sing	5	obj	_	_
+8	τους	_	PRON	_	Case=Gen|Gender=Masc|Number=Plur|Person=3|Poss=Yes|PronType=Prs	7	nmod	_	_
+9	όλοι	_	ADJ	_	Case=Nom|Gender=Masc|Number=Plur	5	nsubj	_	_
+10	.	.	PUNCT	_	_	2	punct	_	_
+
+# sent_id = book01-line435
+# text = έφεραν μέσα στο άρασμα με τα κουπιά το πλοίο,
+1	έφεραν	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Plur|Person=3|Tense=Past|VerbForm=Fin|Voice=Act	0	root	_	_
+2	μέσα	_	ADV	_	_	1	advmod	_	_
+3	στο	_	DET	_	Case=Acc|Definite=Def|Gender=Neut|Number=Sing|PronType=Art	4	case	_	_
+4	άρασμα	_	NOUN	_	Case=Acc|Gender=Neut|Number=Sing	1	obl	_	_
+5	με	_	ADP	_	_	7	case	_	_
+6	τα	_	DET	_	Case=Acc|Definite=Def|Gender=Neut|Number=Plur|PronType=Art	7	det	_	_
+7	κουπιά	_	NOUN	_	Case=Acc|Gender=Neut|Number=Plur	4	nmod	_	_
+8	το	_	DET	_	Case=Acc|Definite=Def|Gender=Neut|Number=Sing|PronType=Art	9	det	_	_
+9	πλοίο	_	NOUN	_	Case=Acc|Gender=Neut|Number=Sing	1	obj	_	_
+10	,	,	PUNCT	_	_	1	punct	_	_
+
+# sent_id = book01-line489
+# text = ο φτεροπόδης διογενής Πηλείδης Αχιλλέας
+1	ο	_	DET	_	Case=Nom|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	2	det	_	_
+2	φτεροπόδης	_	PROPN	_	Case=Nom|Gender=Masc|Number=Sing	0	root	_	_
+3	διογενής	_	PROPN	_	Case=Nom|Gender=Masc|Number=Sing	2	flat	_	_
+4	Πηλείδης	_	ADJ	_	Case=Nom|Gender=Masc|Number=Sing	3	flat	_	_
+5	Αχιλλέας	_	PROPN	_	Case=Nom|Gender=Masc|Number=Sing	2	flat	_	_
+
+# sent_id = book01-line521
+# text = εμπρός σε όλους τους θεούς πως βοηθώ τους Τρώας,
+1	εμπρός	_	ADV	_	_	0	root	_	_
+2	σε	_	ADP	_	_	5	case	_	_
+3	όλους	_	ADJ	_	Case=Acc|Gender=Masc|Number=Plur	5	amod	_	_
+4	τους	_	DET	_	Case=Acc|Definite=Def|Gender=Masc|Number=Plur|PronType=Art	5	det	_	_
+5	θεούς	_	NOUN	_	Case=Acc|Gender=Masc|Number=Plur	1	obl	_	_
+6	πως	_	ADV	_	_	7	advmod	_	_
+7	βοηθώ	_	VERB	_	Aspect=Imp|Mood=Ind|Number=Sing|Person=1|Tense=Pres|VerbForm=Fin|Voice=Pass	1	ccomp	_	_
+8	τους	_	DET	_	Case=Acc|Definite=Def|Gender=Masc|Number=Plur|PronType=Art	9	det	_	_
+9	Τρώας	_	PROPN	_	Case=Acc|Gender=Masc|Number=Plur	7	obj	_	_
+10	,	,	PUNCT	_	_	1	punct	_	_
+
+# sent_id = book02-line101
+# text = το σκήπτρο, έργο θαυμαστό του φιλοτέχνου Ηφαίστου.
+1	το	_	DET	_	Case=Nom|Definite=Def|Gender=Neut|Number=Sing|PronType=Art	2	det	_	_
+2	σκήπτρο	_	NOUN	_	Case=Nom|Gender=Neut|Number=Sing	0	root	_	_
+3	,	,	PUNCT	_	_	2	punct	_	_
+4	έργο	_	NOUN	_	Case=Nom|Gender=Neut|Number=Sing	2	appos	_	_
+5	θαυμαστό	_	ADJ	_	Case=Nom|Gender=Neut|Number=Sing	5	amod	_	_
+6	του	_	DET	_	Case=Gen|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	0	det	_	_
+7	φιλοτέχνου	_	ADJ	_	Case=Gen|Gender=Masc|Number=Sing	0	amod	_	_
+8	Ηφαίστου	_	PROPN	_	Case=Gen|Gender=Masc|Number=Sing	6	nmod	_	_
+9	.	.	PUNCT	_	_	2	punct	_	_
+
+# sent_id = book02-line140
+# text = όλοι με τα καράβια μας για τη γλυκιά πατρίδα,
+1	όλοι	_	ADJ	_	Case=Nom|Gender=Masc|Number=Plur	0	root	_	_
+2	με	_	ADP	_	_	4	case	_	_
+3	τα	_	DET	_	Case=Acc|Definite=Def|Gender=Neut|Number=Plur|PronType=Art	4	det	_	_
+4	καράβια	_	NOUN	_	Case=Acc|Gender=Neut|Number=Plur	1	obl	_	_
+5	μας	_	PRON	_	Case=Gen|Gender=Masc|Number=Plur|Person=1|Poss=Yes|PronType=Prs	4	nmod	_	_
+6	για	_	ADP	_	_	9	case	_	_
+7	τη	_	DET	_	Case=Acc|Definite=Def|Gender=Fem|Number=Sing|PronType=Art	9	det	_	_
+8	γλυκιά	_	ADJ	_	Case=Acc|Gender=Fem|Number=Sing	9	amod	_	_
+9	πατρίδα	_	NOUN	_	Case=Acc|Gender=Fem|Number=Sing	1	nmod	_	_
+10	,	,	PUNCT	_	_	1	punct	_	_
+
+# sent_id = book02-line529
+# text = στο σώμα, και μικρόσωμος λινοθωρακωμένος
+1	στο	_	ADP	_	_	2	case	_	_
+2	σώμα	_	NOUN	_	Case=Acc|Gender=Neut|Number=Sing	0	root	_	_
+3	,	,	PUNCT	_	_	2	punct	_	_
+4	και	_	CCONJ	_	_	0	cc	_	_
+5	μικρόσωμος	_	ADJ	_	Case=Nom|Gender=Masc|Number=Sing	0	amod	_	_
+6	λινοθωρακωμένος	_	ADJ	_	Case=Nom|Gender=Masc|Number=Sing	0	conj	_	_
+
+# sent_id = book02-line681
+# text = Και από το Άργος το Πελασγικό όσοι ήρθαν και από την Άλο
+1	Και	_	CCONJ	_	_	4	cc	_	_
+2	από	_	ADP	_	_	4	case	_	_
+3	το	_	DET	_	Case=Acc|Definite=Def|Gender=Neut|Number=Sing|PronType=Art	4	det	_	_
+4	Άργος	_	PROPN	_	Case=Acc|Gender=Neut|Number=Sing	7	obl	_	_
+5	το	_	DET	_	Case=Acc|Definite=Def|Gender=Neut|Number=Sing|PronType=Art	6	det	_	_
+6	Πελασγικό	_	ADJ	_	Case=Acc|Gender=Neut|Number=Sing	4	amod	_	_
+7	όσοι	_	PRON	_	Case=Nom|Gender=Masc|Number=Plur|Person=3|PronType=Ind,Rel	8	nsubj	_	_
+8	ήρθαν	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Plur|Person=3|Tense=Past|VerbForm=Fin|Voice=Pass	7	acl:relcl	_	_
+9	και	_	CCONJ	_	_	12	cc	_	_
+10	από	_	ADP	_	_	12	case	_	_
+11	την	_	DET	_	Case=Acc|Definite=Def|Gender=Fem|Number=Sing|PronType=Art	12	det	_	_
+12	Άλο	_	PROPN	_	Case=Acc|Gender=Fem|Number=Sing	8	obl	_	_
+
+# sent_id = book02-line697
+# text = και της Αντρώνος οι γιαλοί και η Πτελεός χλοώδης·
+1	και	_	CCONJ	_	_	3	cc	_	_
+2	της	_	DET	_	Case=Gen|Definite=Def|Gender=Fem|Number=Sing|PronType=Art	3	det	_	_
+3	Αντρώνος	_	PROPN	_	Case=Gen|Gender=Fem|Number=Sing	5	conj	_	_
+4	οι	_	DET	_	Case=Nom|Definite=Def|Gender=Masc|Number=Plur|PronType=Art	5	det	_	_
+5	γιαλοί	_	NOUN	_	Case=Nom|Gender=Masc|Number=Plur	5	nsubj	_	_
+6	και	_	CCONJ	_	_	8	cc	_	_
+7	η	_	DET	_	Case=Nom|Definite=Def|Gender=Fem|Number=Sing|PronType=Art	8	det	_	_
+8	Πτελεός	_	PROPN	_	Case=Nom|Gender=Fem|Number=Sing	5	conj	_	_
+9	χλοώδης	_	ADJ	_	Case=Nom|Gender=Fem|Number=Sing	5	conj	_	_
+10	·	·	PUNCT	_	_	0	punct	_	_
+
+# sent_id = book02-line814
+# text = οι αθάνατοι και Βάτεια οι άνθρωποι ονομάζαν·
+1	οι	_	DET	_	Case=Nom|Definite=Def|Gender=Masc|Number=Plur|PronType=Art	2	det	_	_
+2	αθάνατοι	_	ADJ	_	Case=Nom|Gender=Masc|Number=Plur	7	nsubj	_	_
+3	και	_	CCONJ	_	_	4	cc	_	_
+4	Βάτεια	_	NOUN	_	Case=Nom|Gender=Neut|Number=Plur	2	conj	_	_
+5	οι	_	DET	_	Case=Nom|Definite=Def|Gender=Masc|Number=Plur|PronType=Art	6	det	_	_
+6	άνθρωποι	_	NOUN	_	Case=Nom|Gender=Masc|Number=Plur	7	nsubj	_	_
+7	ονομάζαν	_	VERB	_	Aspect=Imp|Mood=Ind|Number=Plur|Person=3|Tense=Past|VerbForm=Fin|Voice=Act	0	root	_	_
+8	·	·	PUNCT	_	_	7	punct	_	_
+
+# sent_id = book03-line32
+# text = και να σωθή εσύρθηκε στη μέση των συντρόφων.
+1	και	_	CCONJ	_	_	3	cc	_	_
+2	να	_	AUX	_	_	3	aux	_	_
+3	σωθή	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Sing|Person=3|VerbForm=Fin|Voice=Pass	4	advcl	_	_
+4	εσύρθηκε	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin|Voice=Pass	0	root	_	_
+5	στη	_	_	_	_	6	case	_	_
+6	μέση	_	NOUN	_	Case=Acc|Gender=Fem|Number=Sing	4	obl	_	_
+7	των	_	DET	_	Case=Gen|Definite=Def|Gender=Masc|Number=Plur|PronType=Art	8	det	_	_
+8	συντρόφων	_	NOUN	_	Case=Gen|Gender=Masc|Number=Plur	6	nmod	_	_
+9	.	.	PUNCT	_	_	4	punct	_	_
+
+# sent_id = book03-line48
+# text = και να πατήσης ξένων γη, κι από μακρινά μέρη,
+1	και	_	CCONJ	_	_	3	cc	_	_
+2	να	_	AUX	_	_	3	aux	_	_
+3	πατήσης	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Sing|Person=2|VerbForm=Fin|Voice=Act	0	root	_	_
+4	ξένων	_	ADJ	_	Case=Gen|Gender=Masc|Number=Plur	5	amod	_	_
+5	γη	_	NOUN	_	Case=Acc|Gender=Fem|Number=Sing	3	obj	_	_
+6	,	,	PUNCT	_	_	3	punct	_	_
+7	κι	_	CCONJ	_	_	0	cc	_	_
+8	από	_	ADP	_	_	0	case	_	_
+9	μακρινά	_	ADJ	_	Case=Acc|Gender=Neut|Number=Plur	0	amod	_	_
+10	μέρη	_	NOUN	_	Case=Acc|Gender=Neut|Number=Plur	5	conj	_	_
+11	,	,	PUNCT	_	_	3	punct	_	_
+
+# sent_id = book03-line97
+# text = « Τώρα να ακούσετε κι εμέ, που εξόχως θλίβει ο πόνος
+1	«	«	PUNCT	_	_	4	punct	_	_
+2	Τώρα	_	ADV	_	_	5	advmod	_	_
+3	να	_	AUX	_	_	5	aux	_	_
+4	ακούσετε	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Plur|Person=2|VerbForm=Fin|Voice=Act	0	root	_	_
+5	κι	_	CCONJ	_	_	8	cc	_	_
+6	εμέ	_	PRON	_	Case=Acc|Gender=Masc|Number=Sing|Person=1|PronType=Prs	5	obj	_	_
+7	,	,	PUNCT	_	_	4	punct	_	_
+8	που	_	PRON	_	Case=Acc|Gender=Masc|Number=Sing|Person=3|PronType=Rel	12	obj	_	_
+9	εξόχως	_	ADV	_	_	12	advmod	_	_
+10	θλίβει	_	VERB	_	Aspect=Imp|Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin|Voice=Act	8	acl:relcl	_	_
+11	ο	_	DET	_	Case=Nom|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	0	det	_	_
+12	πόνος	_	NOUN	_	Case=Nom|Gender=Masc|Number=Sing	12	nsubj	_	_
+
+# sent_id = book03-line167
+# text = που ανάμεσα των Αχαιών τόσο λαμπρά φαντάζει.
+1	που	_	PRON	_	_	7	nsubj	_	_
+2	ανάμεσα	_	ADV	_	_	7	advmod	_	_
+3	των	_	DET	_	Case=Gen|Definite=Def|Gender=Masc|Number=Plur|PronType=Art	4	det	_	_
+4	Αχαιών	_	PROPN	_	Case=Gen|Gender=Masc|Number=Plur	2	obl	_	_
+5	τόσο	_	ADV	_	_	6	advmod	_	_
+6	λαμπρά	_	ADJ	_	_	7	xcomp	_	_
+7	φαντάζει	_	VERB	_	Aspect=Imp|Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin|Voice=Pass	0	acl:relcl	_	_
+8	.	.	PUNCT	_	_	0	punct	_	_
+
+# sent_id = book03-line187
+# text = του θείου Μύγδονος λαοί συνάμα και του Οτρέα,
+1	του	_	DET	_	Case=Gen|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	3	det	_	_
+2	θείου	_	ADJ	_	Case=Gen|Gender=Masc|Number=Sing	3	amod	_	_
+3	Μύγδονος	_	NOUN	_	Case=Gen|Gender=Masc|Number=Sing	4	nmod	_	_
+4	λαοί	_	NOUN	_	Case=Nom|Gender=Masc|Number=Plur	0	root	_	_
+5	συνάμα	_	ADV	_	_	4	advmod	_	_
+6	και	_	CCONJ	_	_	8	cc	_	_
+7	του	_	DET	_	Case=Gen|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	8	det	_	_
+8	Οτρέα	_	X	_	Foreign=Yes	4	nmod	_	_
+9	,	,	PUNCT	_	_	4	punct	_	_
+
+# sent_id = book03-line192
+# text = « Παιδί μου, τώρα λέγε μου ποιός είναι πάλι εκείνος·
+1	«	«	PUNCT	_	_	6	punct	_	_
+2	Παιδί	_	NOUN	_	Case=Nom|Gender=Neut|Number=Sing	8	vocative	_	_
+3	μου	_	PRON	_	Case=Gen|Gender=Masc|Number=Sing|Person=1|Poss=Yes|PronType=Prs	3	nmod	_	_
+4	,	,	PUNCT	_	_	6	punct	_	_
+5	τώρα	_	ADV	_	_	8	advmod	_	_
+6	λέγε	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Sing|Person=3|VerbForm=Fin|Voice=Act	0	root	_	_
+7	μου	_	PRON	_	Case=Gen|Gender=Masc|Number=Sing|Person=1|PronType=Prs	8	obj	_	_
+8	ποιός	_	PRON	_	Case=Nom|Gender=Masc|Number=Sing|Person=3|PronType=Int	0	nsubj	_	_
+9	είναι	_	AUX	_	Aspect=Imp|Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin|Voice=Pass	0	cop	_	_
+10	πάλι	_	ADV	_	_	0	advmod	_	_
+11	εκείνος	_	PRON	_	Case=Nom|Gender=Masc|Number=Sing|Person=3|PronType=Dem	8	ccomp	_	_
+12	·	·	PUNCT	_	_	6	punct	_	_
+
+# sent_id = book03-line337
+# text = και με τη χαίτη σείονταν φρικτός επάνω ο λόφος
+1	και	_	CCONJ	_	_	5	cc	_	_
+2	με	_	ADP	_	_	4	case	_	_
+3	τη	_	DET	_	Case=Acc|Definite=Def|Gender=Fem|Number=Sing|PronType=Art	4	det	_	_
+4	χαίτη	_	PROPN	_	Case=Acc|Gender=Fem|Number=Sing	5	obl	_	_
+5	σείονταν	_	VERB	_	Aspect=Imp|Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin|Voice=Pass	0	root	_	_
+6	φρικτός	_	ADJ	_	Case=Nom|Gender=Masc|Number=Sing	5	amod	_	_
+7	επάνω	_	ADV	_	_	5	advmod	_	_
+8	ο	_	DET	_	Case=Nom|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	9	det	_	_
+9	λόφος	_	NOUN	_	Case=Nom|Gender=Masc|Number=Sing	5	nsubj:pass	_	_
+
+# sent_id = book04-line97
+# text = Πρώτος αυτός με υπέρτιμα θα σε ανταμείψη δώρα,
+1	Πρώτος	_	NUM	_	Case=Nom|Gender=Masc|NumType=Ord|Number=Sing	7	amod	_	_
+2	αυτός	_	PRON	_	Case=Nom|Gender=Masc|Number=Sing|Person=3|PronType=Dem	7	nsubj	_	_
+3	με	_	ADP	_	_	4	case	_	_
+4	υπέρτιμα	_	NOUN	_	Case=Acc|Gender=Neut|Number=Plur	2	nmod	_	_
+5	θα	_	AUX	_	_	7	aux	_	_
+6	σε	_	PRON	_	Case=Acc|Gender=Masc|Number=Sing|Person=3|PronType=Prs	7	obj	_	_
+7	ανταμείψη	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Sing|Person=3|VerbForm=Fin|Voice=Act	0	root	_	_
+8	δώρα	_	NOUN	_	Case=Acc|Gender=Neut|Number=Plur	7	obj	_	_
+9	,	,	PUNCT	_	_	7	punct	_	_
+
+# sent_id = book04-line338
+# text = « Ω γόνε, συ, του Πετεού διοθρέφτου βασιλιά,
+1	«	«	PUNCT	_	_	3	punct	_	_
+2	Ω	_	NOUN	_	Number=Sing	5	nmod	_	_
+3	γόνε	_	NOUN	_	Case=Voc|Gender=Masc|Number=Sing	0	root	_	_
+4	,	,	PUNCT	_	_	3	punct	_	_
+5	συ	_	PRON	_	Case=Nom|Gender=Masc|Number=Sing	5	conj	_	_
+6	,	,	PUNCT	_	_	3	punct	_	_
+7	του	_	DET	_	Case=Gen|Definite=Def|Gender=Neut|Number=Sing|PronType=Art	0	det	_	_
+8	Πετεού	_	NOUN	_	Case=Gen|Gender=Neut|Number=Sing	5	nmod	_	_
+9	διοθρέφτου	_	ADJ	_	Case=Gen|Gender=Masc|Number=Sing	0	nmod	_	_
+10	βασιλιά	_	NOUN	_	Case=Gen|Gender=Masc|Number=Sing	0	nmod	_	_
+11	,	,	PUNCT	_	_	3	punct	_	_
+
+# sent_id = book05-line55
+# text = τον κτύπησε ο Μενέλαος ο ανδρείος Ατρεΐδης,
+1	τον	_	PRON	_	Case=Acc|Gender=Masc|Number=Sing|Person=3|PronType=Prs	2	obj	_	_
+2	κτύπησε	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin|Voice=Act	0	root	_	_
+3	ο	_	DET	_	Case=Nom|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	4	det	_	_
+4	Μενέλαος	_	PROPN	_	Case=Nom|Gender=Masc|Number=Sing	2	nsubj	_	_
+5	ο	_	DET	_	Case=Nom|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	7	det	_	_
+6	ανδρείος	_	PROPN	_	Case=Nom|Gender=Masc|Number=Sing	7	amod	_	_
+7	Ατρεΐδης	_	PROPN	_	Case=Nom|Gender=Masc|Number=Sing	4	appos	_	_
+8	,	,	PUNCT	_	_	2	punct	_	_
+
+# sent_id = book05-line123
+# text = κι ήρθε κοντά του κι είπε του με λόγια φτερωμένα :
+1	κι	_	CCONJ	_	_	2	cc	_	_
+2	ήρθε	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin|Voice=Pass	0	root	_	_
+3	κοντά	_	ADV	_	_	2	advmod	_	_
+4	του	_	PRON	_	Case=Gen|Gender=Masc|Number=Sing|Person=3|PronType=Prs	3	obl	_	_
+5	κι	_	CCONJ	_	_	6	cc	_	_
+6	είπε	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin|Voice=Act	2	conj	_	_
+7	του	_	PRON	_	Case=Gen|Gender=Masc|Number=Sing|Person=3|PronType=Prs	6	iobj	_	_
+8	με	_	ADP	_	_	9	case	_	_
+9	λόγια	_	NOUN	_	Case=Acc|Gender=Neut|Number=Plur	6	obl	_	_
+10	φτερωμένα	_	ADJ	_	Case=Acc|Gender=Neut|Number=Plur	9	amod	_	_
+11	:	:	PUNCT	_	_	2	punct	_	_
+
+# sent_id = book05-line172
+# text = το κλέος που ; Και ισόπαλο κανένα εδώ δεν έχεις,
+1	το	_	DET	_	Case=Nom|Definite=Def|Gender=Neut|Number=Sing|PronType=Art	2	det	_	_
+2	κλέος	_	NOUN	_	Case=Nom|Gender=Neut|Number=Sing	0	root	_	_
+3	που	_	ADV	_	_	2	advmod	_	_
+4	;	;	PUNCT	_	_	2	punct	_	_
+5	Και	_	CCONJ	_	_	0	cc	_	_
+6	ισόπαλο	_	ADJ	_	Case=Acc|Gender=Neut|Number=Sing	2	amod	_	_
+7	κανένα	_	PRON	_	Case=Acc|Gender=Neut|Number=Sing|Person=3|PronType=Ind	0	obj	_	_
+8	εδώ	_	ADV	_	_	0	advmod	_	_
+9	δεν	_	PART	_	_	0	advmod	_	_
+10	έχεις	_	VERB	_	Aspect=Imp|Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin|Voice=Act	2	conj	_	_
+11	,	,	PUNCT	_	_	2	punct	_	_
+
+# sent_id = book05-line658
+# text = εβγήκε και τα μάτια του μαύρο σκεπάζει σκότος.
+1	εβγήκε	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin|Voice=Act	0	root	_	_
+2	και	_	CCONJ	_	_	7	cc	_	_
+3	τα	_	DET	_	Case=Nom|Definite=Def|Gender=Neut|Number=Plur|PronType=Art	4	det	_	_
+4	μάτια	_	NOUN	_	Case=Nom|Gender=Neut|Number=Plur	7	nsubj	_	_
+5	του	_	PRON	_	Case=Gen|Gender=Masc|Number=Sing|Person=3|Poss=Yes|PronType=Prs	4	nmod	_	_
+6	μαύρο	_	ADJ	_	Case=Nom|Gender=Neut|Number=Sing	7	xcomp	_	_
+7	σκεπάζει	_	VERB	_	Aspect=Imp|Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin|Voice=Act	1	conj	_	_
+8	σκότος	_	NOUN	_	Case=Acc|Gender=Neut|Number=Sing	7	obj	_	_
+9	.	.	PUNCT	_	_	1	punct	_	_
+
+# sent_id = book05-line765
+# text = «Την ανδρειωμένη Αθηνά σπρώξε του αμέσως επάνω·
+1	«	«	PUNCT	_	_	5	punct	_	_
+2	Την	_	DET	_	Case=Acc|Definite=Def|Gender=Fem|Number=Sing|PronType=Art	5	det	_	_
+3	ανδρειωμένη	_	ADJ	_	Case=Acc|Gender=Fem|Number=Sing	5	amod	_	_
+4	Αθηνά	_	PROPN	_	Case=Acc|Gender=Fem|Number=Sing	6	obj	_	_
+5	σπρώξε	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Sing|Person=3|VerbForm=Fin|Voice=Act	0	root	_	_
+6	του	_	PRON	_	Case=Gen|Gender=Masc|Number=Sing|Person=3|PronType=Prs	6	obj	_	_
+7	αμέσως	_	ADV	_	_	6	advmod	_	_
+8	επάνω	_	ADV	_	_	6	advmod	_	_
+9	·	·	PUNCT	_	_	5	punct	_	_
+
+# sent_id = book06-line126
+# text = αφού συ στο μακρόσκιο κοντάρι μου αντιστέκεις·
+1	αφού	_	SCONJ	_	_	7	mark	_	_
+2	συ	_	PRON	_	Case=Nom|Number=Sing|Person=3	7	nsubj	_	_
+3	στο	_	_	_	_	5	case	_	_
+4	μακρόσκιο	_	NOUN	_	Case=Acc|Gender=Neut|Number=Sing	5	amod	_	_
+5	κοντάρι	_	NOUN	_	Case=Acc|Gender=Neut|Number=Sing	7	obl	_	_
+6	μου	_	PRON	_	Case=Gen|Gender=Masc|Number=Sing|Person=1|Poss=Yes|PronType=Prs	5	nmod	_	_
+7	αντιστέκεις	_	VERB	_	Aspect=Imp|Mood=Ind|Number=Plur|Person=3|Tense=Pres|VerbForm=Fin|Voice=Act	0	advcl	_	_
+8	·	·	PUNCT	_	_	0	punct	_	_
+
+# sent_id = book06-line181
+# text = δράκος πίσω, λέοντας εμπρός, στη μέση αίγα,
+1	δράκος	_	NOUN	_	Case=Nom|Gender=Masc|Number=Sing	0	root	_	_
+2	πίσω	_	ADV	_	_	1	advmod	_	_
+3	,	,	PUNCT	_	_	1	punct	_	_
+4	λέοντας	_	NOUN	_	Case=Nom|Gender=Masc|Number=Sing	1	conj	_	_
+5	εμπρός	_	ADV	_	_	5	advmod	_	_
+6	,	,	PUNCT	_	_	1	punct	_	_
+7	στη	_	DET	_	Case=Acc|Gender=Fem|Number=Sing	0	case	_	_
+8	μέση	_	ADJ	_	Case=Acc|Gender=Fem|Number=Sing	0	amod	_	_
+9	αίγα	_	NOUN	_	Case=Acc|Gender=Fem|Number=Sing	1	conj	_	_
+10	,	,	PUNCT	_	_	1	punct	_	_
+
+# sent_id = book06-line210
+# text = που έλαμψαν και στην Έφυρα και στην πλατιά Λυκία.
+1	που	_	PRON	_	Case=Nom|Gender=Neut|Number=Plur|Person=3|PronType=Rel	2	nsubj	_	_
+2	έλαμψαν	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Plur|Person=3|Tense=Past|VerbForm=Fin|Voice=Act	0	root	_	_
+3	και	_	CCONJ	_	_	5	cc	_	_
+4	στην	_	DET	_	Case=Acc|Definite=Def|Gender=Fem|Number=Sing|PronType=Art	5	case	_	_
+5	Έφυρα	_	NOUN	_	Case=Acc|Gender=Fem|Number=Sing	2	obl	_	_
+6	και	_	CCONJ	_	_	9	cc	_	_
+7	στην	_	DET	_	Case=Acc|Gender=Fem|Number=Sing	9	case	_	_
+8	πλατιά	_	ADJ	_	Case=Acc|Gender=Fem|Number=Sing	9	amod	_	_
+9	Λυκία	_	NOUN	_	Case=Acc|Gender=Fem|Number=Sing	5	conj	_	_
+10	.	.	PUNCT	_	_	2	punct	_	_
+
+# sent_id = book06-line256
+# text = κάτω από τα τείχη· κι έρχεσαι, καθώς σου είπε η καρδιά σου,
+1	κάτω	_	ADV	_	_	0	root	_	_
+2	από	_	ADP	_	_	4	case	_	_
+3	τα	_	DET	_	Case=Acc|Definite=Def|Gender=Neut|Number=Plur|PronType=Art	4	det	_	_
+4	τείχη	_	NOUN	_	Case=Acc|Gender=Neut|Number=Plur	1	obl	_	_
+5	·	·	PUNCT	_	_	1	punct	_	_
+6	κι	_	CCONJ	_	_	9	cc	_	_
+7	έρχεσαι	_	VERB	_	Aspect=Imp|Mood=Ind|Number=Plur|Person=2|Tense=Pres|VerbForm=Fin|Voice=Pass	0	root	_	_
+8	,	,	PUNCT	_	_	1	punct	_	_
+9	καθώς	_	ADV	_	_	13	advmod	_	_
+10	σου	_	PRON	_	Case=Gen|Gender=Masc|Number=Sing|Person=2|PronType=Prs	13	iobj	_	_
+11	είπε	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin|Voice=Act	9	advcl	_	_
+12	η	_	DET	_	Case=Nom|Definite=Def|Gender=Fem|Number=Sing|PronType=Art	0	det	_	_
+13	καρδιά	_	NOUN	_	Case=Nom|Gender=Fem|Number=Sing	13	nsubj	_	_
+14	σου	_	PRON	_	Case=Gen|Gender=Masc|Number=Sing|Person=2|Poss=Yes|PronType=Prs	0	nmod	_	_
+15	,	,	PUNCT	_	_	1	punct	_	_
+
+# sent_id = book06-line332
+# text = Του απάντησε ο θεόμορφος Αλέξανδρος και του είπε:
+1	Του	_	PRON	_	Case=Gen|Gender=Masc|Number=Sing|Person=3|PronType=Prs	2	iobj	_	_
+2	απάντησε	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin|Voice=Act	0	root	_	_
+3	ο	_	DET	_	Case=Nom|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	5	det	_	_
+4	θεόμορφος	_	ADJ	_	Case=Nom|Gender=Masc|Number=Sing	5	amod	_	_
+5	Αλέξανδρος	_	PROPN	_	Case=Nom|Gender=Masc|Number=Sing	2	nsubj	_	_
+6	και	_	CCONJ	_	_	8	cc	_	_
+7	του	_	PRON	_	Case=Gen|Gender=Masc|Number=Sing|Person=3|PronType=Prs	8	iobj	_	_
+8	είπε	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin|Voice=Act	2	conj	_	_
+9	:	:	PUNCT	_	_	2	punct	_	_
+
+# sent_id = book06-line410
+# text = να σε φονεύσουν οι αχαιοί και άμα σε χάσω, κάτω
+1	να	_	AUX	_	_	3	aux	_	_
+2	σε	_	PRON	_	Case=Acc|Gender=Masc|Number=Sing|Person=3|PronType=Prs	3	obj	_	_
+3	φονεύσουν	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Plur|Person=3|VerbForm=Fin|Voice=Act	0	root	_	_
+4	οι	_	DET	_	Case=Nom|Definite=Def|Gender=Masc|Number=Plur|PronType=Art	5	det	_	_
+5	αχαιοί	_	PROPN	_	Case=Nom|Gender=Masc|Number=Plur	3	nsubj	_	_
+6	και	_	CCONJ	_	_	0	cc	_	_
+7	άμα	_	SCONJ	_	_	9	mark	_	_
+8	σε	_	PRON	_	Case=Acc|Gender=Masc|Number=Sing|Person=3|PronType=Prs	9	obj	_	_
+9	χάσω	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Sing|Person=1|VerbForm=Fin|Voice=Act	0	advcl	_	_
+10	,	,	PUNCT	_	_	3	punct	_	_
+11	κάτω	_	ADV	_	_	3	conj	_	_
+
+# sent_id = book06-line413
+# text = και πόνοι μόνο· έχασα πατέρα και μητέρα·
+1	και	_	CCONJ	_	_	2	cc	_	_
+2	πόνοι	_	NOUN	_	Case=Nom|Gender=Masc|Number=Plur	6	conj	_	_
+3	μόνο	_	ADV	_	_	2	advmod	_	_
+4	·	·	PUNCT	_	_	5	punct	_	_
+5	έχασα	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Sing|Person=1|Tense=Past|VerbForm=Fin|Voice=Act	0	root	_	_
+6	πατέρα	_	NOUN	_	Case=Acc|Gender=Masc|Number=Sing	6	obj	_	_
+7	και	_	CCONJ	_	_	0	cc	_	_
+8	μητέρα	_	NOUN	_	Case=Acc|Gender=Fem|Number=Sing	7	conj	_	_
+9	·	·	PUNCT	_	_	5	punct	_	_
+
+# sent_id = book07-line82
+# text = εγώ θα πάρω τα άρματα στην Ίλιο την αγία
+1	εγώ	_	PRON	_	Case=Nom|Gender=Masc|Number=Sing|Person=1|PronType=Prs	3	nsubj	_	_
+2	θα	_	AUX	_	_	3	aux	_	_
+3	πάρω	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Sing|Person=1|VerbForm=Fin|Voice=Act	0	root	_	_
+4	τα	_	DET	_	Case=Acc|Definite=Def|Gender=Neut|Number=Plur|PronType=Art	5	det	_	_
+5	άρματα	_	NOUN	_	Case=Acc|Gender=Neut|Number=Plur	3	obj	_	_
+6	στην	_	_	_	_	7	case	_	_
+7	Ίλιο	_	X	_	Foreign=Yes	3	obl	_	_
+8	την	_	DET	_	Case=Acc|Definite=Def|Gender=Fem|Number=Sing|PronType=Art	7	det	_	_
+9	αγία	_	ADJ	_	Case=Acc|Gender=Fem|Number=Sing	7	amod	_	_
+
+# sent_id = book07-line403
+# text = Είπε, κι οι Αχαιόπαιδες με αλαλαγμούς τον στέρξαν,
+1	Είπε	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin|Voice=Act	0	root	_	_
+2	,	,	PUNCT	_	_	1	punct	_	_
+3	κι	_	CCONJ	_	_	0	cc	_	_
+4	οι	_	DET	_	Case=Nom|Definite=Def|Gender=Fem|Number=Plur|PronType=Art	6	det	_	_
+5	Αχαιόπαιδες	_	NOUN	_	Case=Nom|Gender=Fem|Number=Plur	0	nsubj	_	_
+6	με	_	ADP	_	_	8	case	_	_
+7	αλαλαγμούς	_	NOUN	_	Case=Acc|Gender=Masc|Number=Plur	0	obl	_	_
+8	τον	_	PRON	_	Case=Acc|Gender=Masc|Number=Sing|Person=3|PronType=Prs	0	obj	_	_
+9	στέρξαν	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Plur|Person=3|Tense=Past|VerbForm=Fin|Voice=Act	1	conj	_	_
+10	,	,	PUNCT	_	_	1	punct	_	_
+
+# sent_id = book08-line94
+# text = που φεύγεις, που με τους πολλούς δειλός τα νώτα στρέφεις;
+1	που	_	PRON	_	Person=3|PronType=Rel	2	advmod	_	_
+2	φεύγεις	_	VERB	_	Aspect=Imp|Mood=Ind|Number=Sing|Person=1|Tense=Pres|VerbForm=Fin|Voice=Act	0	root	_	_
+3	,	,	PUNCT	_	_	2	punct	_	_
+4	που	_	PRON	_	Case=Acc|Gender=Masc|Person=3|PronType=Rel	9	mark	_	_
+5	με	_	ADP	_	_	9	case	_	_
+6	τους	_	DET	_	Case=Acc|Definite=Def|Gender=Masc|Number=Plur|PronType=Art	9	det	_	_
+7	πολλούς	_	ADJ	_	Case=Acc|Gender=Masc|Number=Plur	9	amod	_	_
+8	δειλός	_	ADJ	_	Case=Nom|Gender=Masc|Number=Sing	0	conj	_	_
+9	τα	_	DET	_	Case=Acc|Definite=Def|Gender=Neut|Number=Plur|PronType=Art	11	det	_	_
+10	νώτα	_	NOUN	_	Case=Acc|Gender=Neut|Number=Plur	0	obj	_	_
+11	στρέφεις	_	VERB	_	Aspect=Imp|Mood=Ind|Number=Sing|Person=1|Tense=Pres|VerbForm=Fin|Voice=Act	2	conj	_	_
+12	;	;	PUNCT	_	_	2	punct	_	_
+
+# sent_id = book08-line140
+# text = δεν βλέπεις ότι του Διός δεν σε βοηθεί το χέρι;
+1	δεν	_	PART	_	_	2	advmod	_	_
+2	βλέπεις	_	VERB	_	Aspect=Imp|Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin|Voice=Act	0	root	_	_
+3	ότι	_	SCONJ	_	_	8	mark	_	_
+4	του	_	DET	_	Case=Gen|Definite=Def|Gender=Neut|Number=Sing|PronType=Art	5	det	_	_
+5	Διός	_	NOUN	_	Case=Gen|Gender=Neut|Number=Sing	8	obl	_	_
+6	δεν	_	PART	_	_	8	advmod	_	_
+7	σε	_	PRON	_	Case=Acc|Gender=Masc|Number=Sing|Person=3|PronType=Prs	8	obj	_	_
+8	βοηθεί	_	VERB	_	Aspect=Imp|Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin|Voice=Act	2	ccomp	_	_
+9	το	_	DET	_	Case=Nom|Definite=Def|Gender=Neut|Number=Sing|PronType=Art	10	det	_	_
+10	χέρι	_	NOUN	_	Case=Nom|Gender=Neut|Number=Sing	8	nsubj	_	_
+11	;	;	PUNCT	_	_	2	punct	_	_
+
+# sent_id = book08-line142
+# text = σήμερα· κι ύστερα σε μας θα τη χαρίση, αν θέλη.
+1	σήμερα	_	ADV	_	_	11	advmod	_	_
+2	·	·	PUNCT	_	_	9	punct	_	_
+3	κι	_	CCONJ	_	_	5	cc	_	_
+4	ύστερα	_	ADV	_	_	11	advmod	_	_
+5	σε	_	ADP	_	_	7	case	_	_
+6	μας	_	PRON	_	Case=Acc|Gender=Masc|Number=Plur|Person=1|PronType=Prs	11	obl	_	_
+7	θα	_	AUX	_	_	11	aux	_	_
+8	τη	_	PRON	_	Case=Acc|Gender=Fem|Number=Sing|Person=3|PronType=Prs	11	obj	_	_
+9	χαρίση	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Sing|Person=3|VerbForm=Fin|Voice=Act	0	root	_	_
+10	,	,	PUNCT	_	_	9	punct	_	_
+11	αν	_	SCONJ	_	_	0	mark	_	_
+12	θέλη	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Sing|Person=3|VerbForm=Fin|Voice=Act	11	advcl	_	_
+13	.	.	PUNCT	_	_	9	punct	_	_
+
+# sent_id = book08-line145
+# text = Σε εκείνο τότε απάντησε ο ανδρείος Διομήδης:
+1	Σε	_	ADP	_	_	2	case	_	_
+2	εκείνο	_	PRON	_	Case=Acc|Gender=Neut|Number=Sing|Person=3|PronType=Dem	4	obl	_	_
+3	τότε	_	ADV	_	_	4	advmod	_	_
+4	απάντησε	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin|Voice=Act	0	root	_	_
+5	ο	_	DET	_	Case=Nom|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	7	det	_	_
+6	ανδρείος	_	ADJ	_	Case=Nom|Gender=Masc|Number=Sing	7	amod	_	_
+7	Διομήδης	_	PROPN	_	Case=Nom|Gender=Masc|Number=Sing	4	nsubj	_	_
+8	:	:	PUNCT	_	_	4	punct	_	_
+
+# sent_id = book08-line329
+# text = ακίνητος και του έπεσε το τόξο από το χέρι.
+1	ακίνητος	_	ADJ	_	Case=Nom|Gender=Masc|Number=Sing	0	root	_	_
+2	και	_	CCONJ	_	_	4	cc	_	_
+3	του	_	PRON	_	Case=Gen|Gender=Masc|Number=Sing|Person=3|PronType=Prs	4	iobj	_	_
+4	έπεσε	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin|Voice=Act	1	conj	_	_
+5	το	_	DET	_	Case=Nom|Definite=Def|Gender=Neut|Number=Sing|PronType=Art	6	det	_	_
+6	τόξο	_	NOUN	_	Case=Nom|Gender=Neut|Number=Sing	4	nsubj	_	_
+7	από	_	ADP	_	_	9	case	_	_
+8	το	_	DET	_	Case=Acc|Definite=Def|Gender=Neut|Number=Sing|PronType=Art	9	det	_	_
+9	χέρι	_	NOUN	_	Case=Acc|Gender=Neut|Number=Sing	4	obl	_	_
+10	.	.	PUNCT	_	_	1	punct	_	_
+
+# sent_id = book08-line391
+# text = τα πλήθη, αν η πατράγαθη θεά με αυτούς θυμώση.
+1	τα	_	DET	_	Case=Nom|Definite=Def|Gender=Neut|Number=Plur|PronType=Art	2	det	_	_
+2	πλήθη	_	NOUN	_	Case=Nom|Gender=Neut|Number=Plur	0	root	_	_
+3	,	,	PUNCT	_	_	2	punct	_	_
+4	αν	_	SCONJ	_	_	0	mark	_	_
+5	η	_	DET	_	Case=Nom|Definite=Def|Gender=Fem|Number=Sing|PronType=Art	7	det	_	_
+6	πατράγαθη	_	PROPN	_	Case=Nom|Gender=Fem|Number=Sing	0	nsubj	_	_
+7	θεά	_	NOUN	_	Case=Nom|Gender=Fem|Number=Sing	0	xcomp	_	_
+8	με	_	ADP	_	_	10	case	_	_
+9	αυτούς	_	PRON	_	Case=Acc|Gender=Masc|Number=Plur|Person=3|PronType=Dem	8	obl	_	_
+10	θυμώση	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Sing|Person=3|VerbForm=Fin|Voice=Act	0	advcl	_	_
+11	.	.	PUNCT	_	_	2	punct	_	_
+
+# sent_id = book09-line541
+# text = και αφάνιζ’ όλα ρίχνοντας μεγάλα δένδρα κάτω
+1	και	_	CCONJ	_	_	2	cc	_	_
+2	αφάνιζ	_	VERB	_	Aspect=Imp|Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin|Voice=Act	0	root	_	_
+3	’	’	PUNCT	_	_	2	punct	_	_
+4	όλα	_	ADJ	_	Case=Acc|Gender=Neut|Number=Plur	2	obj	_	_
+5	ρίχνοντας	_	VERB	_	Aspect=Imp|VerbForm=Conv|Voice=Act	2	advcl	_	_
+6	μεγάλα	_	ADJ	_	Case=Acc|Gender=Neut|Number=Plur	8	amod	_	_
+7	δένδρα	_	NOUN	_	Case=Acc|Gender=Neut|Number=Plur	6	obj	_	_
+8	κάτω	_	ADV	_	_	6	advmod	_	_
+
+# sent_id = book09-line601
+# text = κακός θεός κι είν’ άσχημο βοηθός να δράμης μόνο
+1	κακός	_	ADJ	_	Case=Nom|Gender=Masc|Number=Sing	2	amod	_	_
+2	θεός	_	NOUN	_	Case=Nom|Gender=Masc|Number=Sing	0	root	_	_
+3	κι	_	CCONJ	_	_	8	cc	_	_
+4	είν	_	AUX	_	Aspect=Imp|Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin|Voice=Pass	8	cop	_	_
+5	’	’	PUNCT	_	_	2	punct	_	_
+6	άσχημο	_	ADJ	_	Case=Nom|Gender=Neut|Number=Sing	2	amod	_	_
+7	βοηθός	_	NOUN	_	Case=Nom|Gender=Fem|Number=Sing	2	nsubj	_	_
+8	να	_	AUX	_	_	10	aux	_	_
+9	δράμης	_	NOUN	_	Case=Gen|Gender=Fem|Number=Sing	8	acl	_	_
+10	μόνο	_	ADV	_	_	10	advmod	_	_
+
+# sent_id = book09-line662
+# text = επλάγιασε, την άφθαρτη Ηώ να περιμένη.
+1	επλάγιασε	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin|Voice=Act	0	root	_	_
+2	,	,	PUNCT	_	_	1	punct	_	_
+3	την	_	DET	_	Case=Acc|Definite=Def|Gender=Fem|Number=Sing|PronType=Art	6	det	_	_
+4	άφθαρτη	_	ADJ	_	Case=Acc|Gender=Fem|Number=Sing	6	amod	_	_
+5	Ηώ	_	X	_	Foreign=Yes	1	conj	_	_
+6	να	_	AUX	_	_	0	aux	_	_
+7	περιμένη	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Sing|Person=3|VerbForm=Fin|Voice=Pass	6	xcomp	_	_
+8	.	.	PUNCT	_	_	1	punct	_	_
+
+# sent_id = book10-line134
+# text = διπλό, μακρύ, με τρυφερό και φουντωμένο χνούδι,
+1	διπλό	_	ADJ	_	Case=Nom|Gender=Neut|Number=Sing	0	root	_	_
+2	,	,	PUNCT	_	_	1	punct	_	_
+3	μακρύ	_	ADJ	_	Case=Nom|Gender=Neut|Number=Sing	1	conj	_	_
+4	,	,	PUNCT	_	_	1	punct	_	_
+5	με	_	ADP	_	_	0	case	_	_
+6	τρυφερό	_	ADJ	_	Case=Acc|Gender=Neut|Number=Sing	0	amod	_	_
+7	και	_	CCONJ	_	_	0	cc	_	_
+8	φουντωμένο	_	VERB	_	Aspect=Perf|Case=Acc|Gender=Neut|Number=Sing|VerbForm=Part|Voice=Pass	8	conj	_	_
+9	χνούδι	_	NOUN	_	Case=Acc|Gender=Neut|Number=Sing	1	conj	_	_
+10	,	,	PUNCT	_	_	1	punct	_	_
+
+# sent_id = book10-line195
+# text = κείνοι που στο συμβούλιο καλούντο να καθίσουν·
+1	κείνοι	_	PRON	_	Case=Nom|Gender=Masc|Number=Plur|Person=3|PronType=Dem	0	root	_	_
+2	που	_	PRON	_	Case=Nom|Gender=Masc|Number=Plur|Person=3|PronType=Rel	5	nsubj:pass	_	_
+3	στο	_	_	_	_	4	case	_	_
+4	συμβούλιο	_	NOUN	_	Case=Acc|Gender=Neut|Number=Sing	5	obl	_	_
+5	καλούντο	_	VERB	_	Aspect=Imp|Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin|Voice=Pass	1	acl:relcl	_	_
+6	να	_	AUX	_	_	7	aux	_	_
+7	καθίσουν	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Plur|Person=3|VerbForm=Fin|Voice=Act	5	xcomp	_	_
+8	·	·	PUNCT	_	_	1	punct	_	_
+
+# sent_id = book10-line239
+# text = μήτε αν βασιλικότερος είναι σε αυτούς κανένας».
+1	μήτε	_	PART	_	_	3	advmod	_	_
+2	αν	_	SCONJ	_	_	3	mark	_	_
+3	βασιλικότερος	_	ADJ	_	Case=Nom|Degree=Cmp|Gender=Masc|Number=Sing	0	advcl	_	_
+4	είναι	_	AUX	_	Aspect=Imp|Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin|Voice=Pass	3	cop	_	_
+5	σε	_	ADP	_	_	6	case	_	_
+6	αυτούς	_	PRON	_	Case=Acc|Gender=Masc|Number=Plur|Person=3|PronType=Dem	3	obl	_	_
+7	κανένας	_	PRON	_	Case=Nom|Gender=Masc|Number=Sing|Person=3|PronType=Ind	3	nsubj	_	_
+8	».	».	PUNCT	_	_	0	punct	_	_
+
+# sent_id = book10-line291
+# text = Επίσης τώρα σώζε εμέ και στάσου σε το πλευρό μου.
+1	Επίσης	_	ADV	_	_	3	advmod	_	_
+2	τώρα	_	ADV	_	_	3	advmod	_	_
+3	σώζε	_	VERB	_	Aspect=Imp|Mood=Ind|Number=Sing|Person=3|VerbForm=Fin|Voice=Act	0	root	_	_
+4	εμέ	_	PRON	_	Case=Acc|Gender=Masc|Number=Sing|Person=1|PronType=Prs	3	obj	_	_
+5	και	_	CCONJ	_	_	6	cc	_	_
+6	στάσου	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Sing|Person=1|VerbForm=Fin|Voice=Act	3	conj	_	_
+7	σε	_	ADP	_	_	9	case	_	_
+8	το	_	DET	_	Case=Acc|Definite=Def|Gender=Neut|Number=Sing|PronType=Art	9	det	_	_
+9	πλευρό	_	NOUN	_	Case=Acc|Gender=Neut|Number=Sing	6	obl	_	_
+10	μου	_	PRON	_	Case=Gen|Gender=Masc|Number=Sing|Person=1|Poss=Yes|PronType=Prs	9	nmod	_	_
+11	.	.	PUNCT	_	_	3	punct	_	_
+
+# sent_id = book10-line379
+# text = χάλκινα σκεύη και χρυσά και σίδερο εργασμένο,
+1	χάλκινα	_	ADJ	_	Case=Acc|Gender=Neut|Number=Plur	2	amod	_	_
+2	σκεύη	_	NOUN	_	Case=Nom|Gender=Neut|Number=Plur	0	root	_	_
+3	και	_	CCONJ	_	_	4	cc	_	_
+4	χρυσά	_	ADJ	_	Case=Acc|Gender=Neut|Number=Plur	2	conj	_	_
+5	και	_	CCONJ	_	_	6	cc	_	_
+6	σίδερο	_	NOUN	_	Case=Acc|Gender=Neut|Number=Sing	2	conj	_	_
+7	εργασμένο	_	VERB	_	Aspect=Perf|Case=Acc|Gender=Neut|Number=Sing|VerbForm=Part|Voice=Pass	2	conj	_	_
+8	,	,	PUNCT	_	_	2	punct	_	_
+
+# sent_id = book10-line515
+# text = Και ο Φοίβος ο αργυρότοξος άμε είδε στον Τυδείδη
+1	Και	_	CCONJ	_	_	7	cc	_	_
+2	ο	_	DET	_	Case=Nom|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	3	det	_	_
+3	Φοίβος	_	PROPN	_	Case=Nom|Gender=Masc|Number=Sing	7	nsubj	_	_
+4	ο	_	DET	_	Case=Nom|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	3	det	_	_
+5	αργυρότοξος	_	PROPN	_	Case=Nom|Gender=Masc|Number=Sing	3	amod	_	_
+6	άμε	_	NOUN	_	Abbr=Yes	3	flat	_	_
+7	είδε	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin|Voice=Act	0	root	_	_
+8	στον	_	_	_	_	9	case	_	_
+9	Τυδείδη	_	PROPN	_	Case=Acc|Gender=Masc|Number=Sing	7	obl	_	_
+
+# sent_id = book10-line538
+# text = Αλλά όμως η καρδία μου τρομάζει μήπως πάθουν
+1	Αλλά	_	CCONJ	_	_	6	cc	_	_
+2	όμως	_	CCONJ	_	_	6	cc	_	_
+3	η	_	DET	_	Case=Nom|Definite=Def|Gender=Fem|Number=Sing|PronType=Art	4	det	_	_
+4	καρδία	_	NOUN	_	Case=Nom|Gender=Fem|Number=Sing	6	nsubj	_	_
+5	μου	_	PRON	_	Case=Gen|Gender=Masc|Number=Sing|Person=1|Poss=Yes|PronType=Prs	4	nmod	_	_
+6	τρομάζει	_	VERB	_	Aspect=Imp|Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin|Voice=Act	0	root	_	_
+7	μήπως	_	SCONJ	_	_	8	mark	_	_
+8	πάθουν	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Plur|Person=3|VerbForm=Fin|Voice=Act	6	advcl	_	_
+
+# sent_id = book10-line541
+# text = Κι αμέσως επέζευσαν αυτοί και όλοι φαιδροί τριγύρω
+1	Κι	_	CCONJ	_	_	3	cc	_	_
+2	αμέσως	_	ADV	_	_	3	advmod	_	_
+3	επέζευσαν	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Plur|Person=3|Tense=Past|VerbForm=Fin|Voice=Act	0	root	_	_
+4	αυτοί	_	PRON	_	Case=Nom|Gender=Masc|Number=Plur|Person=3|PronType=Dem	3	nsubj	_	_
+5	και	_	CCONJ	_	_	7	cc	_	_
+6	όλοι	_	ADJ	_	Case=Nom|Gender=Masc|Number=Plur	7	amod	_	_
+7	φαιδροί	_	ADJ	_	Case=Nom|Gender=Masc|Number=Plur	4	conj	_	_
+8	τριγύρω	_	ADV	_	_	3	advmod	_	_
+
+# sent_id = book11-line609
+# text = τώρα θα ιδώ τους Αχαιούς στα πόδια μου να πέσουν
+1	τώρα	_	ADV	_	_	3	advmod	_	_
+2	θα	_	AUX	_	_	3	aux	_	_
+3	ιδώ	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Sing|Person=1|VerbForm=Fin|Voice=Act	0	root	_	_
+4	τους	_	DET	_	Case=Acc|Definite=Def|Gender=Masc|Number=Plur|PronType=Art	5	det	_	_
+5	Αχαιούς	_	PROPN	_	Case=Acc|Gender=Masc|Number=Plur	3	obj	_	_
+6	στα	_	ADP	_	_	7	case	_	_
+7	πόδια	_	NOUN	_	Case=Acc|Gender=Neut|Number=Plur	3	obl	_	_
+8	μου	_	PRON	_	Case=Gen|Gender=Masc|Number=Sing|Person=1|Poss=Yes|PronType=Prs	7	nmod	_	_
+9	να	_	AUX	_	_	10	aux	_	_
+10	πέσουν	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Plur|Person=3|VerbForm=Fin|Voice=Pass	3	xcomp	_	_
+
+# sent_id = book11-line648
+# text = δεν δύναμαι, ό,τι και αν ειπής, ως θέλεις, να καθίσω.
+1	δεν	_	PART	_	_	2	advmod	_	_
+2	δύναμαι	_	VERB	_	Aspect=Imp|Mood=Ind|Number=Sing|Person=1|Tense=Pres|VerbForm=Fin|Voice=Act	0	root	_	_
+3	,	,	PUNCT	_	_	2	punct	_	_
+4	ό	_	PRON	_	Case=Nom|Gender=Neut|Number=Sing|Person=3|PronType=Ind,Rel	12	nsubj	_	_
+5	,	,	PUNCT	_	_	2	punct	_	_
+6	τι	_	PRON	_	Case=Nom|Gender=Neut|Number=Sing|Person=3|PronType=Ind,Rel	12	obl	_	_
+7	και	_	CCONJ	_	_	12	cc	_	_
+8	αν	_	SCONJ	_	_	12	mark	_	_
+9	ειπής	_	VERB	_	Aspect=Imp|Mood=Ind|Number=Sing|Person=1|Tense=Pres|VerbForm=Fin|Voice=Act	8	acl:relcl	_	_
+10	,	,	PUNCT	_	_	2	punct	_	_
+11	ως	_	ADV	_	_	0	advmod	_	_
+12	θέλεις	_	VERB	_	Aspect=Imp|Mood=Ind|Number=Sing|Person=1|Tense=Pres|VerbForm=Fin|Voice=Act	12	advcl	_	_
+13	,	,	PUNCT	_	_	2	punct	_	_
+14	να	_	AUX	_	_	0	aux	_	_
+15	καθίσω	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Sing|Person=1|VerbForm=Fin|Voice=Act	2	xcomp	_	_
+16	.	.	PUNCT	_	_	2	punct	_	_
+
+# sent_id = book11-line660
+# text = Κει λαβωμένοι ευρίσκονται και ο δυνατός Τυδείδης,
+1	Κει	_	ADV	_	_	3	advmod	_	_
+2	λαβωμένοι	_	VERB	_	Aspect=Perf|Case=Nom|Gender=Masc|Number=Plur|VerbForm=Part|Voice=Pass	3	advcl	_	_
+3	ευρίσκονται	_	VERB	_	Aspect=Imp|Mood=Ind|Number=Plur|Person=3|Tense=Pres|VerbForm=Fin|Voice=Pass	0	root	_	_
+4	και	_	CCONJ	_	_	7	cc	_	_
+5	ο	_	DET	_	Case=Nom|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	7	det	_	_
+6	δυνατός	_	ADJ	_	Case=Nom|Gender=Masc|Number=Sing	7	amod	_	_
+7	Τυδείδης	_	PROPN	_	Case=Nom|Gender=Masc|Number=Sing	3	nsubj	_	_
+8	,	,	PUNCT	_	_	3	punct	_	_
+
+# sent_id = book12-line247
+# text = όταν η καρδιά σου είναι άνανδρη και φεύγει από τις μάχες·
+1	όταν	_	SCONJ	_	_	6	mark	_	_
+2	η	_	DET	_	Case=Nom|Definite=Def|Gender=Fem|Number=Sing|PronType=Art	3	det	_	_
+3	καρδιά	_	NOUN	_	Case=Nom|Gender=Fem|Number=Sing	6	nsubj	_	_
+4	σου	_	PRON	_	Case=Gen|Gender=Masc|Number=Sing|Person=3|Poss=Yes|PronType=Prs	3	nmod	_	_
+5	είναι	_	AUX	_	Aspect=Imp|Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin|Voice=Pass	6	cop	_	_
+6	άνανδρη	_	ADJ	_	Case=Nom|Gender=Fem|Number=Sing	0	advcl	_	_
+7	και	_	CCONJ	_	_	8	cc	_	_
+8	φεύγει	_	VERB	_	Aspect=Imp|Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin|Voice=Act	6	conj	_	_
+9	από	_	ADP	_	_	11	case	_	_
+10	τις	_	DET	_	Case=Acc|Definite=Def|Gender=Fem|Number=Plur|PronType=Art	11	det	_	_
+11	μάχες	_	NOUN	_	Case=Acc|Gender=Fem|Number=Plur	8	obl	_	_
+12	·	·	PUNCT	_	_	0	punct	_	_
+
+# sent_id = book12-line316
+# text = και τώρα να απαντήσωμε τον φλογερό αγώνα.
+1	και	_	CCONJ	_	_	2	cc	_	_
+2	τώρα	_	ADV	_	_	4	advmod	_	_
+3	να	_	AUX	_	_	4	aux	_	_
+4	απαντήσωμε	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Plur|Person=1|VerbForm=Fin|Voice=Act	0	root	_	_
+5	τον	_	DET	_	Case=Acc|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	7	det	_	_
+6	φλογερό	_	ADJ	_	Case=Acc|Gender=Masc|Number=Sing	7	amod	_	_
+7	αγώνα	_	NOUN	_	Case=Acc|Gender=Masc|Number=Sing	4	obj	_	_
+8	.	.	PUNCT	_	_	4	punct	_	_
+
+# sent_id = book12-line415
+# text = Απ' τ' άλλο μέρος έσφιγγαν τις φάλαγγες οι Αργείοι
+1	Απ	_	ADP	_	_	7	case	_	_
+2	'	'	PUNCT	_	_	7	punct	_	_
+3	τ	_	DET	_	Case=Acc|Definite=Def|Gender=Neut|Number=Sing|PronType=Art	7	det	_	_
+4	'	_	DET	_	Case=Acc|Gender=Neut	7	det	_	_
+5	άλλο	_	PRON	_	Case=Acc|Gender=Neut|Number=Sing|Person=3|PronType=Ind	7	det	_	_
+6	μέρος	_	NOUN	_	Case=Acc|Gender=Neut|Number=Sing	8	obl	_	_
+7	έσφιγγαν	_	VERB	_	Aspect=Imp|Mood=Ind|Number=Plur|Person=3|Tense=Past|VerbForm=Fin|Voice=Act	0	root	_	_
+8	τις	_	DET	_	Case=Acc|Definite=Def|Gender=Fem|Number=Plur|PronType=Art	10	det	_	_
+9	φάλαγγες	_	NOUN	_	Case=Acc|Gender=Fem|Number=Plur	8	obj	_	_
+10	οι	_	DET	_	Case=Nom|Definite=Def|Gender=Masc|Number=Plur|PronType=Art	0	det	_	_
+11	Αργείοι	_	PROPN	_	Case=Nom|Gender=Masc|Number=Plur	8	nsubj	_	_
+
+# sent_id = book13-line696
+# text = της μητρυιάς Εριώπιδος, ομόκλινης του Οϊλέα·
+1	της	_	DET	_	Case=Gen|Definite=Def|Gender=Fem|Number=Sing|PronType=Art	2	det	_	_
+2	μητρυιάς	_	NOUN	_	Case=Gen|Gender=Fem|Number=Sing	2	root	_	_
+3	Εριώπιδος	_	PROPN	_	Case=Nom|Gender=Fem|Number=Sing	2	flat	_	_
+4	,	,	PUNCT	_	_	2	punct	_	_
+5	ομόκλινης	_	ADJ	_	Case=Gen|Gender=Fem|Number=Sing	2	conj	_	_
+6	του	_	DET	_	Case=Gen|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	0	det	_	_
+7	Οϊλέα	_	X	_	Foreign=Yes	6	nmod	_	_
+8	·	·	PUNCT	_	_	2	punct	_	_
+
+# sent_id = book14-line367
+# text = ο Αχιλλεύς ανάμερα της μάχης χολωμένος·
+1	ο	_	DET	_	Case=Nom|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	2	det	_	_
+2	Αχιλλεύς	_	PROPN	_	Case=Nom|Number=Sing	0	nsubj	_	_
+3	ανάμερα	_	ADV	_	_	3	amod	_	_
+4	της	_	DET	_	Case=Gen|Definite=Def|Gender=Fem|Number=Sing|PronType=Art	5	det	_	_
+5	μάχης	_	NOUN	_	Case=Gen|Gender=Fem|Number=Sing	3	nmod	_	_
+6	χολωμένος	_	VERB	_	Aspect=Perf|Case=Nom|Gender=Masc|Number=Sing|VerbForm=Part|Voice=Pass	0	root	_	_
+7	·	·	PUNCT	_	_	6	punct	_	_
+
+# sent_id = book14-line510
+# text = αφού τη μάχη έκλινεν σε αυτούς ο κοσμοσείστης.
+1	αφού	_	SCONJ	_	_	4	mark	_	_
+2	τη	_	DET	_	Case=Acc|Definite=Def|Gender=Fem|Number=Sing|PronType=Art	3	det	_	_
+3	μάχη	_	NOUN	_	Case=Acc|Gender=Fem|Number=Sing	4	obj	_	_
+4	έκλινεν	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin|Voice=Act	0	advcl	_	_
+5	σε	_	ADP	_	_	6	case	_	_
+6	αυτούς	_	PRON	_	Case=Acc|Gender=Masc|Number=Plur|Person=3|PronType=Dem	4	obl	_	_
+7	ο	_	DET	_	Case=Nom|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	8	det	_	_
+8	κοσμοσείστης	_	NOUN	_	Case=Nom|Gender=Masc|Number=Sing	4	nsubj	_	_
+9	.	.	PUNCT	_	_	0	punct	_	_
+
+# sent_id = book14-line517
+# text = σε τη λαπάραν κι έφαγε τα σπλάχνα μέσα η λόγχη·
+1	σε	_	ADP	_	_	3	case	_	_
+2	τη	_	DET	_	Case=Acc|Definite=Def|Gender=Fem|Number=Sing|PronType=Art	3	det	_	_
+3	λαπάραν	_	X	_	Foreign=Yes	0	root	_	_
+4	κι	_	CCONJ	_	_	5	cc	_	_
+5	έφαγε	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin|Voice=Act	3	conj	_	_
+6	τα	_	DET	_	Case=Acc|Definite=Def|Gender=Neut|Number=Plur|PronType=Art	7	det	_	_
+7	σπλάχνα	_	NOUN	_	Case=Acc|Gender=Neut|Number=Plur	5	obj	_	_
+8	μέσα	_	ADV	_	_	5	advmod	_	_
+9	η	_	DET	_	Case=Nom|Definite=Def|Gender=Fem|Number=Sing|PronType=Art	10	det	_	_
+10	λόγχη	_	NOUN	_	Case=Nom|Gender=Fem|Number=Sing	5	nsubj	_	_
+11	·	·	PUNCT	_	_	3	punct	_	_
+
+# sent_id = book15-line104
+# text = «Ανόητοι που παίρνομε θυμό με τον Κρονίδη·
+1	«	«	PUNCT	_	_	2	punct	_	_
+2	Ανόητοι	_	ADJ	_	Case=Nom|Gender=Masc|Number=Plur	0	root	_	_
+3	που	_	PRON	_	Case=Nom|Gender=Masc|Number=Plur|Person=3|PronType=Rel	5	nsubj	_	_
+4	παίρνομε	_	VERB	_	Aspect=Imp|Mood=Ind|Number=Plur|Person=1|Tense=Pres|VerbForm=Fin|Voice=Act	3	acl:relcl	_	_
+5	θυμό	_	NOUN	_	Case=Acc|Gender=Masc|Number=Sing	5	obj	_	_
+6	με	_	ADP	_	_	0	case	_	_
+7	τον	_	DET	_	Case=Acc|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	0	det	_	_
+8	Κρονίδη	_	PROPN	_	Case=Acc|Gender=Masc|Number=Sing	5	obl	_	_
+9	·	·	PUNCT	_	_	2	punct	_	_
+
+# sent_id = book15-line255
+# text = σου έστειλε να είναι πρόμαχος προστάτης στο πλευρό σου
+1	σου	_	PRON	_	Case=Gen|Gender=Masc|Number=Sing|Person=3|PronType=Prs	2	iobj	_	_
+2	έστειλε	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin|Voice=Act	0	root	_	_
+3	να	_	AUX	_	_	6	aux	_	_
+4	είναι	_	AUX	_	Aspect=Imp|Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin|Voice=Pass	6	cop	_	_
+5	πρόμαχος	_	ADJ	_	Case=Nom|Gender=Masc|Number=Sing	6	amod	_	_
+6	προστάτης	_	NOUN	_	Case=Nom|Gender=Masc|Number=Sing	2	xcomp	_	_
+7	στο	_	DET	_	_	8	case	_	_
+8	πλευρό	_	NOUN	_	Case=Acc|Gender=Neut|Number=Sing	6	obl	_	_
+9	σου	_	PRON	_	Case=Gen|Gender=Masc|Number=Sing|Person=2|Poss=Yes|PronType=Prs	8	nmod	_	_
+
+# sent_id = book15-line519
+# text = από την Κυλλήνη αρχηγός των Επειών γενναίων·
+1	από	_	ADP	_	_	3	case	_	_
+2	την	_	DET	_	Case=Acc|Definite=Def|Gender=Fem|Number=Sing|PronType=Art	3	det	_	_
+3	Κυλλήνη	_	PROPN	_	Case=Acc|Gender=Fem|Number=Sing	4	obl	_	_
+4	αρχηγός	_	NOUN	_	Case=Nom|Gender=Masc|Number=Sing	0	root	_	_
+5	των	_	DET	_	Case=Gen|Definite=Def|Gender=Masc|Number=Plur|PronType=Art	7	det	_	_
+6	Επειών	_	PROPN	_	Case=Gen|Gender=Masc|Number=Plur	7	amod	_	_
+7	γενναίων	_	ADJ	_	Case=Gen|Gender=Masc|Number=Plur	4	amod	_	_
+8	·	·	PUNCT	_	_	4	punct	_	_
+
+# sent_id = book15-line714
+# text = ωραίες μάχαιρες πολλές, μαυρόδετες στο χώμα
+1	ωραίες	_	ADJ	_	Case=Nom|Gender=Fem|Number=Plur	2	amod	_	_
+2	μάχαιρες	_	NOUN	_	Case=Nom|Gender=Fem|Number=Plur	0	root	_	_
+3	πολλές	_	ADJ	_	Case=Nom|Gender=Fem|Number=Plur	2	amod	_	_
+4	,	,	PUNCT	_	_	2	punct	_	_
+5	μαυρόδετες	_	NOUN	_	Case=Nom|Gender=Fem|Number=Plur	2	conj	_	_
+6	στο	_	DET	_	_	0	case	_	_
+7	χώμα	_	NOUN	_	Case=Acc|Gender=Neut|Number=Sing	6	nmod	_	_
+
+# sent_id = book15-line734
+# text = άνδρες φανήτε με όλη σας τη δύναμιν, φίλοι.
+1	άνδρες	_	NOUN	_	Case=Nom|Gender=Masc|Number=Plur	2	xcomp	_	_
+2	φανήτε	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Plur|Person=2|VerbForm=Fin|Voice=Pass	0	root	_	_
+3	με	_	ADP	_	_	7	case	_	_
+4	όλη	_	ADJ	_	Case=Acc|Gender=Fem|Number=Sing	7	amod	_	_
+5	σας	_	PRON	_	Case=Gen|Gender=Masc|Number=Plur|Person=2|Poss=Yes|PronType=Prs	7	nmod	_	_
+6	τη	_	DET	_	Case=Acc|Definite=Def|Gender=Fem|Number=Sing|PronType=Art	7	det	_	_
+7	δύναμιν	_	NOUN	_	Case=Acc|Gender=Fem|Number=Sing	2	obl	_	_
+8	,	,	PUNCT	_	_	2	punct	_	_
+9	φίλοι	_	NOUN	_	Case=Nom|Gender=Masc|Number=Plur	2	conj	_	_
+10	.	.	PUNCT	_	_	2	punct	_	_
+
+# sent_id = book16-line177
+# text = του Περιήρους ο υιός, ο Βώρος ελεγόνταν,
+1	του	_	DET	_	Case=Gen|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	2	det	_	_
+2	Περιήρους	_	ADJ	_	Case=Gen|Gender=Masc|Number=Sing	0	obl	_	_
+3	ο	_	DET	_	Case=Nom|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	4	det	_	_
+4	υιός	_	NOUN	_	Case=Nom|Gender=Masc|Number=Sing	0	nsubj:pass	_	_
+5	,	,	PUNCT	_	_	8	punct	_	_
+6	ο	_	DET	_	Case=Nom|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	8	det	_	_
+7	Βώρος	_	NOUN	_	Case=Nom|Gender=Masc|Number=Sing	4	conj	_	_
+8	ελεγόνταν	_	VERB	_	Aspect=Imp|Mood=Ind|Number=Plur|Person=3|Tense=Past|VerbForm=Fin|Voice=Pass	0	root	_	_
+9	,	,	PUNCT	_	_	8	punct	_	_
+
+# sent_id = book16-line205
+# text = Αλλά να το πρυμνήσωμε για την πατρίδα πίσω
+1	Αλλά	_	CCONJ	_	_	4	cc	_	_
+2	να	_	AUX	_	_	4	aux	_	_
+3	το	_	PRON	_	Case=Acc|Gender=Neut|Number=Sing|Person=3|PronType=Prs	4	obj	_	_
+4	πρυμνήσωμε	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Plur|Person=1|VerbForm=Fin|Voice=Act	0	root	_	_
+5	για	_	ADP	_	_	7	case	_	_
+6	την	_	DET	_	Case=Acc|Definite=Def|Gender=Fem|Number=Sing|PronType=Art	7	det	_	_
+7	πατρίδα	_	NOUN	_	Case=Acc|Gender=Fem|Number=Sing	4	obl	_	_
+8	πίσω	_	ADV	_	_	4	advmod	_	_
+
+# sent_id = book16-line447
+# text = να στείλη από τον φονικό αγώνα στην πατρίδα.
+1	να	_	AUX	_	_	2	aux	_	_
+2	στείλη	_	VERB	_	Aspect=Imp|Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin|Voice=Act	0	root	_	_
+3	από	_	ADP	_	_	6	case	_	_
+4	τον	_	DET	_	Case=Acc|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	6	det	_	_
+5	φονικό	_	ADJ	_	Case=Acc|Gender=Masc|Number=Sing	6	amod	_	_
+6	αγώνα	_	NOUN	_	Case=Acc|Gender=Masc|Number=Sing	2	obl	_	_
+7	στην	_	ADP	_	_	8	case	_	_
+8	πατρίδα	_	NOUN	_	Case=Acc|Gender=Fem|Number=Sing	2	obl	_	_
+9	.	.	PUNCT	_	_	2	punct	_	_
+
+# sent_id = book16-line613
+# text = και ο βαρύς Αρης έσβησε εκεί τη δυναμίν του
+1	και	_	CCONJ	_	_	5	cc	_	_
+2	ο	_	DET	_	Case=Nom|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	4	det	_	_
+3	βαρύς	_	ADJ	_	Case=Nom|Gender=Masc|Number=Sing	4	amod	_	_
+4	Αρης	_	PROPN	_	Case=Nom|Gender=Masc|Number=Sing	5	nsubj	_	_
+5	έσβησε	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin|Voice=Act	0	root	_	_
+6	εκεί	_	ADV	_	_	5	advmod	_	_
+7	τη	_	DET	_	Case=Acc|Definite=Def|Gender=Fem|Number=Sing|PronType=Art	8	det	_	_
+8	δυναμίν	_	NOUN	_	Case=Acc|Gender=Fem|Number=Sing	5	obj	_	_
+9	του	_	PRON	_	Case=Gen|Gender=Masc|Number=Sing|Person=3|Poss=Yes|PronType=Prs	8	nmod	_	_
+
+# sent_id = book16-line729
+# text = Κι έβαλε τάραχο κακό ο Φοίβος στους Αργείους,
+1	Κι	_	CCONJ	_	_	2	cc	_	_
+2	έβαλε	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin|Voice=Act	0	root	_	_
+3	τάραχο	_	NOUN	_	Case=Acc|Gender=Neut|Number=Sing	2	obj	_	_
+4	κακό	_	NOUN	_	Case=Acc|Gender=Neut|Number=Sing	3	amod	_	_
+5	ο	_	DET	_	Case=Nom|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	6	det	_	_
+6	Φοίβος	_	PROPN	_	Case=Nom|Gender=Masc|Number=Sing	2	nsubj	_	_
+7	στους	_	DET	_	Case=Acc	8	case	_	_
+8	Αργείους	_	PROPN	_	Case=Acc|Gender=Masc|Number=Plur	2	obl	_	_
+9	,	,	PUNCT	_	_	2	punct	_	_
+
+# sent_id = book16-line790
+# text = μες στην κατάχνια ολόκλειστος· του εστήθη πίσω ο Φοίβος
+1	μες	_	ADV	_	_	8	advmod	_	_
+2	στην	_	DET	_	Case=Acc|Gender=Fem|Number=Sing	3	det	_	_
+3	κατάχνια	_	NOUN	_	Case=Acc|Gender=Fem|Number=Sing	8	obl	_	_
+4	ολόκλειστος	_	ADJ	_	Case=Nom|Gender=Fem|Number=Sing	8	amod	_	_
+5	·	·	PUNCT	_	_	7	punct	_	_
+6	του	_	PRON	_	Case=Gen|Gender=Masc|Number=Sing|Person=3|PronType=Prs	8	iobj	_	_
+7	εστήθη	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin|Voice=Pass	0	root	_	_
+8	πίσω	_	ADV	_	_	8	advmod	_	_
+9	ο	_	DET	_	Case=Nom|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	0	det	_	_
+10	Φοίβος	_	PROPN	_	Case=Nom|Gender=Masc|Number=Sing	8	nsubj:pass	_	_
+
+# sent_id = book17-line94
+# text = τους Τρώας και τον Έκτορα να πολεμήσω μόνος
+1	τους	_	DET	_	Case=Acc|Definite=Def|Gender=Masc|Number=Plur|PronType=Art	2	det	_	_
+2	Τρώας	_	PROPN	_	Case=Acc|Gender=Masc|Number=Plur	7	obj	_	_
+3	και	_	CCONJ	_	_	5	cc	_	_
+4	τον	_	DET	_	Case=Acc|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	5	det	_	_
+5	Έκτορα	_	PROPN	_	Case=Acc|Gender=Masc|Number=Sing	2	conj	_	_
+6	να	_	AUX	_	_	7	aux	_	_
+7	πολεμήσω	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Sing|Person=1|VerbForm=Fin|Voice=Act	0	root	_	_
+8	μόνος	_	ADJ	_	Case=Nom|Gender=Masc|Number=Sing	7	xcomp	_	_
+
+# sent_id = book17-line281
+# text = Και από τους προμάχους όρμησαν με την ανδρεία αγρίου
+1	Και	_	CCONJ	_	_	4	cc	_	_
+2	από	_	ADP	_	_	4	case	_	_
+3	τους	_	DET	_	Case=Acc|Definite=Def|Gender=Masc|Number=Plur|PronType=Art	4	det	_	_
+4	προμάχους	_	NOUN	_	Case=Acc|Gender=Masc|Number=Plur	5	obl	_	_
+5	όρμησαν	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Plur|Person=3|Tense=Past|VerbForm=Fin|Voice=Act	0	root	_	_
+6	με	_	ADP	_	_	8	case	_	_
+7	την	_	DET	_	Case=Acc|Definite=Def|Gender=Fem|Number=Sing|PronType=Art	8	det	_	_
+8	ανδρεία	_	NOUN	_	Case=Acc|Gender=Fem|Number=Sing	5	obl	_	_
+9	αγρίου	_	ADJ	_	Case=Gen|Gender=Neut|Number=Sing	8	amod	_	_
+
+# sent_id = book17-line534
+# text = Έκτωρ κι Αινείας πόδισαν και ο θεϊκός Χρομίος
+1	Έκτωρ	_	PROPN	_	Case=Nom|Gender=Fem|Number=Sing	4	nsubj	_	_
+2	κι	_	CCONJ	_	_	3	cc	_	_
+3	Αινείας	_	PROPN	_	Case=Gen|Gender=Fem|Number=Sing	1	conj	_	_
+4	πόδισαν	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Plur|Person=3|Tense=Past|VerbForm=Fin|Voice=Act	0	root	_	_
+5	και	_	CCONJ	_	_	8	cc	_	_
+6	ο	_	DET	_	Case=Nom|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	8	det	_	_
+7	θεϊκός	_	ADJ	_	Case=Nom|Gender=Masc|Number=Sing	8	amod	_	_
+8	Χρομίος	_	PROPN	_	Case=Nom|Gender=Masc|Number=Sing	0	nsubj	_	_
+
+# sent_id = book18-line124
+# text = σε τ' απαλά τους μάγουλα τα δάκρυα να σφογγίζουν.
+1	σε	_	ADP	_	_	7	case	_	_
+2	τ	_	DET	_	Case=Acc|Definite=Def|Gender=Neut|Number=Plur|PronType=Art	7	det	_	_
+3	'	'	PUNCT	_	_	0	punct	_	_
+4	απαλά	_	ADJ	_	Case=Acc|Gender=Neut|Number=Plur	7	amod	_	_
+5	τους	_	PRON	_	Case=Gen|Gender=Masc|Number=Plur|Person=3|Poss=Yes|PronType=Prs	7	nmod	_	_
+6	μάγουλα	_	NOUN	_	Case=Acc|Gender=Neut|Number=Plur	0	obl	_	_
+7	τα	_	DET	_	Case=Acc|Definite=Def|Gender=Neut|Number=Plur|PronType=Art	9	det	_	_
+8	δάκρυα	_	NOUN	_	Case=Acc|Gender=Neut|Number=Plur	0	nsubj	_	_
+9	να	_	AUX	_	_	0	aux	_	_
+10	σφογγίζουν	_	VERB	_	Aspect=Imp|Mood=Ind|Number=Plur|Person=3|Tense=Pres|VerbForm=Fin|Voice=Act	0	csubj	_	_
+11	.	.	PUNCT	_	_	0	punct	_	_
+
+# sent_id = book18-line176
+# text = και από τον απαλό λαιμό να κόψη το κεφάλι
+1	και	_	CCONJ	_	_	5	cc	_	_
+2	από	_	ADP	_	_	5	case	_	_
+3	τον	_	DET	_	Case=Acc|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	5	det	_	_
+4	απαλό	_	ADJ	_	Case=Acc|Gender=Masc|Number=Sing	5	amod	_	_
+5	λαιμό	_	NOUN	_	Case=Acc|Gender=Masc|Number=Sing	7	obl	_	_
+6	να	_	AUX	_	_	7	aux	_	_
+7	κόψη	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Sing|Person=3|VerbForm=Fin|Voice=Act	0	csubj	_	_
+8	το	_	DET	_	Case=Acc|Definite=Def|Gender=Neut|Number=Sing|PronType=Art	9	det	_	_
+9	κεφάλι	_	NOUN	_	Case=Acc|Gender=Neut|Number=Sing	7	obj	_	_
+
+# sent_id = book18-line229
+# text = οι Τρώες και όλα οι βοηθοί γινήκαν άνω κάτω.
+1	οι	_	DET	_	Case=Nom|Definite=Def|Gender=Masc|Number=Plur|PronType=Art	2	det	_	_
+2	Τρώες	_	PROPN	_	Case=Nom|Gender=Masc|Number=Plur	7	nsubj:pass	_	_
+3	και	_	CCONJ	_	_	6	cc	_	_
+4	όλα	_	ADJ	_	Case=Nom|Gender=Neut|Number=Plur	6	amod	_	_
+5	οι	_	DET	_	Case=Nom|Definite=Def|Gender=Masc|Number=Plur|PronType=Art	6	det	_	_
+6	βοηθοί	_	NOUN	_	Case=Nom|Gender=Masc|Number=Plur	2	conj	_	_
+7	γινήκαν	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Plur|Person=3|Tense=Past|VerbForm=Fin|Voice=Pass	0	root	_	_
+8	άνω	_	ADV	_	_	7	advmod	_	_
+9	κάτω	_	ADV	_	_	7	xcomp	_	_
+10	.	.	PUNCT	_	_	7	punct	_	_
+
+# sent_id = book18-line417
+# text = χωλαίνοντας· και ανάλαφρα τον κύριο εστηρίζα
+1	χωλαίνοντας	_	VERB	_	Aspect=Imp|VerbForm=Conv|Voice=Act	0	root	_	_
+2	·	·	PUNCT	_	_	1	punct	_	_
+3	και	_	CCONJ	_	_	0	cc	_	_
+4	ανάλαφρα	_	ADV	_	_	0	advmod	_	_
+5	τον	_	DET	_	Case=Acc|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	7	det	_	_
+6	κύριο	_	NOUN	_	Case=Acc|Gender=Masc|Number=Sing	0	obj	_	_
+7	εστηρίζα	_	VERB	_	Aspect=Imp|Mood=Ind|Number=Sing|Person=1|Tense=Past|VerbForm=Fin|Voice=Act	0	root	_	_
+
+# sent_id = book19-line25
+# text = στις ανοικτές λαβωματιές αισχρές βοηθήσουν μύγες
+1	στις	_	DET	_	_	3	case	_	_
+2	ανοικτές	_	ADJ	_	Case=Acc|Gender=Fem|Number=Plur	3	amod	_	_
+3	λαβωματιές	_	NOUN	_	Case=Acc|Gender=Fem|Number=Plur	5	obl	_	_
+4	αισχρές	_	ADJ	_	Case=Acc|Gender=Fem|Number=Plur	5	nsubj	_	_
+5	βοηθήσουν	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Plur|Person=3|VerbForm=Fin|Voice=Act	0	root	_	_
+6	μύγες	_	NOUN	_	Case=Acc|Gender=Fem|Number=Plur	5	obj	_	_
+
+# sent_id = book19-line136
+# text = η Άτη, που με ετύφλωσε δεν έβγαινε από τον νου μου.
+1	η	_	DET	_	Case=Nom|Definite=Def|Gender=Fem|Number=Sing|PronType=Art	2	det	_	_
+2	Άτη	_	PROPN	_	Case=Nom|Gender=Fem|Number=Sing	9	nsubj	_	_
+3	,	,	PUNCT	_	_	8	punct	_	_
+4	που	_	PRON	_	Case=Nom|Gender=Fem|Number=Sing|Person=3|PronType=Rel	7	nsubj	_	_
+5	με	_	PRON	_	Case=Acc|Gender=Masc|Number=Sing|Person=1|PronType=Prs	7	obj	_	_
+6	ετύφλωσε	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin|Voice=Act	2	acl:relcl	_	_
+7	δεν	_	PART	_	_	9	advmod	_	_
+8	έβγαινε	_	VERB	_	Aspect=Imp|Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin|Voice=Act	0	root	_	_
+9	από	_	ADP	_	_	12	case	_	_
+10	τον	_	DET	_	Case=Acc|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	12	det	_	_
+11	νου	_	NOUN	_	Case=Acc|Gender=Masc|Number=Sing	9	obl	_	_
+12	μου	_	PRON	_	Case=Gen|Gender=Masc|Number=Sing|Person=1|Poss=Yes|PronType=Prs	12	nmod	_	_
+13	.	.	PUNCT	_	_	8	punct	_	_
+
+# sent_id = book19-line205
+# text = και ολονήστικοι οι Αχαιοί στον πόλεμο να ορμήσουν
+1	και	_	CCONJ	_	_	2	cc	_	_
+2	ολονήστικοι	_	ADJ	_	Case=Nom|Gender=Masc|Number=Plur	2	amod	_	_
+3	οι	_	DET	_	Case=Nom|Definite=Def|Gender=Masc|Number=Plur|PronType=Art	4	det	_	_
+4	Αχαιοί	_	PROPN	_	Case=Nom|Gender=Masc|Number=Plur	2	nsubj	_	_
+5	στον	_	DET	_	_	6	case	_	_
+6	πόλεμο	_	NOUN	_	Case=Acc|Gender=Masc|Number=Sing	8	obl	_	_
+7	να	_	AUX	_	_	8	aux	_	_
+8	ορμήσουν	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Plur|Person=3|VerbForm=Fin|Voice=Act	6	acl	_	_
+
+# sent_id = book19-line219
+# text = ώστε συ στέρξε την καρδιά στα λόγια μου να κλίνης·
+1	ώστε	_	SCONJ	_	_	3	mark	_	_
+2	συ	_	PRON	_	Gender=Masc|Number=Sing	3	nsubj	_	_
+3	στέρξε	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Sing|Person=3|VerbForm=Fin|Voice=Act	0	root	_	_
+4	την	_	DET	_	Case=Acc|Definite=Def|Gender=Fem|Number=Sing|PronType=Art	5	det	_	_
+5	καρδιά	_	NOUN	_	Case=Acc|Gender=Fem|Number=Sing	3	obj	_	_
+6	στα	_	ADP	_	_	7	case	_	_
+7	λόγια	_	NOUN	_	Case=Acc|Gender=Neut|Number=Plur	3	obl	_	_
+8	μου	_	PRON	_	Case=Gen|Gender=Masc|Number=Sing|Person=1|Poss=Yes|PronType=Prs	7	nmod	_	_
+9	να	_	AUX	_	_	10	aux	_	_
+10	κλίνης	_	NOUN	_	Case=Gen|Gender=Fem|Number=Sing	3	advcl	_	_
+11	·	·	PUNCT	_	_	3	punct	_	_
+
+# sent_id = book20-line79
+# text = Και τον Αινεία σήκωσε ενάντια στον Πηλείδη
+1	Και	_	CCONJ	_	_	4	cc	_	_
+2	τον	_	DET	_	Case=Acc|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	3	det	_	_
+3	Αινεία	_	PROPN	_	Case=Acc|Gender=Masc|Number=Sing	4	obj	_	_
+4	σήκωσε	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin|Voice=Act	0	root	_	_
+5	ενάντια	_	ADV	_	_	4	advmod	_	_
+6	στον	_	DET	_	Case=Acc|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	7	det	_	_
+7	Πηλείδη	_	ADJ	_	Case=Acc|Gender=Masc|Number=Sing	5	obl	_	_
+
+# sent_id = book20-line156
+# text = Έλαμπε ωστόσο από τον χαλκό κι εγέμισε η πεδιάδα
+1	Έλαμπε	_	VERB	_	Aspect=Imp|Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin|Voice=Act	0	root	_	_
+2	ωστόσο	_	CCONJ	_	_	1	cc	_	_
+3	από	_	ADP	_	_	5	case	_	_
+4	τον	_	DET	_	Case=Acc|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	5	det	_	_
+5	χαλκό	_	NOUN	_	Case=Acc|Gender=Masc|Number=Sing	1	obl	_	_
+6	κι	_	CCONJ	_	_	7	cc	_	_
+7	εγέμισε	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin|Voice=Act	1	conj	_	_
+8	η	_	DET	_	Case=Nom|Definite=Def|Gender=Fem|Number=Sing|PronType=Art	9	det	_	_
+9	πεδιάδα	_	NOUN	_	Case=Nom|Gender=Fem|Number=Sing	7	nsubj	_	_
+
+# sent_id = book20-line312
+# text = να σβήσουν την ανδρεία του τα χέρια του Αχιλλέα.
+1	να	_	AUX	_	_	2	aux	_	_
+2	σβήσουν	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Plur|Person=3|VerbForm=Fin|Voice=Act	0	root	_	_
+3	την	_	DET	_	Case=Acc|Definite=Def|Gender=Fem|Number=Sing|PronType=Art	4	det	_	_
+4	ανδρεία	_	NOUN	_	Case=Acc|Gender=Fem|Number=Sing	2	obj	_	_
+5	του	_	PRON	_	Case=Gen|Gender=Masc|Number=Sing|Person=3|Poss=Yes|PronType=Prs	4	nmod	_	_
+6	τα	_	DET	_	Case=Nom|Definite=Def|Gender=Neut|Number=Plur|PronType=Art	7	det	_	_
+7	χέρια	_	NOUN	_	Case=Nom|Gender=Neut|Number=Plur	2	nsubj	_	_
+8	του	_	DET	_	Case=Gen|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	9	det	_	_
+9	Αχιλλέα	_	PROPN	_	Case=Gen|Gender=Masc|Number=Sing	7	nmod	_	_
+10	.	.	PUNCT	_	_	2	punct	_	_
+
+# sent_id = book21-line346
+# text = Και όπως στεγνώνει μονομιάς νεοποτισμένο κήπο
+1	Και	_	CCONJ	_	_	3	cc	_	_
+2	όπως	_	ADV	_	_	3	advmod	_	_
+3	στεγνώνει	_	VERB	_	Aspect=Imp|Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin|Voice=Act	0	advcl	_	_
+4	μονομιάς	_	ADV	_	_	4	advmod	_	_
+5	νεοποτισμένο	_	ADJ	_	Case=Acc|Gender=Masc|Number=Sing	6	amod	_	_
+6	κήπο	_	NOUN	_	Case=Acc|Gender=Masc|Number=Sing	3	obj	_	_
+
+# sent_id = book21-line367
+# text = από την άχνα την καυτή του πολυβούλου Ηφαίστου
+1	από	_	ADP	_	_	3	case	_	_
+2	την	_	DET	_	Case=Acc|Definite=Def|Gender=Fem|Number=Sing|PronType=Art	3	det	_	_
+3	άχνα	_	PROPN	_	Case=Acc|Gender=Fem|Number=Sing	0	root	_	_
+4	την	_	DET	_	Case=Acc|Definite=Def|Gender=Fem|Number=Sing|PronType=Art	5	det	_	_
+5	καυτή	_	ADJ	_	Case=Acc|Gender=Fem|Number=Sing	3	amod	_	_
+6	του	_	DET	_	Case=Gen|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	7	det	_	_
+7	πολυβούλου	_	PROPN	_	Case=Gen|Gender=Neut|Number=Sing	8	amod	_	_
+8	Ηφαίστου	_	PROPN	_	Case=Gen|Gender=Masc|Number=Sing	7	nmod	_	_
+
+# sent_id = book21-line405
+# text = πε άνδρες αρχαίας γενεάς για τέρμινα είχαν στήσει·
+1	πε	_	ADV	_	_	8	parataxis	_	_
+2	άνδρες	_	NOUN	_	Case=Nom|Gender=Masc|Number=Plur	8	obj	_	_
+3	αρχαίας	_	ADJ	_	Case=Gen|Gender=Fem|Number=Sing	4	amod	_	_
+4	γενεάς	_	NOUN	_	Case=Gen|Gender=Fem|Number=Sing	2	nmod	_	_
+5	για	_	ADP	_	_	6	case	_	_
+6	τέρμινα	_	PROPN	_	Case=Acc|Gender=Neut|Number=Plur	2	nmod	_	_
+7	είχαν	_	AUX	_	Aspect=Imp|Mood=Ind|Number=Plur|Person=3|Tense=Past|VerbForm=Fin|Voice=Act	8	aux	_	_
+8	στήσει	_	VERB	_	Aspect=Perf|VerbForm=Inf|Voice=Act	0	root	_	_
+9	·	·	PUNCT	_	_	8	punct	_	_
+
+# sent_id = book22-line121
+# text = από όσα κλείει μέσα της η ζηλεμένη πόλις.
+1	από	_	ADP	_	_	2	case	_	_
+2	όσα	_	PRON	_	Case=Acc|Gender=Neut|Number=Plur|Person=3|PronType=Ind,Rel	0	obl	_	_
+3	κλείει	_	VERB	_	Aspect=Imp|Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin|Voice=Act	2	acl:relcl	_	_
+4	μέσα	_	ADV	_	_	3	advmod	_	_
+5	της	_	PRON	_	Case=Gen|Gender=Fem|Number=Sing|Person=3|PronType=Prs	4	obl	_	_
+6	η	_	DET	_	Case=Nom|Definite=Def|Gender=Fem|Number=Sing|PronType=Art	8	det	_	_
+7	ζηλεμένη	_	ADJ	_	Case=Nom|Gender=Fem|Number=Sing	8	amod	_	_
+8	πόλις	_	NOUN	_	Case=Nom|Gender=Fem|Number=Sing	3	nsubj	_	_
+9	.	.	PUNCT	_	_	0	punct	_	_
+
+# sent_id = book22-line199
+# text = Και όπως στον ύπνο δεν μπορείς να καταφθάσης άλλο
+1	Και	_	CCONJ	_	_	6	cc	_	_
+2	όπως	_	ADV	_	_	6	advmod	_	_
+3	στον	_	DET	_	Case=Acc|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	4	case	_	_
+4	ύπνο	_	NOUN	_	Case=Acc|Gender=Masc|Number=Sing	6	obl	_	_
+5	δεν	_	PART	_	_	6	advmod	_	_
+6	μπορείς	_	VERB	_	Aspect=Imp|Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin|Voice=Act	0	root	_	_
+7	να	_	AUX	_	_	8	aux	_	_
+8	καταφθάσης	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Sing|Person=1|VerbForm=Fin|Voice=Pass	6	xcomp	_	_
+9	άλλο	_	PRON	_	Case=Acc|Gender=Neut|Number=Sing|Person=3|PronType=Ind	8	obj	_	_
+
+# sent_id = book22-line418
+# text = στον άνδρα τον ανόσιο, τον άγριο, να προσπέσω,
+1	στον	_	DET	_	Case=Acc|Gender=Masc|Number=Sing	2	case	_	_
+2	άνδρα	_	NOUN	_	Case=Acc|Gender=Masc|Number=Sing	0	obl	_	_
+3	τον	_	DET	_	Case=Acc|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	2	det	_	_
+4	ανόσιο	_	ADJ	_	Case=Acc|Gender=Masc|Number=Sing	2	amod	_	_
+5	,	,	PUNCT	_	_	0	punct	_	_
+6	τον	_	DET	_	Case=Acc|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	9	det	_	_
+7	άγριο	_	ADJ	_	Case=Acc|Gender=Masc|Number=Sing	2	conj	_	_
+8	,	,	PUNCT	_	_	0	punct	_	_
+9	να	_	AUX	_	_	0	aux	_	_
+10	προσπέσω	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Sing|Person=1|VerbForm=Fin|Voice=Act	0	parataxis	_	_
+11	,	,	PUNCT	_	_	0	punct	_	_
+
+# sent_id = book23-line31
+# text = εσφάζοντο και αρνιά πολλά κι ερίφια που βελάζα·
+1	εσφάζοντο	_	VERB	_	Aspect=Imp|Mood=Ind|Number=Plur|Person=3|Tense=Past|VerbForm=Fin|Voice=Pass	0	root	_	_
+2	και	_	CCONJ	_	_	3	cc	_	_
+3	αρνιά	_	NOUN	_	Case=Nom|Gender=Neut|Number=Plur	1	nsubj:pass	_	_
+4	πολλά	_	ADJ	_	Case=Nom|Gender=Neut|Number=Plur	3	amod	_	_
+5	κι	_	CCONJ	_	_	6	cc	_	_
+6	ερίφια	_	NOUN	_	Case=Nom|Gender=Neut|Number=Plur	3	conj	_	_
+7	που	_	PRON	_	Case=Nom|Gender=Neut|Number=Plur|Person=3|PronType=Rel	8	case	_	_
+8	βελάζα	_	VERB	_	Aspect=Imp|Mood=Ind|Number=Plur|Tense=Past|VerbForm=Fin|Voice=Act	6	acl:relcl	_	_
+9	·	·	PUNCT	_	_	1	punct	_	_
+
+# sent_id = book23-line136
+# text = την κεφαλή ο ισόθεος Πηλείδης, πικραμένος
+1	την	_	DET	_	Case=Acc|Definite=Def|Gender=Fem|Number=Sing|PronType=Art	2	det	_	_
+2	κεφαλή	_	NOUN	_	Case=Acc|Gender=Fem|Number=Sing	0	root	_	_
+3	ο	_	DET	_	Case=Nom|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	4	det	_	_
+4	ισόθεος	_	ADJ	_	Case=Nom|Gender=Masc|Number=Sing	2	nsubj	_	_
+5	Πηλείδης	_	ADJ	_	Case=Nom|Gender=Masc|Number=Sing	4	flat	_	_
+6	,	,	PUNCT	_	_	2	punct	_	_
+7	πικραμένος	_	VERB	_	Case=Nom|Gender=Masc|Number=Sing|VerbForm=Part	5	conj	_	_
+
+# sent_id = book23-line214
+# text = Και ως διάβαιναν το πέλαγος, από τη σφοδρή πνοή τους
+1	Και	_	CCONJ	_	_	3	cc	_	_
+2	ως	_	ADV	_	_	3	mark	_	_
+3	διάβαιναν	_	VERB	_	Aspect=Imp|Mood=Ind|Number=Plur|Person=3|Tense=Past|VerbForm=Fin|Voice=Act	0	root	_	_
+4	το	_	DET	_	Case=Acc|Definite=Def|Gender=Neut|Number=Sing|PronType=Art	5	det	_	_
+5	πέλαγος	_	NOUN	_	Case=Acc|Gender=Neut|Number=Sing	3	obj	_	_
+6	,	,	PUNCT	_	_	3	punct	_	_
+7	από	_	ADP	_	_	11	case	_	_
+8	τη	_	DET	_	Case=Acc|Definite=Def|Gender=Fem|Number=Sing|PronType=Art	11	det	_	_
+9	σφοδρή	_	ADJ	_	Case=Acc|Gender=Fem|Number=Sing	11	amod	_	_
+10	πνοή	_	NOUN	_	Case=Acc|Gender=Fem|Number=Sing	3	obl	_	_
+11	τους	_	PRON	_	Case=Gen|Gender=Masc|Number=Plur|Person=3|Poss=Yes|PronType=Prs	11	nmod	_	_
+
+# sent_id = book23-line260
+# text = ίππους, μουλάρια, βόδια και καλόζωνες γυναίκες
+1	ίππους	_	NOUN	_	Case=Acc|Gender=Masc|Number=Plur	1	root	_	_
+2	,	,	PUNCT	_	_	1	punct	_	_
+3	μουλάρια	_	NOUN	_	Case=Nom|Gender=Neut|Number=Plur	1	conj	_	_
+4	,	,	PUNCT	_	_	1	punct	_	_
+5	βόδια	_	NOUN	_	Case=Nom|Gender=Neut|Number=Plur	1	conj	_	_
+6	και	_	CCONJ	_	_	0	cc	_	_
+7	καλόζωνες	_	NOUN	_	Case=Acc|Gender=Fem|Number=Plur	0	amod	_	_
+8	γυναίκες	_	NOUN	_	Case=Acc|Gender=Fem|Number=Plur	1	conj	_	_
+
+# sent_id = book23-line525
+# text = της Αίθης, της καλότριχης φοράδας του αδελφού του·
+1	της	_	DET	_	Case=Gen|Definite=Def|Gender=Fem|Number=Sing|PronType=Art	2	det	_	_
+2	Αίθης	_	NOUN	_	Case=Gen|Gender=Fem|Number=Sing	0	root	_	_
+3	,	,	PUNCT	_	_	2	punct	_	_
+4	της	_	DET	_	Case=Gen|Definite=Def|Gender=Fem|Number=Sing|PronType=Art	7	det	_	_
+5	καλότριχης	_	ADJ	_	Case=Gen|Gender=Fem|Number=Sing	7	amod	_	_
+6	φοράδας	_	NOUN	_	Case=Gen|Gender=Fem|Number=Sing	2	conj	_	_
+7	του	_	DET	_	Case=Gen|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	9	det	_	_
+8	αδελφού	_	NOUN	_	Case=Gen|Gender=Masc|Number=Sing	7	nmod	_	_
+9	του	_	PRON	_	Case=Gen|Gender=Masc|Number=Sing|Person=3|Poss=Yes|PronType=Prs	9	nmod	_	_
+10	·	·	PUNCT	_	_	2	punct	_	_
+
+# sent_id = book23-line635
+# text = στην πάλη τον Πλευρώνιο, κατόπι τον Αγκαίο,
+1	στην	_	ADP	_	_	2	case	_	_
+2	πάλη	_	NOUN	_	Case=Acc|Gender=Fem|Number=Sing	0	root	_	_
+3	τον	_	DET	_	Case=Acc|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	4	det	_	_
+4	Πλευρώνιο	_	PROPN	_	Case=Acc|Gender=Neut|Number=Sing	2	obj	_	_
+5	,	,	PUNCT	_	_	2	punct	_	_
+6	κατόπι	_	NOUN	_	Case=Acc|Gender=Neut|Number=Sing	2	conj	_	_
+7	τον	_	DET	_	Case=Acc|Definite=Def|Gender=Masc|Number=Sing|PronType=Art	0	det	_	_
+8	Αγκαίο	_	PROPN	_	Case=Acc|Gender=Masc|Number=Sing	2	conj	_	_
+9	,	,	PUNCT	_	_	2	punct	_	_
+
+# sent_id = book24-line231
+# text = και τόσα επανωφόρια, τόσους κοντά χιτώνες
+1	και	_	CCONJ	_	_	3	cc	_	_
+2	τόσα	_	ADJ	_	Case=Nom|Gender=Neut|Number=Plur	3	amod	_	_
+3	επανωφόρια	_	NOUN	_	Case=Nom|Gender=Neut|Number=Plur	3	conj	_	_
+4	,	,	PUNCT	_	_	0	punct	_	_
+5	τόσους	_	ADJ	_	Case=Acc|Gender=Masc|Number=Plur	0	advmod	_	_
+6	κοντά	_	ADV	_	_	0	advmod	_	_
+7	χιτώνες	_	NOUN	_	Case=Nom|Gender=Masc|Number=Plur	3	conj	_	_
+
+# sent_id = book24-line803
+# text = με τάξιν και εκάθησαν στο θαυμαστό τραπέζι
+1	με	_	ADP	_	_	2	case	_	_
+2	τάξιν	_	NOUN	_	Case=Acc|Gender=Fem|Number=Sing	0	root	_	_
+3	και	_	CCONJ	_	_	4	cc	_	_
+4	εκάθησαν	_	VERB	_	Aspect=Perf|Mood=Ind|Number=Plur|Person=3|Tense=Past|VerbForm=Fin|Voice=Pass	0	conj	_	_
+5	στο	_	_	_	_	7	case	_	_
+6	θαυμαστό	_	ADJ	_	Case=Acc|Gender=Neut|Number=Sing	7	amod	_	_
+7	τραπέζι	_	NOUN	_	Case=Acc|Gender=Neut|Number=Sing	4	obl	_	_

@@ -30,6 +30,14 @@ data/wtp.db-wal
 data/wtp.db.pickle
 data/raw_lookups.db
 
+# Third-party treebanks (independently versioned upstream; polylas_gold*.conllu
+# in data/treebanks/ stay tracked since they're original work).
+data/treebanks/Gorman/
+data/treebanks/Greek-Dependency-Trees/
+data/treebanks/UD_Ancient_Greek-Perseus/
+data/treebanks/UD_Ancient_Greek-PROIEL/
+data/treebanks/UD_Greek-GDT/
+
 # Kaikki dumps
 kaikki/
 

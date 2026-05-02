@@ -29,8 +29,8 @@ from dilemma.form_sanitize import sanitize_form  # noqa: E402
 DATA_DIR = SCRIPT_DIR / "data"
 OUTPUT_PATH = DATA_DIR / "gorman_pairs.json"
 
-# Default location for Gorman CoNLL-U files (sibling repo)
-GORMAN_DIR = SCRIPT_DIR.parent / "morphy" / "data" / "Gorman"
+# Default location for Gorman CoNLL-U files
+GORMAN_DIR = SCRIPT_DIR / "data" / "treebanks" / "Gorman"
 
 # UPOS tags to skip (punctuation, symbols)
 SKIP_UPOS = {"PUNCT", "SYM", "X", "NUM"}

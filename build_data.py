@@ -776,8 +776,9 @@ def extract_pairs(jsonl_path: Path, lang: str,
         # Article forms (ο, η, το, τα, etc.) stay as self-maps. EL
         # Wiktionary lists them as "form of ὁ" via form_of, but for
         # MG lemmatization purposes the monotonic article form is
-        # the lemma; morphy / Klisy render it directly. The polytonic
-        # ὁ would surface as an AG leak in the MG UI.
+        # the lemma; downstream consumers (the dilemma tagger, Klisy)
+        # render it directly. The polytonic ὁ would surface as an AG
+        # leak in the MG UI.
         if key in article_forms:
             continue
         if key not in form_of_targets:

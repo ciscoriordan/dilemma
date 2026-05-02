@@ -24,7 +24,7 @@ DATA_DIR = SCRIPT_DIR / "data"
 OUTPUT_PATH = DATA_DIR / "proiel_pairs.json"
 
 # Default location for PROIEL CoNLL-U files
-PROIEL_DIR = Path.home() / "Documents" / "morphy" / "data" / "UD_Ancient_Greek-PROIEL"
+PROIEL_DIR = DATA_DIR / "treebanks" / "UD_Ancient_Greek-PROIEL"
 
 # UPOS tags to skip
 SKIP_UPOS = {"PUNCT", "NUM", "X", "SYM"}
