@@ -62,3 +62,28 @@ In `build_data.py`, proper noun entries (`pos="name"`) get lower confidence for 
 - Tests run on self-hosted GitHub Actions runner on CORSAIRONE (WSL2)
 - `python -m pytest tests/ -x -v` to run locally
 - Always run tests after any pipeline change before committing
+
+## morph_diff annotator
+
+`dilemma/morph_diff.py` is a small, pure-Python stem-change annotator. Given
+`(lemma, form, lang)` it returns a `MorphDiff` whose `roles` array
+classifies each NFC code point of the form as one of STEM, ENDING, AUGMENT,
+REDUPLICATION, IRREGULAR_STEM, or UNCHANGED.
+
+```python
+from dilemma import diff_form, diff_paradigm, MorphDiff, Role
+
+diff_form("γράφω", "ἔγραψα", lang="grc")
+# MorphDiff(form="ἔγραψα", roles=[AUGMENT, STEM, STEM, STEM,
+#          IRREGULAR_STEM, ENDING], irregular_indices=[0, 4],
+#          stem_change=True, ending_start=5)
+```
+
+Use it when you need a millisecond-fast per-character diff between a
+citation form and an inflected form (e.g. for a flashcard UI that
+highlights irregular root changes). It is intentionally pure: no lookup
+DB queries, no model loads, no torch / onnxruntime imports. Heuristic
+rules cover the common AG / MG cases of syllabic and temporal augment,
+Cε- reduplication (with φ/θ/χ -> π/τ/κ deaspiration), and basic stem
+allomorphy. What the heuristic cannot align via LCS falls into
+IRREGULAR_STEM.

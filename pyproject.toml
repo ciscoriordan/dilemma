@@ -33,6 +33,9 @@ onnx = ["onnxruntime>=1.15", "numpy>=1.24"]
 torch = ["torch>=2.0", "numpy>=1.24"]
 lm = ["betacode"]
 dev = ["pytest>=7"]
+# Tagger: POS tagger + dependency parser. Pulls torch and transformers,
+# so it is opt-in - users who only want the lemmatizer can skip it.
+tagger = ["torch>=2.5", "transformers", "huggingface_hub>=0.20"]
 
 [project.urls]
 Homepage = "https://github.com/ciscoriordan/dilemma"
@@ -42,7 +45,12 @@ Repository = "https://github.com/ciscoriordan/dilemma"
 dilemma = "dilemma.__main__:main"
 
 [tool.setuptools]
-packages = ["dilemma"]
+packages = ["dilemma", "dilemma.tagger"]
 
 [tool.setuptools.package-data]
 dilemma = []
+
+[tool.pytest.ini_options]
+markers = [
+    "slow: tests requiring model weights (skip by default, run with --run-slow)",
+]

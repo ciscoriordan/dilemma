@@ -117,6 +117,7 @@ table (which handles 95%+ of words) needs neither.
   - [POS-aware disambiguation](#pos-aware-disambiguation)
   - [Spelling correction](#spelling-correction)
   - [Elision expansion](#elision-expansion)
+- [POS tagger and dependency parser](#pos-tagger-and-dependency-parser)
 - [Greek Coverage](#greek-coverage)
   - [Language codes](#language-codes)
   - [Modern Greek varieties](#modern-greek-varieties)
@@ -650,7 +651,7 @@ on demand rather than loading the full 12M-entry table into memory.
 
 ### POS-aware disambiguation
 
-When a POS tagger (e.g. [Morphy](https://github.com/ciscoriordan/morphy))
+When a POS tagger (e.g. Dilemma's [POS tagger module](#pos-tagger-and-dependency-parser))
 provides UPOS tags, `lemmatize_pos` uses POS to disambiguate between
 multiple candidates from the regular lookup:
 
@@ -760,6 +761,40 @@ pattern, and proper nouns are deprioritized.
 Polytonic input automatically restricts expansion to the AG lookup
 table, avoiding false matches from MG monotonic forms.
 
+## POS tagger and dependency parser
+
+Dilemma also ships a diachronic Greek POS tagger and dependency parser.
+They live under `dilemma.tagger` and install via the `[tagger]` extra
+(the dependency that pulls in `torch` and `transformers`):
+
+```bash
+pip install "dilemma[tagger]"
+python -m dilemma download              # also fetches the tagger weights
+```
+
+```python
+from dilemma import Tagger
+
+tagger = Tagger(lang="grc", device="cpu")    # Ancient Greek (device auto-detected)
+results = tagger.tag(["μῆνιν ἄειδε θεὰ Πηληϊάδεω Ἀχιλῆος"])
+for tok in results[0]:
+    print(tok)
+# {'form': 'μηνιν', 'upos': 'NOUN', 'lemma': 'μῆνις', 'feats': {...},
+#  'head': 2, 'deprel': 'obj', 'raw_form': 'μῆνιν'}
+```
+
+Supports `lang="el"` (Modern Greek), `lang="grc"` (Ancient), and
+`lang="med"` (Medieval/Byzantine). When `lemmatize=True` (the default),
+the tagger preloads the lemmatizer module internally and returns a
+`lemma` field on every token.
+
+The tagger is ~25x faster than `gr-nlp-toolkit` on real-world Greek text
+after `gr-nlp-toolkit`'s [PR #29](https://github.com/nlpaueb/gr-nlp-toolkit/pull/29)
+(which Dilemma's author contributed; pre-PR the gap was ~215x). On the
+full Iliad (24 books, 146K tokens) it tags + parses in 19.5 s. Trained
+weights, treebank sources, and the `lang="med"` Medieval/Byzantine model
+are documented in `dilemma/tagger/__init__.py`.
+
 ## Greek Coverage
 
 ### Language codes
@@ -787,10 +822,10 @@ label still appears in `LemmaCandidate.lang` for forms from the
 medieval Wiktionary dump, but these are merged into the `el` lookup
 at build time.
 
-Note: [Morphy](https://github.com/ciscoriordan/morphy) (POS tagging +
-dependency parsing) uses `lang="grc"` for Byzantine text. Byzantine
-literary syntax (polytonic, full case system, optative mood) is closer
-to Ancient Greek, so the AG-trained POS tagger handles it well.
+Note: Dilemma's [POS tagger and dependency parser](#pos-tagger-and-dependency-parser)
+use `lang="grc"` for Byzantine text. Byzantine literary syntax
+(polytonic, full case system, optative mood) is closer to Ancient
+Greek, so the AG-trained tagger handles it well.
 
 ### Modern Greek varieties
 
