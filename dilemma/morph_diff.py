@@ -195,6 +195,38 @@ def _strip_lemma_ending(lemma: str, lang: str) -> str:
 # ---------------------------------------------------------------------------
 
 
+# Modern Greek compound forms ride a leading tense particle (θα / να /
+# ας) and / or a perfect auxiliary (έχω / έχεις / … / είχα / … / έχε)
+# that's regular for the language but not part of the verb's lemma
+# stem. Diffing γράφω against `θα γράψω` would otherwise flag θ + α +
+# space as IRREGULAR_STEM because none of those characters appear in
+# the lemma, even though they're a tense marker shared by every MG
+# verb. We strip the prefix before alignment and shift the resulting
+# indices back to the original form's coordinate frame.
+import re as _re  # local alias so the module-top imports stay tidy
+
+_MG_LEADING_PREFIX_RE = _re.compile(
+    r'^(?:(?:θα|να|ας)\s+)?'
+    r'(?:(?:έχω|έχεις|έχει|έχουμε|έχομε|έχετε|έχουν|έχουνε|'
+    r'είχα|είχες|είχε|είχαμε|είχατε|είχαν|είχανε|έχε)\s+)?'
+)
+
+
+def _strip_mg_compound_prefix(form: str, lang: str) -> int:
+    """Return the length of the MG compound leading prefix, or 0.
+
+    Only fires for `lang == "el"`. Matches an optional tense particle
+    (θα / να / ας) and an optional perfect-tense auxiliary, in either
+    order or alone. Returns the character count consumed by the
+    matched prefix (callable side strips `form[:n]` and shifts indices
+    by `n`).
+    """
+    if lang != "el" or not form:
+        return 0
+    m = _MG_LEADING_PREFIX_RE.match(form)
+    return m.end() if m else 0
+
+
 def _detect_syllabic_augment(form_base: str, lemma_base: str) -> int:
     """Return the number of leading characters of form_base that look like
     a syllabic augment (ε- / ἐ-).
@@ -373,7 +405,21 @@ def diff_form(lemma: str, form: str, lang: str = "grc") -> MorphDiff:
         roles = [Role.UNCHANGED] * n
         return MorphDiff(form=form_nfc, roles=roles, stem_change=False)
 
-    form_base = _strip_diacritics(form_nfc)
+    # MG compound prefix: strip θα/να/ας + optional perfect auxiliary
+    # before alignment. The prefix characters are regular tense markers,
+    # not part of the verb's lemma stem, so they should never end up
+    # flagged irregular. We diff the stripped form, then shift the
+    # resulting roles back to absolute form indices and label the prefix
+    # itself as STEM.
+    mg_prefix_len = _strip_mg_compound_prefix(form_nfc, lang)
+    if mg_prefix_len >= n:
+        # The "form" is just a particle / auxiliary with nothing after.
+        # Treat it as fully UNCHANGED so the caller doesn't see spurious
+        # irregularity for an effectively empty body.
+        return MorphDiff(form=form_nfc, roles=[Role.STEM] * n, stem_change=False)
+
+    form_diff_target = form_nfc[mg_prefix_len:]
+    form_base = _strip_diacritics(form_diff_target)
     lemma_base = _strip_diacritics(lemma_nfc)
     stem_base = _strip_lemma_ending(lemma_nfc, lang)
 
@@ -434,7 +480,7 @@ def diff_form(lemma: str, form: str, lang: str = "grc") -> MorphDiff:
             ending_start_in_body = body_len
 
     for idx in range(body_len):
-        absolute = body_start + idx
+        absolute = mg_prefix_len + body_start + idx
         if idx >= ending_start_in_body:
             roles[absolute] = Role.ENDING
         elif on_lcs[idx]:
@@ -442,9 +488,11 @@ def diff_form(lemma: str, form: str, lang: str = "grc") -> MorphDiff:
         else:
             roles[absolute] = Role.IRREGULAR_STEM
 
-    # Apply the prefix role last so it survives the body assignment loop.
+    # Apply the augment / reduplication prefix role last so it survives
+    # the body assignment loop. Indices are relative to the form past the
+    # MG compound prefix (θα / να / έχω / ...), which we leave as STEM.
     for idx in range(prefix_len):
-        roles[idx] = prefix_role  # type: ignore[assignment]
+        roles[mg_prefix_len + idx] = prefix_role  # type: ignore[assignment]
 
     # ------------------------------------------------------------------
     # Compute summary fields.

@@ -212,6 +212,54 @@ class TestModernGreek:
         )
         assert irregular_count >= 1
 
+    def test_mg_future_particle_not_flagged(self):
+        """θα γράψω: the leading θα tense particle is regular for MG
+        future, not an irregular stem. Only the perfective ψ should be
+        flagged inside the lemma stem region."""
+        d = diff_form("γράφω", "θα γράψω", lang="el")
+        # θ + α + space (indices 0..2) must NOT be flagged irregular.
+        for i in (0, 1, 2):
+            assert i not in d.irregular_indices, (
+                f"index {i} (prefix char) should not be flagged"
+            )
+        # The φ -> ψ allomorphy at form index 6 should still surface.
+        assert 6 in d.irregular_indices
+
+    def test_mg_subjunctive_particle_not_flagged(self):
+        """να γράψω: same shape as the future particle, different word."""
+        d = diff_form("γράφω", "να γράψω", lang="el")
+        for i in (0, 1, 2):
+            assert i not in d.irregular_indices
+        assert 6 in d.irregular_indices
+
+    def test_mg_perfect_auxiliary_not_flagged(self):
+        """έχω γράψει: the έχω auxiliary is regular for the perfect
+        tense, not part of the verb's lemma."""
+        d = diff_form("γράφω", "έχω γράψει", lang="el")
+        # έ + χ + ω + space (indices 0..3) must stay clean.
+        for i in (0, 1, 2, 3):
+            assert i not in d.irregular_indices
+
+    def test_mg_future_perfect_compound_prefix(self):
+        """θα έχω γράψει: both particle AND auxiliary at the front; both
+        should be left clean. Prefix length is 8 (θα + space + έχω +
+        space)."""
+        d = diff_form("γράφω", "θα έχω γράψει", lang="el")
+        for i in range(8):
+            assert i not in d.irregular_indices, (
+                f"index {i} should not be flagged in compound prefix"
+            )
+
+    def test_mg_no_prefix_unchanged_behavior(self):
+        """Forms without a leading particle / auxiliary diff exactly as
+        before — guard against the prefix path leaking into normal
+        diffs."""
+        d = diff_form("γράφω", "γράφω", lang="el")
+        assert d.irregular_indices == []
+        d2 = diff_form("γράφω", "έγραψα", lang="el")
+        # Augment at index 0 still detected.
+        assert 0 in d2.irregular_indices
+
 
 # ---------------------------------------------------------------------------
 # Negative / edge cases
