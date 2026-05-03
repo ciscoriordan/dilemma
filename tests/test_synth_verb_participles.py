@@ -597,3 +597,179 @@ class TestPipelineIntegration:
             assert case in valid_cases, k
             assert gender in valid_genders, k
             assert number in valid_numbers, k
+
+
+# ---------------------------------------------------------------------------
+# v3: aor-2 participle synthesis
+# ---------------------------------------------------------------------------
+
+
+class TestAor2ParticipleStem:
+    def test_extract_lipo(self, synth):
+        assert synth._aor2_stem("ἔλιπον") == "λιπ"
+
+    def test_extract_pesso(self, synth):
+        assert synth._aor2_stem("ἔπεσον") == "πεσ"
+
+    def test_extract_labe(self, synth):
+        assert synth._aor2_stem("ἔλαβον") == "λαβ"
+
+    def test_rejects_sigmatic(self, synth):
+        assert synth._aor2_stem("ἔλυσα") is None
+
+    def test_rejects_kappa(self, synth):
+        assert synth._aor2_stem("ἔδωκα") is None
+
+
+class TestAor2ParticipleSynthesis:
+    """Aor-2 participle synthesis matches jtauber on canonical verbs."""
+
+    def test_lambano_active_nom_m_sg(self, synth):
+        out = synth.synthesize_aor2_participles("λαμβάνω", {"aor": "ἔλαβον"})
+        assert out["active_aorist_participle_nom_m_sg"] == "λαβών"
+
+    def test_lambano_active_nom_f_sg(self, synth):
+        out = synth.synthesize_aor2_participles("λαμβάνω", {"aor": "ἔλαβον"})
+        assert out["active_aorist_participle_nom_f_sg"] == "λαβοῦσα"
+
+    def test_lambano_active_nom_n_sg(self, synth):
+        out = synth.synthesize_aor2_participles("λαμβάνω", {"aor": "ἔλαβον"})
+        assert out["active_aorist_participle_nom_n_sg"] == "λαβόν"
+
+    def test_lambano_active_gen_m_sg(self, synth):
+        out = synth.synthesize_aor2_participles("λαμβάνω", {"aor": "ἔλαβον"})
+        assert out["active_aorist_participle_gen_m_sg"] == "λαβόντος"
+
+    def test_lambano_active_dat_m_pl(self, synth):
+        out = synth.synthesize_aor2_participles("λαμβάνω", {"aor": "ἔλαβον"})
+        assert out["active_aorist_participle_dat_m_pl"] == "λαβοῦσι(ν)"
+
+    def test_lambano_active_gen_m_pl(self, synth):
+        out = synth.synthesize_aor2_participles("λαμβάνω", {"aor": "ἔλαβον"})
+        assert out["active_aorist_participle_gen_m_pl"] == "λαβόντων"
+
+    def test_pipto_active_nom_m_sg(self, synth):
+        out = synth.synthesize_aor2_participles("πίπτω", {"aor": "ἔπεσον"})
+        assert out["active_aorist_participle_nom_m_sg"] == "πεσών"
+
+    def test_pipto_active_acc_n_sg(self, synth):
+        out = synth.synthesize_aor2_participles("πίπτω", {"aor": "ἔπεσον"})
+        assert out["active_aorist_participle_acc_n_sg"] == "πεσόν"
+
+    def test_leipo_active_nom_m_sg(self, synth):
+        out = synth.synthesize_aor2_participles("λείπω", {"aor": "ἔλιπον"})
+        assert out["active_aorist_participle_nom_m_sg"] == "λιπών"
+
+    def test_leipo_middle_nom_m_sg(self, synth):
+        # λιπόμενος (middle aor-2 participle)
+        out = synth.synthesize_aor2_participles("λείπω", {"aor": "ἔλιπον"})
+        assert out["middle_aorist_participle_nom_m_sg"] == "λιπόμενος"
+
+    def test_emits_full_grid(self, synth):
+        # Every (case × gender × number) for active should be present.
+        out = synth.synthesize_aor2_participles("λαμβάνω", {"aor": "ἔλαβον"})
+        for case in ("nom", "gen", "dat", "acc", "voc"):
+            for gender in ("m", "f", "n"):
+                for number in ("sg", "pl"):
+                    key = (
+                        f"active_aorist_participle_{case}_{gender}_{number}"
+                    )
+                    assert key in out, f"missing {key}"
+
+    def test_skips_when_no_aor(self, synth):
+        out = synth.synthesize_aor2_participles("λύω", {})
+        assert out == {}
+
+    def test_skips_sigmatic_aor(self, synth):
+        out = synth.synthesize_aor2_participles("λύω", {"aor": "ἔλυσα"})
+        assert out == {}
+
+
+class TestAor2ParticipleSchemaAlignment:
+    def test_keys_match_jtauber_pattern(self, synth):
+        out = synth.synthesize_aor2_participles("λαμβάνω", {"aor": "ἔλαβον"})
+        for k in out:
+            parts = k.split("_")
+            assert parts[1] == "aorist", k
+            assert parts[2] == "participle", k
+            assert parts[0] in ("active", "middle"), k
+
+
+# ---------------------------------------------------------------------------
+# v3: contract participle synthesis
+# ---------------------------------------------------------------------------
+
+
+class TestContractParticipleSynthesis:
+    """Contract present participle synthesis matches jtauber's
+    active-voice forms on τιμάω / ποιέω / δηλόω."""
+
+    def test_timao_nom_m_sg(self, synth):
+        out = synth.synthesize_contract_participles("τιμάω", {})
+        assert out["active_present_participle_nom_m_sg"] == "τιμῶν"
+
+    def test_timao_gen_m_sg(self, synth):
+        out = synth.synthesize_contract_participles("τιμάω", {})
+        assert out["active_present_participle_gen_m_sg"] == "τιμῶντος"
+
+    def test_timao_nom_n_sg(self, synth):
+        out = synth.synthesize_contract_participles("τιμάω", {})
+        assert out["active_present_participle_nom_n_sg"] == "τιμῶν"
+
+    def test_timao_dat_m_pl(self, synth):
+        out = synth.synthesize_contract_participles("τιμάω", {})
+        assert out["active_present_participle_dat_m_pl"] == "τιμῶσι(ν)"
+
+    def test_timao_gen_m_pl(self, synth):
+        out = synth.synthesize_contract_participles("τιμάω", {})
+        assert out["active_present_participle_gen_m_pl"] == "τιμώντων"
+
+    def test_poieo_nom_m_sg(self, synth):
+        out = synth.synthesize_contract_participles("ποιέω", {})
+        assert out["active_present_participle_nom_m_sg"] == "ποιῶν"
+
+    def test_poieo_gen_m_sg(self, synth):
+        out = synth.synthesize_contract_participles("ποιέω", {})
+        assert out["active_present_participle_gen_m_sg"] == "ποιοῦντος"
+
+    def test_poieo_nom_n_sg(self, synth):
+        out = synth.synthesize_contract_participles("ποιέω", {})
+        assert out["active_present_participle_nom_n_sg"] == "ποιοῦν"
+
+    def test_poieo_dat_m_pl(self, synth):
+        out = synth.synthesize_contract_participles("ποιέω", {})
+        assert out["active_present_participle_dat_m_pl"] == "ποιοῦσι(ν)"
+
+    def test_dêlôô_nom_m_sg(self, synth):
+        out = synth.synthesize_contract_participles("δηλόω", {})
+        assert out["active_present_participle_nom_m_sg"] == "δηλῶν"
+
+    def test_dêlôô_gen_m_sg(self, synth):
+        out = synth.synthesize_contract_participles("δηλόω", {})
+        assert out["active_present_participle_gen_m_sg"] == "δηλοῦντος"
+
+    def test_dêlôô_nom_n_sg(self, synth):
+        out = synth.synthesize_contract_participles("δηλόω", {})
+        assert out["active_present_participle_nom_n_sg"] == "δηλοῦν"
+
+    def test_phileo_nom_m_sg(self, synth):
+        out = synth.synthesize_contract_participles("φιλέω", {})
+        assert out["active_present_participle_nom_m_sg"] == "φιλῶν"
+
+    def test_skips_thematic_omega(self, synth):
+        out = synth.synthesize_contract_participles("λύω", {})
+        assert out == {}
+
+    def test_skips_athematic(self, synth):
+        out = synth.synthesize_contract_participles("τίθημι", {})
+        assert out == {}
+
+
+class TestContractParticipleSchemaAlignment:
+    def test_keys_only_present_tense(self, synth):
+        out = synth.synthesize_contract_participles("τιμάω", {})
+        for k in out:
+            parts = k.split("_")
+            assert parts[1] == "present", k
+            assert parts[2] == "participle", k
+            assert parts[0] in ("active", "middle"), k

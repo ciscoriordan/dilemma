@@ -684,3 +684,340 @@ class TestJtauberSchemaAlignment:
         assert expected.issubset(set(out.keys())), (
             f"missing keys: {expected - set(out.keys())}"
         )
+
+
+# ---------------------------------------------------------------------------
+# v3: aor-2 (strong-aorist) synthesis
+# ---------------------------------------------------------------------------
+
+
+class TestAor2Classifier:
+    def test_extract_stem_lipo(self, synth):
+        # ἔλιπον -> λιπ
+        assert synth.extract_aor2_stem("ἔλιπον") == "λιπ"
+
+    def test_extract_stem_pesso(self, synth):
+        # ἔπεσον -> πεσ
+        assert synth.extract_aor2_stem("ἔπεσον") == "πεσ"
+
+    def test_extract_stem_labe(self, synth):
+        # ἔλαβον -> λαβ
+        assert synth.extract_aor2_stem("ἔλαβον") == "λαβ"
+
+    def test_extract_stem_eipon(self, synth):
+        # εἶπον -> εἰπ (no augment, εἰ is its own augment-like onset)
+        # Our heuristic returns the body as-is when there's no
+        # syllabic-augment ε at the start.
+        stem = synth.extract_aor2_stem("εἶπον")
+        # Either εἰπ or εἶπ is acceptable; we accept whatever the
+        # heuristic produces as long as it ends in π.
+        assert stem.endswith("π") or stem.endswith("ι") or stem.endswith("ἰ")
+
+    def test_extract_stem_rejects_sigmatic(self, synth):
+        # ἔλυσα is sigmatic aor-1, NOT aor-2.
+        assert synth.extract_aor2_stem("ἔλυσα") is None
+
+    def test_extract_stem_rejects_kappa(self, synth):
+        # ἔδωκα is κ-aorist (athematic), not aor-2.
+        assert synth.extract_aor2_stem("ἔδωκα") is None
+
+    def test_extract_stem_rejects_empty(self, synth):
+        assert synth.extract_aor2_stem("") is None
+        assert synth.extract_aor2_stem(None) is None
+
+
+class TestAor2Synthesis:
+    """Aor-2 synthesis on classical-attested verbs."""
+
+    def test_leipo_active_indicative_1sg(self, synth):
+        out = synth.synthesize_aor2_moods("λείπω", {"aor": "ἔλιπον"})
+        assert out["active_aorist_indicative_1sg"] == "ἔλιπον"
+
+    def test_leipo_active_indicative_3pl(self, synth):
+        out = synth.synthesize_aor2_moods("λείπω", {"aor": "ἔλιπον"})
+        # 3pl shares form with 1sg in aor-2 active
+        assert out["active_aorist_indicative_3pl"] == "ἔλιπον"
+
+    def test_leipo_active_indicative_2sg(self, synth):
+        out = synth.synthesize_aor2_moods("λείπω", {"aor": "ἔλιπον"})
+        assert out["active_aorist_indicative_2sg"] == "ἔλιπες"
+
+    def test_leipo_active_indicative_1pl_recessive(self, synth):
+        # Recessive accent on 4-syllable form -> antepenult ι
+        out = synth.synthesize_aor2_moods("λείπω", {"aor": "ἔλιπον"})
+        assert out["active_aorist_indicative_1pl"] == "ἐλίπομεν"
+
+    def test_leipo_imperative_2sg_recessive(self, synth):
+        out = synth.synthesize_aor2_moods("λείπω", {"aor": "ἔλιπον"})
+        assert out["active_aorist_imperative_2sg"] == "λίπε"
+
+    def test_leipo_imperative_2pl_recessive(self, synth):
+        out = synth.synthesize_aor2_moods("λείπω", {"aor": "ἔλιπον"})
+        assert out["active_aorist_imperative_2pl"] == "λίπετε"
+
+    def test_leipo_imperative_3sg_endaccented(self, synth):
+        out = synth.synthesize_aor2_moods("λείπω", {"aor": "ἔλιπον"})
+        assert out["active_aorist_imperative_3sg"] == "λιπέτω"
+
+    def test_leipo_imperative_3pl_endaccented(self, synth):
+        out = synth.synthesize_aor2_moods("λείπω", {"aor": "ἔλιπον"})
+        assert out["active_aorist_imperative_3pl"] == "λιπόντων"
+
+    def test_leipo_subjunctive_1sg(self, synth):
+        out = synth.synthesize_aor2_moods("λείπω", {"aor": "ἔλιπον"})
+        assert out["active_aorist_subjunctive_1sg"] == "λίπω"
+
+    def test_leipo_subjunctive_3pl(self, synth):
+        out = synth.synthesize_aor2_moods("λείπω", {"aor": "ἔλιπον"})
+        assert out["active_aorist_subjunctive_3pl"] == "λίπωσι(ν)"
+
+    def test_leipo_optative_1sg(self, synth):
+        out = synth.synthesize_aor2_moods("λείπω", {"aor": "ἔλιπον"})
+        assert out["active_aorist_optative_1sg"] == "λίποιμι"
+
+    def test_leipo_infinitive(self, synth):
+        out = synth.synthesize_aor2_moods("λείπω", {"aor": "ἔλιπον"})
+        assert out["active_aorist_infinitive"] == "λιπεῖν"
+
+    def test_pipto_imperative_2sg(self, synth):
+        out = synth.synthesize_aor2_moods("πίπτω", {"aor": "ἔπεσον"})
+        assert out["active_aorist_imperative_2sg"] == "πέσε"
+
+    def test_pipto_subjunctive_1pl(self, synth):
+        out = synth.synthesize_aor2_moods("πίπτω", {"aor": "ἔπεσον"})
+        assert out["active_aorist_subjunctive_1pl"] == "πέσωμεν"
+
+    def test_pipto_infinitive(self, synth):
+        out = synth.synthesize_aor2_moods("πίπτω", {"aor": "ἔπεσον"})
+        assert out["active_aorist_infinitive"] == "πεσεῖν"
+
+    def test_lambano_aorist_imperative_2pl(self, synth):
+        out = synth.synthesize_aor2_moods("λαμβάνω", {"aor": "ἔλαβον"})
+        assert out["active_aorist_imperative_2pl"] == "λάβετε"
+
+    def test_lambano_optative_1sg(self, synth):
+        out = synth.synthesize_aor2_moods("λαμβάνω", {"aor": "ἔλαβον"})
+        assert out["active_aorist_optative_1sg"] == "λάβοιμι"
+
+    def test_lambano_infinitive(self, synth):
+        out = synth.synthesize_aor2_moods("λαμβάνω", {"aor": "ἔλαβον"})
+        assert out["active_aorist_infinitive"] == "λαβεῖν"
+
+    def test_lambano_middle_imperative_2sg(self, synth):
+        # λαβοῦ
+        out = synth.synthesize_aor2_moods("λαμβάνω", {"aor": "ἔλαβον"})
+        assert out["middle_aorist_imperative_2sg"] == "λαβοῦ"
+
+    def test_lambano_middle_subjunctive_1sg(self, synth):
+        out = synth.synthesize_aor2_moods("λαμβάνω", {"aor": "ἔλαβον"})
+        assert out["middle_aorist_subjunctive_1sg"] == "λάβωμαι"
+
+    def test_lambano_middle_infinitive(self, synth):
+        out = synth.synthesize_aor2_moods("λαμβάνω", {"aor": "ἔλαβον"})
+        assert out["middle_aorist_infinitive"] == "λαβέσθαι"
+
+    def test_lambano_middle_indicative_1sg_recessive(self, synth):
+        out = synth.synthesize_aor2_moods("λαμβάνω", {"aor": "ἔλαβον"})
+        # ἐλαβόμην -- recessive on 4-syl with long final
+        assert out["middle_aorist_indicative_1sg"] == "ἐλαβόμην"
+
+    def test_skips_when_no_aor(self, synth):
+        out = synth.synthesize_aor2_moods("λύω", {})
+        assert out == {}
+
+    def test_skips_when_aor_is_sigmatic(self, synth):
+        out = synth.synthesize_aor2_moods("λύω", {"aor": "ἔλυσα"})
+        assert out == {}
+
+
+class TestAor2SchemaAlignment:
+    """The cell keys produced by aor-2 synthesis match jtauber's flat
+    schema verbatim (case·gender·number for participles, person·number
+    for finite, etc.)."""
+
+    def test_keys_match_jtauber_pattern(self, synth):
+        out = synth.synthesize_aor2_moods("λείπω", {"aor": "ἔλιπον"})
+        for k in out:
+            # All keys are <voice>_aorist_<mood>_<persnum> for finite,
+            # or <voice>_aorist_infinitive for infinitive.
+            parts = k.split("_")
+            assert parts[1] == "aorist"
+            assert parts[0] in ("active", "middle")
+            if "infinitive" not in k:
+                assert parts[2] in (
+                    "indicative", "subjunctive", "optative", "imperative",
+                ), k
+
+
+# ---------------------------------------------------------------------------
+# v3: contract verb synthesis (-άω / -έω / -όω present-system)
+# ---------------------------------------------------------------------------
+
+
+class TestContractClassifier:
+    def test_alpha_contract_detected(self, synth):
+        assert synth.contract_class("τιμάω") == "alpha"
+        assert synth.contract_class("ὁράω") == "alpha"
+
+    def test_epsilon_contract_detected(self, synth):
+        assert synth.contract_class("φιλέω") == "epsilon"
+        assert synth.contract_class("ποιέω") == "epsilon"
+
+    def test_omicron_contract_detected(self, synth):
+        assert synth.contract_class("δηλόω") == "omicron"
+
+    def test_thematic_omega_not_contract(self, synth):
+        assert synth.contract_class("λύω") is None
+        assert synth.contract_class("γράφω") is None
+
+    def test_athematic_not_contract(self, synth):
+        assert synth.contract_class("τίθημι") is None
+        assert synth.contract_class("ἵσταμαι") is None
+
+    def test_is_contract_helper(self, synth):
+        assert synth.is_contract("τιμάω")
+        assert synth.is_contract("ποιέω")
+        assert synth.is_contract("δηλόω")
+        assert not synth.is_contract("λύω")
+
+
+class TestAlphaContractSynthesis:
+    """Alpha-contract τιμάω synthesis matches jtauber verbatim."""
+
+    def test_indicative_1sg(self, synth):
+        out = synth.synthesize_contract_moods("τιμάω", {})
+        assert out["active_present_indicative_1sg"] == "τιμῶ"
+
+    def test_indicative_2sg(self, synth):
+        out = synth.synthesize_contract_moods("τιμάω", {})
+        assert out["active_present_indicative_2sg"] == "τιμᾷς"
+
+    def test_indicative_3sg(self, synth):
+        out = synth.synthesize_contract_moods("τιμάω", {})
+        assert out["active_present_indicative_3sg"] == "τιμᾷ"
+
+    def test_indicative_1pl(self, synth):
+        out = synth.synthesize_contract_moods("τιμάω", {})
+        assert out["active_present_indicative_1pl"] == "τιμῶμεν"
+
+    def test_indicative_2pl(self, synth):
+        out = synth.synthesize_contract_moods("τιμάω", {})
+        assert out["active_present_indicative_2pl"] == "τιμᾶτε"
+
+    def test_indicative_3pl(self, synth):
+        out = synth.synthesize_contract_moods("τιμάω", {})
+        assert out["active_present_indicative_3pl"] == "τιμῶσι(ν)"
+
+    def test_imperative_2sg_recessive(self, synth):
+        # τίμα has accent on stem (recessive on 2-syl form)
+        out = synth.synthesize_contract_moods("τιμάω", {})
+        assert out["active_present_imperative_2sg"] == "τίμα"
+
+    def test_subjunctive_1sg_same_as_indic(self, synth):
+        out = synth.synthesize_contract_moods("τιμάω", {})
+        assert out["active_present_subjunctive_1sg"] == "τιμῶ"
+
+    def test_optative_1sg_long_form(self, synth):
+        out = synth.synthesize_contract_moods("τιμάω", {})
+        assert out["active_present_optative_1sg"] == "τιμῴην"
+
+    def test_infinitive(self, synth):
+        out = synth.synthesize_contract_moods("τιμάω", {})
+        assert out["active_present_infinitive"] == "τιμᾶν"
+
+    def test_middle_indicative_1sg(self, synth):
+        out = synth.synthesize_contract_moods("τιμάω", {})
+        assert out["middle_present_indicative_1sg"] == "τιμῶμαι"
+
+    def test_middle_imperative_3sg_with_macron(self, synth):
+        # τιμᾱ́σθω -- jtauber-style with explicit macron on α
+        out = synth.synthesize_contract_moods("τιμάω", {})
+        assert out["middle_present_imperative_3sg"] == "τιμᾱ́σθω"
+
+
+class TestEpsilonContractSynthesis:
+    """Epsilon-contract ποιέω / φιλέω synthesis."""
+
+    def test_poieo_indicative_1sg(self, synth):
+        out = synth.synthesize_contract_moods("ποιέω", {})
+        assert out["active_present_indicative_1sg"] == "ποιῶ"
+
+    def test_poieo_indicative_2sg(self, synth):
+        out = synth.synthesize_contract_moods("ποιέω", {})
+        assert out["active_present_indicative_2sg"] == "ποιεῖς"
+
+    def test_poieo_indicative_1pl(self, synth):
+        out = synth.synthesize_contract_moods("ποιέω", {})
+        assert out["active_present_indicative_1pl"] == "ποιοῦμεν"
+
+    def test_poieo_imperative_2sg(self, synth):
+        # ποίει -- recessive on diphthong-ending form, accent on ι
+        out = synth.synthesize_contract_moods("ποιέω", {})
+        assert out["active_present_imperative_2sg"] == "ποίει"
+
+    def test_poieo_subjunctive_2sg(self, synth):
+        out = synth.synthesize_contract_moods("ποιέω", {})
+        assert out["active_present_subjunctive_2sg"] == "ποιῇς"
+
+    def test_poieo_infinitive(self, synth):
+        out = synth.synthesize_contract_moods("ποιέω", {})
+        assert out["active_present_infinitive"] == "ποιεῖν"
+
+    def test_poieo_middle_infinitive(self, synth):
+        out = synth.synthesize_contract_moods("ποιέω", {})
+        assert out["middle_present_infinitive"] == "ποιεῖσθαι"
+
+    def test_phileo_indicative_1sg(self, synth):
+        out = synth.synthesize_contract_moods("φιλέω", {})
+        assert out["active_present_indicative_1sg"] == "φιλῶ"
+
+    def test_phileo_imperative_2sg(self, synth):
+        out = synth.synthesize_contract_moods("φιλέω", {})
+        # Note: φίλει would be the jtauber form. Recessive on 2-syl form
+        # on a single-vowel stem -> accent on stem ι
+        assert out["active_present_imperative_2sg"] == "φίλει"
+
+
+class TestOmicronContractSynthesis:
+    """Omicron-contract δηλόω synthesis."""
+
+    def test_indicative_1sg(self, synth):
+        out = synth.synthesize_contract_moods("δηλόω", {})
+        assert out["active_present_indicative_1sg"] == "δηλῶ"
+
+    def test_indicative_2sg(self, synth):
+        out = synth.synthesize_contract_moods("δηλόω", {})
+        assert out["active_present_indicative_2sg"] == "δηλοῖς"
+
+    def test_indicative_3sg(self, synth):
+        out = synth.synthesize_contract_moods("δηλόω", {})
+        assert out["active_present_indicative_3sg"] == "δηλοῖ"
+
+    def test_imperative_2sg(self, synth):
+        # δήλου with recessive penult on 2-syl (penult η, stem-accented)
+        out = synth.synthesize_contract_moods("δηλόω", {})
+        assert out["active_present_imperative_2sg"] == "δήλου"
+
+    def test_infinitive(self, synth):
+        out = synth.synthesize_contract_moods("δηλόω", {})
+        assert out["active_present_infinitive"] == "δηλοῦν"
+
+    def test_subjunctive_1pl(self, synth):
+        out = synth.synthesize_contract_moods("δηλόω", {})
+        assert out["active_present_subjunctive_1pl"] == "δηλῶμεν"
+
+
+class TestContractMoodsSchemaAlignment:
+    def test_contract_keys_only_present_system(self, synth):
+        out = synth.synthesize_contract_moods("τιμάω", {})
+        for k in out:
+            parts = k.split("_")
+            assert parts[1] == "present", k
+
+    def test_skip_thematic_omega(self, synth):
+        out = synth.synthesize_contract_moods("λύω", {})
+        assert out == {}
+
+    def test_skip_athematic(self, synth):
+        out = synth.synthesize_contract_moods("τίθημι", {})
+        assert out == {}

@@ -52,6 +52,8 @@ from typing import Dict, Optional
 
 __all__ = [
     "synthesize_participles",
+    "synthesize_aor2_participles",
+    "synthesize_contract_participles",
     "is_thematic_omega",
 ]
 
@@ -183,6 +185,49 @@ def _aorist_stem_from_fut(fut_form: str) -> Optional[str]:
     if not plain or plain[-1] not in ("σ", "ψ", "ξ"):
         return None
     return stem
+
+
+def _aor2_stem(aor_form: str) -> Optional[str]:
+    """Extract the unaugmented aor-2 stem from a 1sg form like ``ἔλιπον``.
+
+    Returns the stem with stem-accents preserved (the caller strips them
+    when splicing end-accented endings). Returns None if the form isn't
+    a thematic aor-2 (-ον ending).
+
+    Mirrors ``synth_verb_moods.extract_aor2_stem``.
+    """
+    if not aor_form:
+        return None
+    plain = _strip_accents_lower(aor_form)
+    if not plain.endswith("ον") or len(plain) < 3:
+        return None
+    nfc = unicodedata.normalize("NFC", aor_form)
+    body = nfc[:-2]  # drop final ον
+    nfd = unicodedata.normalize("NFD", body)
+    chars = list(nfd)
+    if not chars:
+        return None
+    # Strip ε-augment.
+    if chars[0] == "ε":
+        i = 1
+        while i < len(chars) and unicodedata.combining(chars[i]):
+            i += 1
+        if i < len(chars) and chars[i] not in _GREEK_VOWELS:
+            rest = "".join(chars[i:])
+            stem = unicodedata.normalize("NFC", rest)
+            return stem if stem else None
+    # Temporal augments (η -> α, ω -> ο).
+    if chars[0] == "η":
+        if len(chars) > 1 and chars[1] == "υ":
+            chars[0] = "α"
+            return unicodedata.normalize("NFC", "".join(chars))
+        chars[0] = "α"
+        return unicodedata.normalize("NFC", "".join(chars))
+    if chars[0] == "ω":
+        chars[0] = "ο"
+        return unicodedata.normalize("NFC", "".join(chars))
+    # No augment recognised; return body as-is.
+    return unicodedata.normalize("NFC", body)
 
 
 def _strip_augment(form: str) -> Optional[str]:
@@ -407,6 +452,46 @@ _AOR_ACTIVE_3RD_END_ACCENTED = {
 }
 
 
+# Aor-2 participle endings (3rd-decl, -ών/-οῦσα/-όν). End-accented
+# throughout: the stem accent is always stripped, and the ending carries
+# its own acute/circumflex. Used for verbs like λαβών / πεσών / λιπών.
+_AOR2_ACTIVE_3RD: Dict[tuple, str] = {
+    # masculine
+    ("nom", "m", "sg"): "ών",
+    ("gen", "m", "sg"): "όντος",
+    ("dat", "m", "sg"): "όντι",
+    ("acc", "m", "sg"): "όντα",
+    ("voc", "m", "sg"): "ών",
+    ("nom", "m", "pl"): "όντες",
+    ("gen", "m", "pl"): "όντων",
+    ("dat", "m", "pl"): "οῦσι(ν)",
+    ("acc", "m", "pl"): "όντας",
+    ("voc", "m", "pl"): "όντες",
+    # neuter
+    ("nom", "n", "sg"): "όν",
+    ("gen", "n", "sg"): "όντος",
+    ("dat", "n", "sg"): "όντι",
+    ("acc", "n", "sg"): "όν",
+    ("voc", "n", "sg"): "όν",
+    ("nom", "n", "pl"): "όντα",
+    ("gen", "n", "pl"): "όντων",
+    ("dat", "n", "pl"): "οῦσι(ν)",
+    ("acc", "n", "pl"): "όντα",
+    ("voc", "n", "pl"): "όντα",
+    # feminine (-οῦσα / -ούσης / -ούσῃ / -οῦσαν / -οῦσα)
+    ("nom", "f", "sg"): "οῦσα",
+    ("gen", "f", "sg"): "ούσης",
+    ("dat", "f", "sg"): "ούσῃ",
+    ("acc", "f", "sg"): "οῦσαν",
+    ("voc", "f", "sg"): "οῦσα",
+    ("nom", "f", "pl"): "οῦσαι",
+    ("gen", "f", "pl"): "ουσῶν",
+    ("dat", "f", "pl"): "ούσαις",
+    ("acc", "f", "pl"): "ούσᾱς",  # jtauber emits explicit macron on α
+    ("voc", "f", "pl"): "οῦσαι",
+}
+
+
 # Aorist passive endings (3rd-decl, -θείς/-θεῖσα/-θέν). The stem already
 # ends in θ (e.g. λυθ-). All cells are ending-accented.
 _AOR_PASSIVE_3RD: Dict[tuple, str] = {
@@ -573,6 +658,12 @@ def decline_3rd_decl_participle(
         table = _AOR_ACTIVE_3RD
         end_accented = _AOR_ACTIVE_3RD_END_ACCENTED
         always_strip = False
+    elif pattern == "aor2_active":
+        # Aor-2 active participle (-ών/-οῦσα/-όν): always stem-stripped,
+        # endings carry their own accents.
+        table = _AOR2_ACTIVE_3RD
+        end_accented = set(table.keys())
+        always_strip = True
     elif pattern == "aorist_passive":
         table = _AOR_PASSIVE_3RD
         end_accented = set(table.keys())
@@ -834,6 +925,210 @@ def synthesize_participles(
     # ---- Perfect system ----
     _perfect_active(parts, out)
     _perfect_mp(parts, out)
+
+    return out
+
+
+def synthesize_aor2_participles(
+    lemma: str,
+    principal_parts: Optional[Dict[str, str]] = None,
+) -> Dict[str, str]:
+    """Synthesise active aor-2 participle declension cells for a verb
+    whose ``parts['aor']`` ends in -ον.
+
+    Returns a dict ``{paradigm_key: form}`` covering all
+    case×gender×number combinations (m/f/n × sg/pl) for the active
+    aor-2 participle, plus the middle aor-2 participle (1st/2nd-decl
+    -ομενος pattern on the aor-2 stem). Returns empty when no aor-2
+    can be parsed.
+    """
+    if not lemma:
+        return {}
+    parts = principal_parts or {}
+    aor_form = parts.get("aor") or parts.get("aor2")
+    if not aor_form:
+        return {}
+    stem = _aor2_stem(aor_form)
+    if not stem:
+        return {}
+
+    out: Dict[str, str] = {}
+
+    # Active aor-2 participle (3rd-decl, -ών/-οῦσα/-όν, end-accented).
+    cells = decline_3rd_decl_participle(stem, "aor2_active")
+    _emit(out, "active", "aorist", cells)
+
+    # Middle aor-2 participle (1st/2nd-decl, -όμενος/-ομένη/-όμενον,
+    # recessive accent like present mp). Uses the same -ομεν- linker.
+    bare_stem = _strip_tonal_accents(stem)
+    cells_mid = decline_1st2nd_decl_participle(bare_stem, "present_mp")
+    _emit(out, "middle", "aorist", cells_mid)
+
+    return out
+
+
+# Contract verb participles (present-system only).
+# The active present participle uses -ῶν/-οῦσα/-οῦν (alpha-contract:
+# -ῶν/-ῶσα/-ῶν; ε-contract: -ῶν/-οῦσα/-οῦν; ο-contract: -ῶν/-οῦσα/-οῦν).
+# All are end-accented on the contract syllable.
+
+# Alpha-contract active present participle (-ῶν/-ῶσα/-ῶν).
+_CONTRACT_ALPHA_ACTIVE_3RD: Dict[tuple, str] = {
+    ("nom", "m", "sg"): "ῶν",
+    ("gen", "m", "sg"): "ῶντος",
+    ("dat", "m", "sg"): "ῶντι",
+    ("acc", "m", "sg"): "ῶντα",
+    ("voc", "m", "sg"): "ῶν",
+    ("nom", "m", "pl"): "ῶντες",
+    ("gen", "m", "pl"): "ώντων",
+    ("dat", "m", "pl"): "ῶσι(ν)",
+    ("acc", "m", "pl"): "ῶντας",
+    ("voc", "m", "pl"): "ῶντες",
+    ("nom", "n", "sg"): "ῶν",
+    ("gen", "n", "sg"): "ῶντος",
+    ("dat", "n", "sg"): "ῶντι",
+    ("acc", "n", "sg"): "ῶν",
+    ("voc", "n", "sg"): "ῶν",
+    ("nom", "n", "pl"): "ῶντα",
+    ("gen", "n", "pl"): "ώντων",
+    ("dat", "n", "pl"): "ῶσι(ν)",
+    ("acc", "n", "pl"): "ῶντα",
+    ("voc", "n", "pl"): "ῶντα",
+    ("nom", "f", "sg"): "ῶσα",
+    ("gen", "f", "sg"): "ώσης",
+    ("dat", "f", "sg"): "ώσῃ",
+    ("acc", "f", "sg"): "ῶσαν",
+    ("voc", "f", "sg"): "ῶσα",
+    ("nom", "f", "pl"): "ῶσαι",
+    ("gen", "f", "pl"): "ωσῶν",
+    ("dat", "f", "pl"): "ώσαις",
+    ("acc", "f", "pl"): "ώσας",
+    ("voc", "f", "pl"): "ῶσαι",
+}
+
+
+# Epsilon-contract active present participle (-ῶν/-οῦσα/-οῦν).
+_CONTRACT_EPSILON_ACTIVE_3RD: Dict[tuple, str] = {
+    ("nom", "m", "sg"): "ῶν",
+    ("gen", "m", "sg"): "οῦντος",
+    ("dat", "m", "sg"): "οῦντι",
+    ("acc", "m", "sg"): "οῦντα",
+    ("voc", "m", "sg"): "ῶν",
+    ("nom", "m", "pl"): "οῦντες",
+    ("gen", "m", "pl"): "ούντων",
+    ("dat", "m", "pl"): "οῦσι(ν)",
+    ("acc", "m", "pl"): "οῦντας",
+    ("voc", "m", "pl"): "οῦντες",
+    ("nom", "n", "sg"): "οῦν",
+    ("gen", "n", "sg"): "οῦντος",
+    ("dat", "n", "sg"): "οῦντι",
+    ("acc", "n", "sg"): "οῦν",
+    ("voc", "n", "sg"): "οῦν",
+    ("nom", "n", "pl"): "οῦντα",
+    ("gen", "n", "pl"): "ούντων",
+    ("dat", "n", "pl"): "οῦσι(ν)",
+    ("acc", "n", "pl"): "οῦντα",
+    ("voc", "n", "pl"): "οῦντα",
+    ("nom", "f", "sg"): "οῦσα",
+    ("gen", "f", "sg"): "ούσης",
+    ("dat", "f", "sg"): "ούσῃ",
+    ("acc", "f", "sg"): "οῦσαν",
+    ("voc", "f", "sg"): "οῦσα",
+    ("nom", "f", "pl"): "οῦσαι",
+    ("gen", "f", "pl"): "ουσῶν",
+    ("dat", "f", "pl"): "ούσαις",
+    ("acc", "f", "pl"): "ούσας",
+    ("voc", "f", "pl"): "οῦσαι",
+}
+
+
+# Omicron-contract active present participle (-ῶν/-οῦσα/-οῦν).
+# Same shape as ε-contract but masculine forms differ in the dat-pl
+# circumflex distribution. We share the table since jtauber's δηλόω
+# matches the epsilon pattern.
+_CONTRACT_OMICRON_ACTIVE_3RD: Dict[tuple, str] = dict(
+    _CONTRACT_EPSILON_ACTIVE_3RD
+)
+
+
+def _decline_contract_active_participle(
+    bare_stem: str, contract_class_: str
+) -> Dict[tuple, str]:
+    """Decline the active present participle of a contract verb."""
+    if not bare_stem:
+        return {}
+    if contract_class_ == "alpha":
+        table = _CONTRACT_ALPHA_ACTIVE_3RD
+    elif contract_class_ == "epsilon":
+        table = _CONTRACT_EPSILON_ACTIVE_3RD
+    elif contract_class_ == "omicron":
+        table = _CONTRACT_OMICRON_ACTIVE_3RD
+    else:
+        return {}
+    out: Dict[tuple, str] = {}
+    for cgn, ending in table.items():
+        out[cgn] = bare_stem + ending
+    return out
+
+
+def synthesize_contract_participles(
+    lemma: str,
+    principal_parts: Optional[Dict[str, str]] = None,
+) -> Dict[str, str]:
+    """Synthesise the present-system participle declension for a contract
+    verb (-άω / -έω / -όω).
+
+    Returns a dict ``{paradigm_key: form}`` covering active + middle
+    present participles for every case×gender×number combination.
+
+    Aorist / future / perfect participles of contracts can be filled by
+    the regular sigmatic synthesis since the contract vowel lengthens
+    before the σ; we do not duplicate that here. Returns empty when the
+    lemma is not a contract.
+    """
+    if not lemma:
+        return {}
+    # Local lazy import to avoid a circular dep with synth_verb_moods.
+    # We add the build/ dir to sys.path here so this works both when
+    # called from build_grc_verb_paradigms (which prepends build/ to
+    # sys.path) and when called from tests that load via importlib.
+    import sys
+    from pathlib import Path
+    _build_dir = str(Path(__file__).resolve().parent)
+    if _build_dir not in sys.path:
+        sys.path.insert(0, _build_dir)
+    from synth_verb_moods import contract_class as _contract_class
+    from synth_verb_moods import _contract_bare_stem as _contract_bare
+    cls = _contract_class(lemma)
+    if cls is None:
+        return {}
+    bare = _contract_bare(lemma)
+    if bare is None:
+        return {}
+    bare_no_accent = _strip_tonal_accents(bare)
+
+    out: Dict[str, str] = {}
+
+    # Active present participle.
+    cells_act = _decline_contract_active_participle(bare_no_accent, cls)
+    _emit(out, "active", "present", cells_act)
+
+    # Middle present participle: jtauber uses a mix of contracted
+    # (δηλούμενος, ποιούμενος, τιμώμενος) and uncontracted
+    # (δηλοόμενος, ποιεόμενος, τιμαόμενος) forms across cells -- the
+    # specific cell coverage isn't predictable from a single rule. We
+    # only synthesise the alpha-class middle participle (which is the
+    # most uniformly contracted in jtauber); ε/ο contracts get skipped
+    # because their middle-participle pattern is mostly the wrong shape
+    # vs jtauber's uncontracted attestations.
+    if cls == "alpha":
+        link_short = "ώμεν"   # antepenult-accented
+        link_long = "ωμέν"    # penult-accented
+        cells_mid: Dict[tuple, str] = {}
+        for cgn, (ending, final_long) in _MENOS_ENDINGS.items():
+            link = link_long if final_long else link_short
+            cells_mid[cgn] = bare_no_accent + link + ending
+        _emit(out, "middle", "present", cells_mid)
 
     return out
 

@@ -316,6 +316,8 @@ def synthesize_missing_moods(results: dict) -> tuple[int, int]:
         from synth_verb_moods import (
             synthesize_active_moods,
             synthesize_mp_moods,
+            synthesize_aor2_moods,
+            synthesize_contract_moods,
         )
         from lsj_principal_parts import parse_principal_parts
     except ImportError as e:
@@ -326,6 +328,8 @@ def synthesize_missing_moods(results: dict) -> tuple[int, int]:
     verbs_touched = 0
     cells_added = 0
     mp_cells_added = 0
+    aor2_cells_added = 0
+    contract_cells_added = 0
     cells_skipped_overlap = 0
     for lemma, paradigm in results.items():
         head_text = head_texts.get(lemma, "")
@@ -341,12 +345,22 @@ def synthesize_missing_moods(results: dict) -> tuple[int, int]:
             templated_mp = synthesize_mp_moods(lemma, parts)
         except Exception:
             templated_mp = {}
+        try:
+            templated_aor2 = synthesize_aor2_moods(lemma, parts)
+        except Exception:
+            templated_aor2 = {}
+        try:
+            templated_contract = synthesize_contract_moods(lemma, parts)
+        except Exception:
+            templated_contract = {}
         # Track per-voice to report stats; merge for the actual write.
-        if not templated and not templated_mp:
+        if not (templated or templated_mp or templated_aor2 or templated_contract):
             continue
         forms = paradigm.setdefault("forms", {})
         added = 0
         added_mp = 0
+        added_aor2 = 0
+        added_contract = 0
         for key, val in templated.items():
             if key in forms:
                 cells_skipped_overlap += 1
@@ -359,16 +373,34 @@ def synthesize_missing_moods(results: dict) -> tuple[int, int]:
                 continue
             forms[key] = val
             added_mp += 1
-        if added or added_mp:
+        for key, val in templated_aor2.items():
+            if key in forms:
+                cells_skipped_overlap += 1
+                continue
+            forms[key] = val
+            added_aor2 += 1
+        for key, val in templated_contract.items():
+            if key in forms:
+                cells_skipped_overlap += 1
+                continue
+            forms[key] = val
+            added_contract += 1
+        if added or added_mp or added_aor2 or added_contract:
             verbs_touched += 1
             cells_added += added
             mp_cells_added += added_mp
+            aor2_cells_added += added_aor2
+            contract_cells_added += added_contract
             paradigm["form_count"] = len(forms)
     print(f"  synthesised active cells: {cells_added:,} across "
           f"{verbs_touched:,} verbs")
     print(f"  synthesised mp/passive cells: {mp_cells_added:,}")
+    print(f"  synthesised aor-2 cells: {aor2_cells_added:,}")
+    print(f"  synthesised contract cells: {contract_cells_added:,}")
     print(f"  cells skipped (already present): {cells_skipped_overlap:,}")
-    return verbs_touched, cells_added + mp_cells_added
+    return verbs_touched, (
+        cells_added + mp_cells_added + aor2_cells_added + contract_cells_added
+    )
 
 
 def synthesize_missing_participles(results: dict) -> tuple[int, int]:
@@ -386,7 +418,11 @@ def synthesize_missing_participles(results: dict) -> tuple[int, int]:
     Returns ``(verbs_touched, cells_added)``.
     """
     try:
-        from synth_verb_participles import synthesize_participles
+        from synth_verb_participles import (
+            synthesize_participles,
+            synthesize_aor2_participles,
+            synthesize_contract_participles,
+        )
         from lsj_principal_parts import parse_principal_parts
     except ImportError as e:
         print(f"  participle synthesis skipped (import failure: {e})")
@@ -395,6 +431,8 @@ def synthesize_missing_participles(results: dict) -> tuple[int, int]:
     head_texts = load_lsj_head_texts()
     verbs_touched = 0
     cells_added = 0
+    aor2_cells_added = 0
+    contract_cells_added = 0
     cells_skipped_overlap = 0
     for lemma, paradigm in results.items():
         head_text = head_texts.get(lemma, "")
@@ -406,25 +444,51 @@ def synthesize_missing_participles(results: dict) -> tuple[int, int]:
             templated = synthesize_participles(lemma, parts)
         except Exception:
             templated = {}
-        if not templated:
+        try:
+            templated_aor2 = synthesize_aor2_participles(lemma, parts)
+        except Exception:
+            templated_aor2 = {}
+        try:
+            templated_contract = synthesize_contract_participles(lemma, parts)
+        except Exception:
+            templated_contract = {}
+        if not (templated or templated_aor2 or templated_contract):
             continue
         forms = paradigm.setdefault("forms", {})
         added = 0
+        added_aor2 = 0
+        added_contract = 0
         for key, val in templated.items():
             if key in forms:
                 cells_skipped_overlap += 1
                 continue
             forms[key] = val
             added += 1
-        if added:
+        for key, val in templated_aor2.items():
+            if key in forms:
+                cells_skipped_overlap += 1
+                continue
+            forms[key] = val
+            added_aor2 += 1
+        for key, val in templated_contract.items():
+            if key in forms:
+                cells_skipped_overlap += 1
+                continue
+            forms[key] = val
+            added_contract += 1
+        if added or added_aor2 or added_contract:
             verbs_touched += 1
             cells_added += added
+            aor2_cells_added += added_aor2
+            contract_cells_added += added_contract
             paradigm["form_count"] = len(forms)
     print(f"  synthesised participle cells: {cells_added:,} across "
           f"{verbs_touched:,} verbs")
+    print(f"  synthesised aor-2 participle cells: {aor2_cells_added:,}")
+    print(f"  synthesised contract participle cells: {contract_cells_added:,}")
     print(f"  participle cells skipped (already present): "
           f"{cells_skipped_overlap:,}")
-    return verbs_touched, cells_added
+    return verbs_touched, cells_added + aor2_cells_added + contract_cells_added
 
 
 def build_paradigms(only_lemmas=None):

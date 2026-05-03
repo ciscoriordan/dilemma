@@ -6,10 +6,25 @@ by ``build/lsj_principal_parts.parse_principal_parts``, this module
 generates the missing finite-mood paradigm cells (subjunctive, optative,
 imperative, aorist infinitive) by stem-templating with regular endings.
 
-Scope (v2):
+Strategy (v3): The contract / aor-2 extensions use **option (a)** -- per-
+class ending tables that already encode the contracted vowel quality and
+accent placement. We considered option (b), a generic ending-applier
+followed by a contract-rule post-processor, but jtauber's actual cells
+use idiosyncratic accent/length combinations (τιμᾷς, τιμᾱ́σθω, ποιοίημεν
+vs. ποιοῖμεν, etc.) that are easier to ship correctly with explicit
+tables than to derive procedurally. The α-/ε-/ο-class tables are kept in
+parallel; conflict-free expansion is checked by comparing the dilemma
+output against jtauber's verbatim cells in the test suite.
+
+Scope (v3):
   - Active, middle, and passive voices.
-  - Plain thematic -ω verbs only. Contracts (-άω/-έω/-όω), athematic
-    (-μι/-μαι), and lemmas not ending in ω are skipped.
+  - Plain thematic -ω verbs (v1+v2).
+  - Aor-2 (strong-aorist) thematic verbs whose aor 1sg ends in -ον
+    (ἔλιπον, ἔλαβον, ἔπεσον, εὗρον, ...). Active-only synthesis; middle
+    aor-2 piggy-backs on the present-style middle endings.
+  - Contract verbs (-άω / -έω / -όω) for the present system only.
+    Future / aorist of contracts already work through the regular
+    sigmatic synthesis on the lengthened stem from ``parts['fut']``.
   - Tense / mood combinations covered:
       * present subjunctive    (active / middle; mp shared in present)
       * present optative       (active / middle)
@@ -62,7 +77,12 @@ from typing import Dict, Optional
 __all__ = [
     "synthesize_active_moods",
     "synthesize_mp_moods",
+    "synthesize_aor2_moods",
+    "synthesize_contract_moods",
     "is_thematic_omega",
+    "is_contract",
+    "contract_class",
+    "extract_aor2_stem",
 ]
 
 
@@ -101,6 +121,124 @@ def is_thematic_omega(lemma: str) -> bool:
     if len(base) < 2:
         return False
     return True
+
+
+def contract_class(lemma: str) -> Optional[str]:
+    """Return the contract class of a verb: 'alpha', 'epsilon', 'omicron',
+    or None if not a contract.
+
+    The classifier looks at the diacritic-stripped lemma's tail. Lemmas
+    ending in ``-άω`` / ``-αω`` are alpha-contract; ``-έω`` / ``-εω`` are
+    epsilon-contract; ``-όω`` / ``-οω`` are omicron-contract.
+
+    Athematic / mediopassive lemmas (-μι, -μαι, ώμαι etc.) are NOT
+    contracts and return None even when their diacritic-stripped tail
+    looks similar (``ἵσταμαι`` -> -μαι, not contract).
+    """
+    if not lemma:
+        return None
+    base = _strip_accents_lower(lemma)
+    if base.endswith(("μι", "μαι")):
+        return None
+    if not base.endswith("ω"):
+        return None
+    if len(base) < 3:
+        return None
+    if base.endswith("αω"):
+        return "alpha"
+    if base.endswith("εω"):
+        return "epsilon"
+    if base.endswith("οω"):
+        return "omicron"
+    return None
+
+
+def is_contract(lemma: str) -> bool:
+    """True iff ``lemma`` is a contract verb (-άω/-έω/-όω)."""
+    return contract_class(lemma) is not None
+
+
+# Ending patterns that mark an aor-2 (strong-aorist) active 1sg form.
+# Augmented + ``-ον`` (ἔλιπον / ἔπεσον / ἔλαβον / ἤγαγον) for active.
+def _is_aor_2_active_form(aor_form: str) -> bool:
+    if not aor_form:
+        return False
+    plain = _strip_accents_lower(aor_form)
+    # Reject sigmatic patterns -- handled elsewhere.
+    if plain.endswith(("σα", "ψα", "ξα")):
+        return False
+    if plain.endswith("κα"):  # κ-aorists like ἔδωκα, ἔθηκα: athematic
+        return False
+    if plain.endswith("ον") and len(plain) >= 3:
+        return True
+    return False
+
+
+def extract_aor2_stem(
+    aor_form: str, lemma: Optional[str] = None
+) -> Optional[str]:
+    """Extract the (unaugmented) aor-2 stem from a 1sg active form.
+
+    ``ἔλιπον`` -> ``λιπ``  (drop ε-augment + ``ον``)
+    ``ἔλαβον`` -> ``λαβ``
+    ``ἔπεσον`` -> ``πεσ``
+    ``εὗρον``  -> ``εὑρ``  (no augment if root starts with vowel + breath)
+    ``ἤγαγον`` -> ``ἀγαγ``  (temporal augment η -> α)
+
+    Returns ``None`` if the form doesn't look like an aor-2.
+
+    The stem retains its accent. For accent-recovery on cells where the
+    ending carries an inherent accent, the caller strips the stem accent.
+    """
+    if not aor_form:
+        return None
+    if not _is_aor_2_active_form(aor_form):
+        return None
+    nfc = unicodedata.normalize("NFC", aor_form)
+    if not nfc.endswith("ον"):
+        return None
+    body = nfc[:-2]  # drop final ον (carries no accent at the very end here)
+    # Strip the augment if present.
+    nfd = unicodedata.normalize("NFD", body)
+    chars = list(nfd)
+    if not chars:
+        return None
+    # Syllabic augment: leading ε (with optional breathing/accent on it)
+    # followed by a consonant -> drop the ε.
+    if chars[0] == "ε":
+        # Look at the next base letter.
+        i = 1
+        while i < len(chars) and unicodedata.combining(chars[i]):
+            i += 1
+        if i < len(chars):
+            nxt = chars[i]
+            if nxt not in _GREEK_VOWELS:
+                # Syllabic augment, drop the ε + its combining marks.
+                rest = "".join(chars[i:])
+                stem = unicodedata.normalize("NFC", rest)
+                return stem if stem else None
+            # ε + vowel (= diphthong): leave alone; e.g. εὗρον is its own
+            # augment.
+    # Temporal augment: η -> α, ω -> ο, ηυ -> αυ.
+    if chars[0] == "η":
+        # η could be temporal augment of α.
+        if len(chars) > 1 and (chars[1] == "υ" or unicodedata.combining(chars[1])):
+            # ηυ from αυ: replace with αυ
+            if len(chars) > 1 and chars[1] == "υ":
+                chars[0] = "α"
+                rest = "".join(chars)
+                return unicodedata.normalize("NFC", rest)
+        chars[0] = "α"
+        rest = "".join(chars)
+        return unicodedata.normalize("NFC", rest)
+    if chars[0] == "ω":
+        chars[0] = "ο"
+        rest = "".join(chars)
+        return unicodedata.normalize("NFC", rest)
+    # No augment recognised -- return body as-is (covers εὗρον,
+    # ηὗρον -> body εὑρ / ηὑρ; we accept either since accent-position
+    # is recovered by the caller stripping tonal accents on demand).
+    return unicodedata.normalize("NFC", body)
 
 
 # ---------------------------------------------------------------------------
@@ -505,6 +643,397 @@ _AOR_PASS_IMP_3PL_DROPS_ETA = {("3", "pl")}
 _AOR_PASS_INF = "ῆναι"
 
 
+# ---------------------------------------------------------------------------
+# Aor-2 (strong-aorist) ending tables
+# ---------------------------------------------------------------------------
+#
+# Aor-2 verbs use present-style endings on a separate (non-sigmatic) stem.
+# The unaugmented stem (``λιπ-``, ``λαβ-``, ``πεσ-``) takes
+# subjunctive/optative/imperative/infinitive endings; the augmented stem
+# (``ἔλιπ-``, ``ἔλαβ-``, ``ἔπεσ-``) takes indicative endings.
+#
+# Schema mirrors jtauber (πίπτω, λαμβάνω, βαίνω). The 2sg imperative
+# accent is recessive on most aor-2 verbs (λίπε / πέσε) but enclitic on
+# four classical "irregular" aor-2 verbs (λαβέ / εἰπέ / ἐλθέ / εὑρέ).
+# We synthesise the recessive form; the classical-irregular accents come
+# from corpus / Wiktionary attestations and won't be overwritten.
+
+# Aor-2 active indicative -- thematic-vowel endings on augmented stem.
+# Used for "pure" aor-2 verbs whose 1sg ends in -ον (λείπω → ἔλιπον,
+# λαμβάνω → ἔλαβον, εὑρίσκω → εὗρον).
+_AOR2_ACT_IND: Dict[tuple, str] = {
+    ("1", "sg"): "ον",
+    ("2", "sg"): "ες",
+    ("3", "sg"): "ε",
+    ("1", "pl"): "ομεν",
+    ("2", "pl"): "ετε",
+    ("3", "pl"): "ον",
+}
+
+# Aor-2 middle indicative -- on augmented stem.
+_AOR2_MID_IND: Dict[tuple, str] = {
+    ("1", "sg"): "όμην",
+    ("2", "sg"): "ου",
+    ("3", "sg"): "ετο",
+    ("1", "pl"): "όμεθα",
+    ("2", "pl"): "εσθε",
+    ("3", "pl"): "οντο",
+}
+
+# Note: a handful of classical aor-2 verbs (πίπτω, εἶπον/εἶπα,
+# ἤνεγκον/ἤνεγκα) take α-style endings instead in Attic. We synthesise
+# them with the ο-thematic pattern by default; corpus / Wiktionary cells
+# carrying the α-form for those specific verbs will not be overwritten,
+# and we leave the discrepancy in the cells where corpus is silent.
+
+# Aor-2 active subjunctive -- same shape as present subj.
+_AOR2_ACT_SUBJ: Dict[tuple, str] = {
+    ("1", "sg"): "ω",
+    ("2", "sg"): "ῃς",
+    ("3", "sg"): "ῃ",
+    ("1", "pl"): "ωμεν",
+    ("2", "pl"): "ητε",
+    ("3", "pl"): "ωσι(ν)",
+}
+
+# Aor-2 middle subjunctive.
+_AOR2_MID_SUBJ: Dict[tuple, str] = {
+    ("1", "sg"): "ωμαι",
+    ("2", "sg"): "ῃ",
+    ("3", "sg"): "ηται",
+    ("1", "pl"): "ώμεθα",
+    ("2", "pl"): "ησθε",
+    ("3", "pl"): "ωνται",
+}
+
+# Aor-2 active optative -- same shape as present opt.
+_AOR2_ACT_OPT: Dict[tuple, str] = {
+    ("1", "sg"): "οιμι",
+    ("2", "sg"): "οις",
+    ("3", "sg"): "οι",
+    ("1", "pl"): "οιμεν",
+    ("2", "pl"): "οιτε",
+    ("3", "pl"): "οιεν",
+}
+
+# Aor-2 middle optative.
+_AOR2_MID_OPT: Dict[tuple, str] = {
+    ("1", "sg"): "οίμην",
+    ("2", "sg"): "οιο",
+    ("3", "sg"): "οιτο",
+    ("1", "pl"): "οίμεθα",
+    ("2", "pl"): "οισθε",
+    ("3", "pl"): "οιντο",
+}
+
+# Aor-2 active imperative.
+# 2sg recessive ``-ε`` (λίπε / πέσε).  3sg/3pl carry their own accent.
+_AOR2_ACT_IMP: Dict[tuple, str] = {
+    ("2", "sg"): "ε",
+    ("3", "sg"): "έτω",
+    ("2", "pl"): "ετε",
+    ("3", "pl"): "όντων",
+}
+
+# Aor-2 middle imperative.
+# 2sg ``-οῦ`` (λαβοῦ / πεσοῦ -- circumflex from ε+ο contraction on the
+# stem-final). 3sg/2pl/3pl carry their own accent.
+_AOR2_MID_IMP: Dict[tuple, str] = {
+    ("2", "sg"): "οῦ",
+    ("3", "sg"): "έσθω",
+    ("2", "pl"): "εσθε",
+    ("3", "pl"): "έσθων",
+}
+
+_AOR2_ACT_INF = "εῖν"
+_AOR2_MID_INF = "έσθαι"
+
+
+# Aor-2 cells whose ending is inherently accented; the stem accent
+# is dropped before splicing.
+_AOR2_END_ACCENTED_KEYS = {
+    "active_aorist_imperative_3sg",   # έτω
+    "active_aorist_imperative_3pl",   # όντων
+    "active_aorist_infinitive",       # εῖν (end-accented)
+    "active_aorist_indicative_1sg",   # augmented stem already has accent
+    "middle_aorist_subjunctive_1pl",  # ώμεθα
+    "middle_aorist_optative_1sg",     # οίμην
+    "middle_aorist_optative_1pl",     # οίμεθα
+    "middle_aorist_imperative_2sg",   # οῦ
+    "middle_aorist_imperative_3sg",   # έσθω
+    "middle_aorist_imperative_3pl",   # έσθων
+    "middle_aorist_infinitive",       # έσθαι
+}
+
+
+# ---------------------------------------------------------------------------
+# Contract-verb ending tables (-άω / -έω / -όω, present system)
+# ---------------------------------------------------------------------------
+#
+# These tables encode the *contracted* surface form for every cell. The
+# stem passed in is the BARE stem (no thematic vowel): ``τιμα-``,
+# ``ποιε-``, ``δηλο-`` (or accent-stripped ``τιμ-`` / ``ποι-`` / ``δηλ-``
+# for end-accented cells).
+#
+# The full ending here includes the contract vowel + thematic vowel
+# (already fused with the personal ending). Splice as ``stem + ending``
+# with the bare stem (no contract vowel).
+#
+# Stem-accent placement: most cells have the accent fall on the contract
+# vowel (the now-fused syllable). We pre-place that accent in the table
+# entry and strip the original lemma accent before splicing.
+
+# Alpha contract: stem α. The bare stem is what's left after dropping
+# the final α from the lemma stem (e.g. τιμα -> τιμ).
+_CONTRACT_ALPHA_ACT_IND: Dict[tuple, str] = {
+    ("1", "sg"): "ῶ",
+    ("2", "sg"): "ᾷς",
+    ("3", "sg"): "ᾷ",
+    ("1", "pl"): "ῶμεν",
+    ("2", "pl"): "ᾶτε",
+    ("3", "pl"): "ῶσι(ν)",
+    ("2", "du"): "ᾶτον",
+    ("3", "du"): "ᾶτον",
+}
+
+_CONTRACT_ALPHA_ACT_SUBJ: Dict[tuple, str] = {
+    ("1", "sg"): "ῶ",
+    ("2", "sg"): "ᾷς",
+    ("3", "sg"): "ᾷ",
+    ("1", "pl"): "ῶμεν",
+    ("2", "pl"): "ᾶτε",
+    ("3", "pl"): "ῶσι(ν)",
+}
+
+# alpha-contract optative: -ῴην / -ῴης / -ῴη / -ῷμεν or -ῴημεν / -ῷτε / -ῷεν.
+# jtauber emits the longer -ῴημεν / -ῴητε / -ῴησαν forms on τιμάω.
+_CONTRACT_ALPHA_ACT_OPT: Dict[tuple, str] = {
+    ("1", "sg"): "ῴην",
+    ("2", "sg"): "ῴης",
+    ("3", "sg"): "ῴη",
+    ("1", "pl"): "ῴημεν",
+    ("2", "pl"): "ῴητε",
+    ("3", "pl"): "ῴησαν",
+    ("3", "du"): "ῴτην",
+}
+
+# alpha-contract imperative: 2sg short -α; 3sg -ᾱ́τω; 2pl -ᾶτε; 3pl -ώντων.
+_CONTRACT_ALPHA_ACT_IMP: Dict[tuple, str] = {
+    ("2", "sg"): "α",
+    ("3", "sg"): "άτω",
+    ("2", "pl"): "ᾶτε",
+    ("3", "pl"): "ώντων",
+    ("3", "du"): "άτων",
+}
+
+_CONTRACT_ALPHA_ACT_INF = "ᾶν"
+
+_CONTRACT_ALPHA_MID_IND: Dict[tuple, str] = {
+    ("1", "sg"): "ῶμαι",
+    ("2", "sg"): "ᾷ",
+    ("3", "sg"): "ᾶται",
+    ("1", "pl"): "ώμεθα",
+    ("2", "pl"): "ᾶσθε",
+    ("3", "pl"): "ῶνται",
+}
+
+_CONTRACT_ALPHA_MID_SUBJ: Dict[tuple, str] = {
+    ("1", "sg"): "ῶμαι",
+    ("2", "sg"): "ᾷ",
+    ("3", "sg"): "ᾶται",
+    ("1", "pl"): "ώμεθα",
+    ("2", "pl"): "ᾶσθε",
+    ("3", "pl"): "ῶνται",
+}
+
+_CONTRACT_ALPHA_MID_OPT: Dict[tuple, str] = {
+    ("1", "sg"): "ῴμην",
+    ("2", "sg"): "ῷο",
+    ("3", "sg"): "ῷτο",
+    ("1", "pl"): "ῴμεθα",
+    ("2", "pl"): "ῷσθε",
+    ("3", "pl"): "ῷντο",
+}
+
+_CONTRACT_ALPHA_MID_IMP: Dict[tuple, str] = {
+    ("2", "sg"): "ῶ",
+    ("3", "sg"): "ᾱ́σθω",
+    ("2", "pl"): "ᾶσθε",
+    ("3", "pl"): "ᾱ́σθων",
+}
+
+_CONTRACT_ALPHA_MID_INF = "ᾶσθαι"
+
+
+# Epsilon contract: stem ε. Bare stem is e.g. ποι- (from ποιε-).
+_CONTRACT_EPSILON_ACT_IND: Dict[tuple, str] = {
+    ("1", "sg"): "ῶ",
+    ("2", "sg"): "εῖς",
+    ("3", "sg"): "εῖ",
+    ("1", "pl"): "οῦμεν",
+    ("2", "pl"): "εῖτε",
+    ("3", "pl"): "οῦσι(ν)",
+    # Note: jtauber emits the *uncontracted* dual forms ποιέετον /
+    # φιλέετον for epsilon-contracts (an Ionic / Epic preservation that
+    # bleeds into Attic dual paradigms in the Wiktionary tables jtauber
+    # mirrors). We don't synthesise the dual here -- if we emit the
+    # contracted ποιεῖτον / φιλεῖτον, it will conflict with jtauber.
+    # Leave the dual unfilled.
+}
+
+_CONTRACT_EPSILON_ACT_SUBJ: Dict[tuple, str] = {
+    ("1", "sg"): "ῶ",
+    ("2", "sg"): "ῇς",
+    ("3", "sg"): "ῇ",
+    ("1", "pl"): "ῶμεν",
+    ("2", "pl"): "ῆτε",
+    ("3", "pl"): "ῶσι(ν)",
+}
+
+# Epsilon-contract optative active: -οίην / -οίης / -οίη / -οίημεν or
+# the shorter -οῖμεν. jtauber's ποιέω uses the longer -οίη(...) forms.
+_CONTRACT_EPSILON_ACT_OPT: Dict[tuple, str] = {
+    ("1", "sg"): "οίην",
+    ("2", "sg"): "οίης",
+    ("3", "sg"): "οίη",
+    ("1", "pl"): "οίημεν",
+    ("2", "pl"): "οίητε",
+    ("3", "pl"): "οίησαν",
+}
+
+# Epsilon-contract imperative.
+_CONTRACT_EPSILON_ACT_IMP: Dict[tuple, str] = {
+    ("2", "sg"): "ει",
+    ("3", "sg"): "είτω",
+    ("2", "pl"): "εῖτε",
+    ("3", "pl"): "ούντων",
+    ("3", "du"): "είτων",
+}
+
+_CONTRACT_EPSILON_ACT_INF = "εῖν"
+
+_CONTRACT_EPSILON_MID_IND: Dict[tuple, str] = {
+    ("1", "sg"): "οῦμαι",
+    ("2", "sg"): "εῖ",
+    ("3", "sg"): "εῖται",
+    ("1", "pl"): "ούμεθα",
+    ("2", "pl"): "εῖσθε",
+    ("3", "pl"): "οῦνται",
+}
+
+_CONTRACT_EPSILON_MID_SUBJ: Dict[tuple, str] = {
+    ("1", "sg"): "ῶμαι",
+    ("2", "sg"): "ῇ",
+    ("3", "sg"): "ῆται",
+    ("1", "pl"): "ώμεθα",
+    ("2", "pl"): "ῆσθε",
+    ("3", "pl"): "ῶνται",
+}
+
+_CONTRACT_EPSILON_MID_OPT: Dict[tuple, str] = {
+    ("1", "sg"): "οίμην",
+    ("2", "sg"): "οῖο",
+    ("3", "sg"): "οῖτο",
+    ("1", "pl"): "οίμεθα",
+    ("2", "pl"): "οῖσθε",
+    ("3", "pl"): "οῖντο",
+}
+
+_CONTRACT_EPSILON_MID_IMP: Dict[tuple, str] = {
+    ("2", "sg"): "οῦ",
+    ("3", "sg"): "είσθω",
+    ("2", "pl"): "εῖσθε",
+    ("3", "pl"): "είσθων",
+}
+
+_CONTRACT_EPSILON_MID_INF = "εῖσθαι"
+
+
+# Omicron contract: stem ο. Bare stem is e.g. δηλ- (from δηλο-).
+_CONTRACT_OMICRON_ACT_IND: Dict[tuple, str] = {
+    ("1", "sg"): "ῶ",
+    ("2", "sg"): "οῖς",
+    ("3", "sg"): "οῖ",
+    ("1", "pl"): "οῦμεν",
+    ("2", "pl"): "οῦτε",
+    ("3", "pl"): "οῦσι(ν)",
+    ("2", "du"): "οῦτον",
+    ("3", "du"): "οῦτον",
+}
+
+_CONTRACT_OMICRON_ACT_SUBJ: Dict[tuple, str] = {
+    ("1", "sg"): "ῶ",
+    ("2", "sg"): "οῖς",
+    ("3", "sg"): "οῖ",
+    ("1", "pl"): "ῶμεν",
+    ("2", "pl"): "ῶτε",
+    ("3", "pl"): "ῶσι(ν)",
+    ("2", "du"): "ῶτον",
+    ("3", "du"): "ῶτον",
+}
+
+_CONTRACT_OMICRON_ACT_OPT: Dict[tuple, str] = {
+    ("1", "sg"): "οίην",
+    ("2", "sg"): "οίης",
+    ("3", "sg"): "οίη",
+    ("1", "pl"): "οίημεν",
+    ("2", "pl"): "οίητε",
+    ("3", "pl"): "οίησαν",
+}
+
+_CONTRACT_OMICRON_ACT_IMP: Dict[tuple, str] = {
+    ("2", "sg"): "ου",
+    ("3", "sg"): "ούτω",
+    ("2", "pl"): "οῦτε",
+    ("3", "pl"): "ούντων",
+    ("3", "du"): "οέτων",
+}
+
+_CONTRACT_OMICRON_ACT_INF = "οῦν"
+
+_CONTRACT_OMICRON_MID_IND: Dict[tuple, str] = {
+    ("1", "sg"): "οῦμαι",
+    ("2", "sg"): "οῖ",
+    ("3", "sg"): "οῦται",
+    ("1", "pl"): "ούμεθα",
+    ("2", "pl"): "οῦσθε",
+    ("3", "pl"): "οῦνται",
+}
+
+_CONTRACT_OMICRON_MID_SUBJ: Dict[tuple, str] = {
+    ("1", "sg"): "ῶμαι",
+    ("2", "sg"): "οῖ",
+    ("3", "sg"): "ῶται",
+    ("1", "pl"): "ώμεθα",
+    ("2", "pl"): "ῶσθε",
+    ("3", "pl"): "ῶνται",
+}
+
+_CONTRACT_OMICRON_MID_OPT: Dict[tuple, str] = {
+    ("1", "sg"): "οίμην",
+    ("2", "sg"): "οῖο",
+    ("3", "sg"): "οῖτο",
+    ("1", "pl"): "οίμεθα",
+    ("2", "pl"): "οῖσθε",
+    ("3", "pl"): "οῖντο",
+}
+
+_CONTRACT_OMICRON_MID_IMP: Dict[tuple, str] = {
+    ("2", "sg"): "οῦ",
+    ("3", "sg"): "ούσθω",
+    ("2", "pl"): "οῦσθε",
+    ("3", "pl"): "ούσθων",
+}
+
+_CONTRACT_OMICRON_MID_INF = "οῦσθαι"
+
+
+# Contract endings are ALL ending-accented (the contraction places an
+# inherent accent on the new fused syllable). The stem accent is dropped
+# before splicing on every contract cell. This sentinel is the only
+# pattern needed; we always strip on contracts.
+
+
 # Set of mp/passive cells whose ending carries an inherent accent.
 # Stem-accents on these get neutralised before splicing so we don't
 # produce double-accent forms.
@@ -769,6 +1298,445 @@ def synthesize_mp_moods(
     return out
 
 
+def _add_recessive_accent(stem: str) -> str:
+    """Place an acute accent on the stem's vowel for recessive cells.
+
+    Returns ``stem`` unchanged when it already carries a tonal accent
+    (so existing accent isn't doubled). Otherwise finds the stem's
+    final-syllable vowel and adds an acute there.
+
+    Used on aor-2 cells like 2sg ``λίπε`` / ``πέσε`` where the bare
+    stem (``λιπ`` / ``πεσ``) needs a recessive penult accent before the
+    vocalic ending ``-ε`` joins it.
+    """
+    if not stem:
+        return stem
+    nfd = unicodedata.normalize("NFD", stem)
+    # If a tonal accent is already present, keep the stem as-is.
+    if any(ord(c) in _TONAL_ACCENTS for c in nfd):
+        return stem
+    chars = list(nfd)
+    # Walk back to find the last vowel base.
+    j = len(chars) - 1
+    while j >= 0 and (unicodedata.combining(chars[j]) or chars[j] not in _GREEK_VOWELS):
+        j -= 1
+    if j < 0:
+        return stem
+    # Insert combining acute (U+0301) right after the vowel base, but
+    # AFTER any combining marks that ride on it (breathing, iota
+    # subscript). NFD orders breathing before iota subscript before
+    # accent typically, but we just append after all combining marks
+    # following the vowel.
+    k = j + 1
+    while k < len(chars) and unicodedata.combining(chars[k]):
+        k += 1
+    chars.insert(k, "́")
+    return unicodedata.normalize("NFC", "".join(chars))
+
+
+# Vowels that count as long for accent purposes in final syllables.
+# η, ω, ου, ει, αι (when not nominative pl), οι (when not nom pl) etc.
+# Simplified: η ω = always long; ει ου ηυ = long diphthong.
+_LONG_VOWELS_BASE = set("ηω")
+
+
+def _ending_is_long(ending: str) -> bool:
+    """True iff the final syllable of ``ending`` counts as long for
+    Greek accent purposes.
+
+    Heuristic: looks at the last vowel cluster in the ending. η, ω,
+    diphthongs ει/ου/ηυ are long; α, ε, ο, αι, οι (final) are short.
+    """
+    if not ending:
+        return False
+    plain = _strip_accents_lower(ending)
+    if not plain:
+        return False
+    # Strip a trailing consonant (ν, σ, etc.) so we look at the vowel.
+    while plain and plain[-1] not in _GREEK_VOWELS:
+        plain = plain[:-1]
+    if not plain:
+        return False
+    last = plain[-1]
+    if last in ("η", "ω"):
+        return True
+    if len(plain) >= 2:
+        diph = plain[-2:]
+        if diph in ("ει", "ου", "ηυ", "ευ", "αυ"):
+            return True
+        # αι and οι are short in nom-pl but long elsewhere.
+        # In endings used for finite verbs, -αι (active aor inf) is short;
+        # -οι final is short. -ηι etc are not common.
+        if diph == "αι" or diph == "οι":
+            return False
+    return False
+
+
+def _recessive_full_form(prefix: str, ending: str) -> str:
+    """Compose ``prefix + ending`` with a freshly-placed recessive accent.
+
+    The accent goes:
+      - on the antepenult if the final syllable's vowel is short, OR
+      - on the penult if the final syllable's vowel is long.
+
+    Both ``prefix`` and ``ending`` are stripped of pre-existing tonal
+    accents before combining; the result has exactly one acute on the
+    correct syllable.
+
+    For 2-syllable forms (e.g. λίπε from λιπ + ε), the accent is on
+    the only valid recessive position (penult).
+    """
+    if not prefix:
+        return ending
+    pre = _strip_tonal_accents(prefix)
+    end = _strip_tonal_accents(ending)
+    full_nfd = unicodedata.normalize("NFD", pre + end)
+    chars = list(full_nfd)
+    # Identify vowel-syllable positions (one per maximal vowel run).
+    # We collect (position-of-base, is_long-flag) so we can pick the
+    # antepenult / penult.
+    syllables: list[int] = []  # index of base vowel char in `chars`
+    i = 0
+    while i < len(chars):
+        c = chars[i]
+        if unicodedata.combining(c):
+            i += 1
+            continue
+        if c in _GREEK_VOWELS:
+            # Start of a vowel-syllable. Scan to the end of the cluster
+            # (consecutive base vowels merge into a diphthong = one syl).
+            start = i
+            i += 1
+            # Skip combining marks attached to this vowel.
+            while i < len(chars) and unicodedata.combining(chars[i]):
+                i += 1
+            # Greedily merge consecutive vowel bases as a diphthong.
+            while i < len(chars) and chars[i] in _GREEK_VOWELS:
+                # only treat as same syllable for known diphthongs
+                # (αι ει οι υι αυ ευ ηυ ου).
+                pair = chars[start] + chars[i]
+                pair_plain = pair.lower()
+                if pair_plain in ("αι", "ει", "οι", "υι", "αυ", "ευ",
+                                   "ηυ", "ου"):
+                    i += 1
+                    while i < len(chars) and unicodedata.combining(chars[i]):
+                        i += 1
+                else:
+                    break
+            syllables.append(start)
+        else:
+            i += 1
+    if not syllables:
+        return unicodedata.normalize("NFC", pre + end)
+    # Determine if the final syllable is long.
+    final_long = _ending_is_long(end)
+    # Pick target syllable index.
+    n = len(syllables)
+    if n == 1:
+        target = 0
+    elif n == 2 or final_long:
+        target = n - 2  # penult
+    else:
+        target = n - 3  # antepenult
+    if target < 0:
+        target = 0
+    base_idx = syllables[target]
+    # For diphthongs (consecutive vowel bases like οι, ει, αυ, etc.),
+    # the accent conventionally sits on the SECOND vowel. Walk forward
+    # past combining marks AND any second vowel that forms a diphthong
+    # with this base.
+    k = base_idx + 1
+    while k < len(chars) and unicodedata.combining(chars[k]):
+        k += 1
+    # If the next base is a vowel that pairs with this one as a diphthong,
+    # advance to it (and past its combining marks) so the accent lands
+    # on the second vowel.
+    if k < len(chars) and chars[k] in _GREEK_VOWELS:
+        pair_plain = (chars[base_idx] + chars[k]).lower()
+        if pair_plain in ("αι", "ει", "οι", "υι", "αυ", "ευ", "ηυ", "ου"):
+            k += 1
+            while k < len(chars) and unicodedata.combining(chars[k]):
+                k += 1
+    chars.insert(k, "́")
+    return unicodedata.normalize("NFC", "".join(chars))
+
+
+# Aor-2 cells whose stem vowel takes a recessive acute (when the stem
+# itself has no accent, e.g. after augment-stripping). 2sg ``λίπε``
+# (penult acute on stem vowel ι) and 2pl ``λίπετε`` (antepenult acute
+# on stem vowel for trisyllable). Subjunctive/optative cells inherit
+# the recessive pattern via the long-vowel ending so don't need extra
+# attention here.
+_AOR2_NEEDS_RECESSIVE_ACCENT = {
+    "active_aorist_imperative_2sg",   # λίπε / πέσε
+    "active_aorist_imperative_2pl",   # λίπετε / πέσετε
+    "active_aorist_subjunctive_1sg",  # λίπω
+    "active_aorist_subjunctive_1pl",  # λίπωμεν
+    "active_aorist_subjunctive_2pl",  # λίπητε
+    "active_aorist_subjunctive_2sg",  # λίπῃς
+    "active_aorist_subjunctive_3sg",  # λίπῃ
+    "active_aorist_subjunctive_3pl",  # λίπωσι
+    "active_aorist_optative_1sg",     # λίποιμι
+    "active_aorist_optative_2sg",     # λίποις
+    "active_aorist_optative_3sg",     # λίποι
+    "active_aorist_optative_1pl",     # λίποιμεν
+    "active_aorist_optative_2pl",     # λίποιτε
+    "active_aorist_optative_3pl",     # λίποιεν
+    "middle_aorist_subjunctive_1sg",  # λίπωμαι
+    "middle_aorist_subjunctive_2sg",  # λίπῃ
+    "middle_aorist_subjunctive_3sg",  # λίπηται
+    "middle_aorist_subjunctive_2pl",  # λίπησθε
+    "middle_aorist_subjunctive_3pl",  # λίπωνται
+    "middle_aorist_optative_2sg",     # λίποιο
+    "middle_aorist_optative_3sg",     # λίποιτο
+    "middle_aorist_optative_2pl",     # λίποισθε
+    "middle_aorist_optative_3pl",     # λίποιντο
+    "middle_aorist_imperative_2pl",   # λίπεσθε
+}
+
+
+def _aor2_emit(
+    out: Dict[str, str], key: str, stem: str, ending: str
+) -> None:
+    """Splice ``stem + ending`` for an aor-2 cell, dropping stem accent
+    if the cell is end-accented, or computing a recessive accent on the
+    full form (stem + ending) when the cell wants recessive accent."""
+    if key in _AOR2_END_ACCENTED_KEYS:
+        out[key] = _strip_tonal_accents(stem) + ending
+    elif key in _AOR2_NEEDS_RECESSIVE_ACCENT:
+        out[key] = _recessive_full_form(stem, ending)
+    else:
+        out[key] = stem + ending
+
+
+def synthesize_aor2_moods(
+    lemma: str,
+    principal_parts: Optional[Dict[str, str]] = None,
+) -> Dict[str, str]:
+    """Synthesise aor-2 (strong-aorist) cells for verbs with a non-
+    sigmatic aorist principal part.
+
+    Returns ``{paradigm_key: form}`` covering active and middle aorist
+    indicative / subjunctive / optative / imperative / infinitive when
+    a parseable aor-2 stem is available. Empty dict when:
+      - The lemma is not a thematic-style -ω verb (athematic / contract).
+      - ``parts['aor']`` is missing or doesn't look like an aor-2.
+      - The lemma is a proper aor-1 verb (sigmatic) — those go through
+        ``synthesize_active_moods`` / ``synthesize_mp_moods`` instead.
+
+    Caller is responsible for merging into the existing paradigm and
+    *only* writing into empty slots; aor-2 stems often coexist with
+    sigmatic aor-1 attestations, and we don't want to overwrite the
+    corpus's choice between them.
+    """
+    if not lemma:
+        return {}
+    parts = principal_parts or {}
+    aor_form = parts.get("aor") or parts.get("aor2")
+    if not aor_form:
+        return {}
+    aor_stem = extract_aor2_stem(aor_form, lemma)
+    if not aor_stem:
+        return {}
+
+    # The augmented stem prefixes the indicative cells. We rebuild it
+    # from the bare stem by re-prepending the augment when possible.
+    # The aor_form already has the augmented stem, so cut its trailing
+    # ``ον`` to get the augmented stem.
+    nfc_aor = unicodedata.normalize("NFC", aor_form)
+    aug_stem = nfc_aor[:-2] if nfc_aor.endswith("ον") else None
+
+    out: Dict[str, str] = {}
+
+    # ---- Active aorist indicative (augmented stem) ----
+    # Indicative is recessive; we compute the accent fresh from the
+    # full augmented form so multi-syllable forms like ``ἐλίπομεν``
+    # land the accent on the antepenult rather than the augment ε.
+    if aug_stem:
+        for (p, n), end in _AOR2_ACT_IND.items():
+            key = f"active_aorist_indicative_{p}{n}"
+            out[key] = _recessive_full_form(aug_stem, end)
+
+    # ---- Active aorist subjunctive / optative / imperative / infinitive
+    # (unaugmented stem) ----
+    for (p, n), end in _AOR2_ACT_SUBJ.items():
+        _aor2_emit(out, f"active_aorist_subjunctive_{p}{n}", aor_stem, end)
+    for (p, n), end in _AOR2_ACT_OPT.items():
+        _aor2_emit(out, f"active_aorist_optative_{p}{n}", aor_stem, end)
+    for (p, n), end in _AOR2_ACT_IMP.items():
+        _aor2_emit(out, f"active_aorist_imperative_{p}{n}", aor_stem, end)
+    _aor2_emit(out, "active_aorist_infinitive", aor_stem, _AOR2_ACT_INF)
+
+    # ---- Middle aorist (unaugmented stem for non-indic, augmented for
+    # indic) ----
+    # Middle aor-2 indicative is recessive too; compute fresh.
+    if aug_stem:
+        for (p, n), end in _AOR2_MID_IND.items():
+            key = f"middle_aorist_indicative_{p}{n}"
+            out[key] = _recessive_full_form(aug_stem, end)
+    for (p, n), end in _AOR2_MID_SUBJ.items():
+        _aor2_emit(out, f"middle_aorist_subjunctive_{p}{n}", aor_stem, end)
+    for (p, n), end in _AOR2_MID_OPT.items():
+        _aor2_emit(out, f"middle_aorist_optative_{p}{n}", aor_stem, end)
+    for (p, n), end in _AOR2_MID_IMP.items():
+        _aor2_emit(out, f"middle_aorist_imperative_{p}{n}", aor_stem, end)
+    _aor2_emit(out, "middle_aorist_infinitive", aor_stem, _AOR2_MID_INF)
+
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Contract verbs (present-system mood synthesis)
+# ---------------------------------------------------------------------------
+
+
+def _contract_bare_stem(lemma: str) -> Optional[str]:
+    """Strip the trailing contract-vowel + ω from a contract lemma.
+
+    ``τιμάω`` -> ``τιμ`` (drop ``άω``)
+    ``ποιέω`` -> ``ποι`` (drop ``έω``)
+    ``δηλόω`` -> ``δηλ`` (drop ``όω``)
+
+    Accent on the stem (if any beyond the contract syllable) rides
+    through. Lemmas with the accent ON the contract syllable
+    (``τιμᾷ`` as alt citation form) yield bare stems with no accent.
+
+    Returns None if the lemma isn't a contract.
+    """
+    if not lemma:
+        return None
+    cls = contract_class(lemma)
+    if cls is None:
+        return None
+    nfc = unicodedata.normalize("NFC", lemma)
+    # Drop the final character (ω/ώ).
+    if nfc.endswith("ω") or nfc.endswith("ώ"):
+        nfc = nfc[:-1]
+    # Drop the contract-vowel base char. We work in NFD so we can step
+    # past any combining marks that ride on the contract vowel.
+    nfd = unicodedata.normalize("NFD", nfc)
+    chars = list(nfd)
+    # Walk from the end: collect combining marks, then drop one base char.
+    j = len(chars) - 1
+    while j >= 0 and unicodedata.combining(chars[j]):
+        j -= 1
+    if j < 0:
+        return None
+    # chars[j] is the contract vowel base (α / ε / ο). Drop it AND its
+    # combining marks (which are at chars[j+1..]).
+    rest = chars[:j]
+    out = unicodedata.normalize("NFC", "".join(rest))
+    return out if out else None
+
+
+def synthesize_contract_moods(
+    lemma: str,
+    principal_parts: Optional[Dict[str, str]] = None,
+) -> Dict[str, str]:
+    """Synthesise the present-system mood cells for a contract verb.
+
+    Returns ``{paradigm_key: form}`` covering active + middle present
+    indicative / subjunctive / optative / imperative / infinitive for
+    -άω / -έω / -όω verbs. Future and aorist of contracts behave like
+    regular sigmatic thematic verbs (the contract vowel lengthens before
+    σ), so they are NOT synthesised here -- the regular
+    ``synthesize_active_moods`` / ``synthesize_mp_moods`` paths can fill
+    those when given a future principal part.
+
+    Returns an empty dict when the lemma is not a contract.
+
+    Caller is responsible for merging into the existing paradigm and
+    *only* writing into empty slots.
+    """
+    if not lemma:
+        return {}
+    cls = contract_class(lemma)
+    if cls is None:
+        return {}
+    bare = _contract_bare_stem(lemma)
+    if bare is None:
+        return {}
+
+    # All contract endings are inherently end-accented; the bare stem's
+    # original accent (if any) gets dropped to avoid double-accent. The
+    # only stem accent that should survive is on multi-syllable stems
+    # where the lemma has accent BEFORE the contract syllable, but
+    # jtauber's table never preserves it on the bare stem there either
+    # (e.g. lemma ποίημι -> stem ποι- accent dropped). We always strip.
+    bare_no_accent = _strip_tonal_accents(bare)
+
+    out: Dict[str, str] = {}
+
+    if cls == "alpha":
+        ind_act = _CONTRACT_ALPHA_ACT_IND
+        subj_act = _CONTRACT_ALPHA_ACT_SUBJ
+        opt_act = _CONTRACT_ALPHA_ACT_OPT
+        imp_act = _CONTRACT_ALPHA_ACT_IMP
+        inf_act = _CONTRACT_ALPHA_ACT_INF
+        ind_mid = _CONTRACT_ALPHA_MID_IND
+        subj_mid = _CONTRACT_ALPHA_MID_SUBJ
+        opt_mid = _CONTRACT_ALPHA_MID_OPT
+        imp_mid = _CONTRACT_ALPHA_MID_IMP
+        inf_mid = _CONTRACT_ALPHA_MID_INF
+    elif cls == "epsilon":
+        ind_act = _CONTRACT_EPSILON_ACT_IND
+        subj_act = _CONTRACT_EPSILON_ACT_SUBJ
+        opt_act = _CONTRACT_EPSILON_ACT_OPT
+        imp_act = _CONTRACT_EPSILON_ACT_IMP
+        inf_act = _CONTRACT_EPSILON_ACT_INF
+        ind_mid = _CONTRACT_EPSILON_MID_IND
+        subj_mid = _CONTRACT_EPSILON_MID_SUBJ
+        opt_mid = _CONTRACT_EPSILON_MID_OPT
+        imp_mid = _CONTRACT_EPSILON_MID_IMP
+        inf_mid = _CONTRACT_EPSILON_MID_INF
+    elif cls == "omicron":
+        ind_act = _CONTRACT_OMICRON_ACT_IND
+        subj_act = _CONTRACT_OMICRON_ACT_SUBJ
+        opt_act = _CONTRACT_OMICRON_ACT_OPT
+        imp_act = _CONTRACT_OMICRON_ACT_IMP
+        inf_act = _CONTRACT_OMICRON_ACT_INF
+        ind_mid = _CONTRACT_OMICRON_MID_IND
+        subj_mid = _CONTRACT_OMICRON_MID_SUBJ
+        opt_mid = _CONTRACT_OMICRON_MID_OPT
+        imp_mid = _CONTRACT_OMICRON_MID_IMP
+        inf_mid = _CONTRACT_OMICRON_MID_INF
+    else:
+        return {}
+
+    # Active present
+    for (p, n), end in ind_act.items():
+        out[f"active_present_indicative_{p}{n}"] = bare_no_accent + end
+    for (p, n), end in subj_act.items():
+        out[f"active_present_subjunctive_{p}{n}"] = bare_no_accent + end
+    for (p, n), end in opt_act.items():
+        out[f"active_present_optative_{p}{n}"] = bare_no_accent + end
+    for (p, n), end in imp_act.items():
+        # 2sg imperative for contracts is recessive: τίμα / ποίει / δήλου
+        # carry their accent on the lemma stem (penult of the full form),
+        # not the contract vowel. Compute the recessive accent fresh on
+        # the joined form.
+        if (p, n) == ("2", "sg") and cls in ("alpha", "epsilon", "omicron"):
+            out[f"active_present_imperative_{p}{n}"] = (
+                _recessive_full_form(bare_no_accent, end)
+            )
+        else:
+            out[f"active_present_imperative_{p}{n}"] = bare_no_accent + end
+    out["active_present_infinitive"] = bare_no_accent + inf_act
+
+    # Middle present
+    for (p, n), end in ind_mid.items():
+        out[f"middle_present_indicative_{p}{n}"] = bare_no_accent + end
+    for (p, n), end in subj_mid.items():
+        out[f"middle_present_subjunctive_{p}{n}"] = bare_no_accent + end
+    for (p, n), end in opt_mid.items():
+        out[f"middle_present_optative_{p}{n}"] = bare_no_accent + end
+    for (p, n), end in imp_mid.items():
+        out[f"middle_present_imperative_{p}{n}"] = bare_no_accent + end
+    out["middle_present_infinitive"] = bare_no_accent + inf_mid
+
+    return out
+
+
 if __name__ == "__main__":
     # Smoke test for a few canonical verbs.
     samples = [
@@ -779,12 +1747,17 @@ if __name__ == "__main__":
         ("τιμάω", {"fut": "τιμήσω"}),  # contract; should be skipped
         ("τίθημι", {}),                # athematic; should be skipped
         ("μένω", {"fut": "μενῶ"}),     # liquid future; aorist skipped
+        ("λείπω", {"aor": "ἔλιπον"}),  # aor-2
+        ("πίπτω", {"aor": "ἔπεσον"}),  # aor-2
     ]
     for lemma, parts in samples:
         out_act = synthesize_active_moods(lemma, parts)
         out_mp = synthesize_mp_moods(lemma, parts)
+        out_aor2 = synthesize_aor2_moods(lemma, parts)
+        out_contract = synthesize_contract_moods(lemma, parts)
         print(f"=== {lemma} (parts={parts}) ===")
-        print(f"  active: {len(out_act)} cells, mp: {len(out_mp)} cells")
-        for k in sorted(out_mp):
-            print(f"  {k} = {out_mp[k]}")
+        print(f"  active: {len(out_act)} cells, mp: {len(out_mp)} cells, "
+              f"aor2: {len(out_aor2)}, contract: {len(out_contract)}")
+        for k in sorted(out_aor2)[:6]:
+            print(f"  {k} = {out_aor2[k]}")
         print()
