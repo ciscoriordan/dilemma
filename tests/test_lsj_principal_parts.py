@@ -68,6 +68,33 @@ LSJ_FRAGMENTS = {
         "aor. ἔπαυσα 15.15, etc., Ep. παῦσα 17.602: pf. πέπαυκα D.20.70, "
         "Antisth.Od.10:—Med. and Pass., Ion. impf. παυέσκετο Il.24.17: "
         "fut. παύσομαι Od.2.198, Hdt.1.56, S.OC1040, Ph.1424, E.Med.93, etc."
+        "; πεπαύσομαι only S.Ant.91, Tr.587 (though held to be the true "
+        "Att. form by Moer.p.293 P.); παυσθήσομαι (v.l. παυθ-) Th.1.81; "
+        "later παήσομαι (ἀνα-) Apoc.14.13: aor. ἐπαυσάμην Il.14.260; "
+        "ἐπαύθην, Ep. παύθην, Hes.Th.533, Th.5.91 (v.l. παυσθῇ), etc. ; "
+        "ἐπαύσθην Hdt.5.94, etc. ; later ἐπάην Choerob.in Theod.2.141 H. "
+        ": pf. πέπαυμαι Il.18.125, A.Pr.615, Hdt.1.84, Ar.Pax29, etc. "
+        "(πεπάσθαι is f.l. in Vett.Val.359.31):"
+    ),
+    # ἀκούω's LSJ head includes a fully-structured ``:—Pass.`` section
+    # whose ``aor.`` is followed directly by the passive aorist
+    # ``ἠκούσθην``. The label-driven scan handles this correctly via
+    # the section voice override (``aor.`` in a ``pass`` section maps
+    # to ``aor_p``); we just want to lock the behaviour in.
+    "ἀκούω": (
+        "ἀκούω: Ep. impf. ἄκουον Il.12.442: fut. ἀκούσομαι (Act. ἀκούσω "
+        "first in Hyp.Epit.34 s.v.l., then in Lyc.378, 686, D.H.5.57, "
+        "Ev.Matt.12.19, etc.: aor. ἤκουσα, Ep. ἄκουσα Il.24.223: pf. "
+        "ἀκήκοα, Lacon. ἄκουκα Plu.Lyc.20, Ages.21; ἤκουκα is a late "
+        "form, POxy.237 vii 23 (ii A. D.); later Ion. ἀκήκουκα "
+        "Herod.5.49: plpf. ἀκηκόειν Hdt.2.52, 7.208; ἠκηκόειν "
+        "X.Oec.15.7; old Att. ἠκηκόη Ar.V.800, Pax616, "
+        "Pl.Cra.384b:—rare in Med., pres. (v. infr. II.2): Ep. impf. "
+        "ἀκούετο Il.4.331: aor. ἠκουσάμην Mosch.3.119:—Pass., fut. "
+        "ἀκουσθήσομαι Pl.R.507d: aor. ἠκούσθην Th.3.38, Luc.Somn.5: "
+        "pf. ἤκουσμαι D.H.Rh.11.10, Ps.-Luc.Philopatr.4; ἀκήκουσμαι "
+        "is dub. in Luc.Hist.Conscr.49: plpf. ἤκουστο Anon.ap."
+        "Demetr.Eloc.217, (παρ-) J.AJ17.10.10."
     ),
     # An entry with no recognisable principal parts: ποιέω's head text
     # is mostly inscriptional citations; ``parse_principal_parts``
@@ -149,6 +176,69 @@ def test_pauo_med_and_pass_section_handling():
     assert parts.get("pf") == _nfc("πέπαυκα")
     assert parts.get("impf") == _nfc("παύεσκον")
     assert parts.get("fut_med") == _nfc("παύσομαι")
+    assert parts.get("aor_med") == _nfc("ἐπαυσάμην")
+    assert parts.get("pf_mp") == _nfc("πέπαυμαι")
+    # The `:—Med. and Pass.` section bundles middle and passive
+    # aorists under one ``aor.`` label: ``aor. ἐπαυσάμην …; ἐπαύθην,
+    # Ep. παύθην, …; ἐπαύσθην …``. The first form (ἐπαυσάμην) is
+    # the middle aorist; the chained `; ἐπαύθην` is the true
+    # passive aorist and must be picked up as ``aor_p`` even though
+    # there is no separate ``aor. p.`` label.
+    assert parts.get("aor_p") == _nfc("ἐπαύθην")
+
+
+def test_akouo_pass_section_aorist_passive():
+    """ἀκούω has a fully-structured ``:—Pass.`` section. The ``aor.``
+    label inside it should be tagged as ``aor_p`` via the section
+    voice override (``aor.`` in ``pass`` section -> ``aor_p``)."""
+    parts = parse_principal_parts(LSJ_FRAGMENTS["ἀκούω"], "ἀκούω")
+    assert parts.get("fut") == _nfc("ἀκούσομαι")
+    assert parts.get("aor") == _nfc("ἤκουσα")
+    assert parts.get("pf") == _nfc("ἀκήκοα")
+    # Passive aorist is the focus: ``Pass., ... aor. ἠκούσθην``
+    assert parts.get("aor_p") == _nfc("ἠκούσθην")
+    assert parts.get("fut_p") == _nfc("ἀκουσθήσομαι")
+    assert parts.get("pf_mp") == _nfc("ἤκουσμαι")
+
+
+def test_chained_passive_aorist_skips_definition_body():
+    """The chained-``-θην`` heuristic must stop at the principal-parts
+    boundary so it doesn't pick up nouns or unrelated forms in the
+    definition. The boundary is a blank line (``\\n\\n``) or the next
+    label, whichever comes first.
+
+    Synthetic fixture: an ``aor.`` form in a ``Med.`` section is
+    followed by a blank line and then a definition body containing
+    an accusative noun ``τὴν πάθην``. The parser must NOT extract
+    ``πάθην`` as ``aor_p``.
+    """
+    fragment = (
+        "προστρέπω, turn towards, supplicate:—Med., with aor. "
+        "προσετραπόμην Hom.Epigr.15.1; π. δῶμα.\n"
+        "\n"
+        "II.  Med., make a matter of supplication, "
+        "τοῦ παθόντος προστρεπομένου τὴν πάθην Pl.Lg.866b."
+    )
+    parts = parse_principal_parts(fragment, "προστρέπω")
+    assert parts.get("aor_med") == _nfc("προσετραπόμην")
+    assert "aor_p" not in parts
+
+
+def test_chained_passive_aorist_after_aor_in_med_only_section():
+    """A synthetic ``Med.`` section with an ``aor.`` clause that
+    bundles a middle aorist plus a chained passive aorist - the
+    pattern observed in ὀρέγω, ὁρμάω, λοιδορέω, etc. The chained
+    ``-θην`` form (here ``ὠρέχθην``) must be tagged as ``aor_p``.
+    """
+    fragment = (
+        "ὀρέγω, fut. ὀρέξω: aor. ὤρεξα:—Med. and Pass., fut. "
+        "ὀρέξομαι: aor. ὠρεξάμην Il.23.99, E.HF16, etc.: rare in "
+        "Prose, X.Mem.1.2.15; also ὠρέχθην ib.16, Ages.1.4: pf. "
+        "ὤρεγμαι Hp.Oss.18:"
+    )
+    parts = parse_principal_parts(fragment, "ὀρέγω")
+    assert parts.get("aor_med") == _nfc("ὠρεξάμην")
+    assert parts.get("aor_p") == _nfc("ὠρέχθην")
 
 
 def test_no_principal_parts_returns_empty():

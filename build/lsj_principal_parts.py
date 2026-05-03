@@ -376,6 +376,94 @@ def _form_looks_like(form: str, key: str) -> bool:
     return True
 
 
+def _find_chained_aor_passive(sect_text: str, label_match: re.Match
+                              ) -> str | None:
+    """Look for an unlabelled ``-θην`` form chained after an ``aor.``
+    label in a passive-bearing section.
+
+    LSJ collapses middle and passive aorists into a single ``aor.``
+    clause inside ``:—Med. and Pass.`` (and sometimes ``:—Pass.``)
+    sections, e.g. for παύω::
+
+        aor. ἐπαυσάμην Il.14.260; ἐπαύθην, Ep. παύθην, …;
+        ἐπαύσθην Hdt.5.94, etc. ; later ἐπάην …
+
+    Here ``ἐπαυσάμην`` (the first form) is captured by the standard
+    label-driven scan as ``aor_med``, but the chained ``ἐπαύθην`` is
+    the true passive aorist and has no label of its own. This helper
+    scans the slice between the label match and the next label /
+    section boundary, returning the first ``-θην`` form (length >= 4)
+    that isn't a suffix abbreviation, line-break artifact, or
+    parenthetical aside.
+    """
+    n = len(sect_text)
+    start = label_match.end()
+    # Bound the scan at the earliest of:
+    #   1. The next principal-part label (``pf.``, etc.).
+    #   2. A blank line (``\n\n``) - LSJ uses these to mark the
+    #      end of the principal-parts header and the start of
+    #      numbered sub-sections / definition body. Without this
+    #      bound, an entry whose principal-parts header has no
+    #      later label (e.g. προστρέπω) would scan into the
+    #      definition and pick up a noun like ``πάθην`` as a
+    #      passive aorist.
+    end = n
+    next_label = _LABEL_RE.search(sect_text, start)
+    if next_label:
+        end = min(end, next_label.start())
+    blank_pos = sect_text.find("\n\n", start)
+    if blank_pos != -1:
+        end = min(end, blank_pos)
+
+    # Walk Greek-letter runs in the bounded slice. We skip over
+    # parenthesised content (``(v.l. παυθ-)``), forms preceded by a
+    # hyphen (``-θην`` suffix abbreviation), and forms followed by a
+    # hyphen (line-break artifact ``θην-``).
+    i = start
+    paren_depth = 0
+    while i < end:
+        c = sect_text[i]
+        if c == "(":
+            paren_depth += 1
+            i += 1
+            continue
+        if c == ")":
+            if paren_depth > 0:
+                paren_depth -= 1
+            i += 1
+            continue
+        if paren_depth > 0:
+            i += 1
+            continue
+        if not _is_greek_letter(c):
+            i += 1
+            continue
+        # Start of a Greek-letter run.
+        prev = sect_text[i - 1] if i > 0 else ""
+        if prev == "-":
+            # ``-θην`` suffix abbreviation; skip the run wholesale.
+            j = i
+            while j < end and _is_greek_letter(sect_text[j]):
+                j += 1
+            i = j
+            continue
+        j = i
+        while j < end and _is_greek_letter(sect_text[j]):
+            j += 1
+        word = sect_text[i:j]
+        i = j
+        # Reject mid-token line-break fragments ``θην-``.
+        if j < n and sect_text[j] == "-":
+            continue
+        if len(word) < 4:
+            continue
+        plain = strip_diacritics(word).lower()
+        if not plain.endswith("θην"):
+            continue
+        return unicodedata.normalize("NFC", word)
+    return None
+
+
 def parse_principal_parts(text: str, headword: str) -> dict[str, str]:
     """Extract canonical principal parts from an LSJ head text.
 
@@ -409,6 +497,26 @@ def parse_principal_parts(text: str, headword: str) -> dict[str, str]:
             # to ignore for the canonical principal-part slot.
             if key not in out:
                 out[key] = form
+
+            # Chained passive aorist: in ``:—Med. and Pass.`` (and
+            # ``:—Pass.``) sections, LSJ may bundle the middle and
+            # passive aorists under one ``aor.`` label, e.g. παύω's
+            # ``aor. ἐπαυσάμην …; ἐπαύθην, …; ἐπαύσθην …``. The
+            # standard scan only takes the first form (the middle);
+            # we reach into the chain for the first ``-θην`` form
+            # and tag it as ``aor_p``. An explicit ``aor. p.``
+            # label, when present, has already been honoured above
+            # and would have set ``aor_p`` first; the ``key not in
+            # out`` guard preserves that precedence.
+            if (sect_name in ("pass", "med")
+                    and key in ("aor", "aor1", "aor2",
+                                "aor_med")
+                    and "aor_p" not in out):
+                lab = label.lower()
+                if lab in ("aor",):
+                    chained = _find_chained_aor_passive(sect_text, m)
+                    if chained and _form_looks_like(chained, "aor_p"):
+                        out["aor_p"] = chained
 
     # Aorist consolidation. LSJ tends to mention aor.2 only when an
     # aor.1 is also present (e.g. λείπω). Conventionally the older /
