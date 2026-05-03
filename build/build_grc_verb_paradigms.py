@@ -41,11 +41,18 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = SCRIPT_DIR / "data"
 
+# Make sibling build/ modules importable when this file is run as a
+# script (`python build/build_grc_verb_paradigms.py`).
+_BUILD_DIR = Path(__file__).resolve().parent
+if str(_BUILD_DIR) not in sys.path:
+    sys.path.insert(0, str(_BUILD_DIR))
+
 AG_PAIRS = DATA_DIR / "ag_pairs.json"
 GLAUX_PAIRS = DATA_DIR / "glaux_pairs.json"
 VERB_EXTRA_PAIRS = DATA_DIR / "verb_extra_pairs.json"
 LSJ_VERB_PAIRS = DATA_DIR / "ag_lsj_verb_pairs.json"  # produced by expand_lsj
 LSJ_HEADWORDS_PATH = DATA_DIR / "lsj_headwords.json"
+LSJ9_GLOSSES = Path.home() / "Documents" / "lsj9" / "lsj9_glosses.jsonl"
 OUT_PATH = DATA_DIR / "ag_verb_paradigms.json"
 
 
@@ -260,6 +267,90 @@ def load_pairs(path: Path):
         return json.load(f)
 
 
+def load_lsj_head_texts() -> dict:
+    """Load the leading paragraph of every LSJ entry (the gloss without
+    `level`/`number` is the entry head, which carries the principal-
+    parts header before the English definition starts).
+
+    Returns a dict ``{headword: head_text}``. Empty dict if the LSJ9
+    glosses file is unavailable.
+    """
+    heads: dict[str, str] = {}
+    if not LSJ9_GLOSSES.exists():
+        print(f"  lsj9 glosses not found at {LSJ9_GLOSSES}; "
+              f"principal-parts synthesis disabled")
+        return heads
+    print(f"  loading lsj9 head texts from {LSJ9_GLOSSES.name} ...",
+          flush=True)
+    with open(LSJ9_GLOSSES, encoding="utf-8") as f:
+        for line in f:
+            try:
+                e = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            hw = e.get("headword")
+            if not hw:
+                continue
+            if "level" in e or "number" in e:
+                continue
+            if hw not in heads:
+                heads[hw] = e.get("text", "")
+    print(f"  lsj9 head texts: {len(heads):,}")
+    return heads
+
+
+def synthesize_missing_moods(results: dict) -> tuple[int, int]:
+    """Fill in missing finite-mood cells via principal-parts templating.
+
+    For each verb in ``results``, parse its LSJ head text into
+    principal parts and run them through ``synth_verb_moods.synthesize_active_moods``
+    to produce templated subjunctive / optative / imperative / aorist-
+    infinitive forms. Only writes into slots that are currently empty;
+    real corpus / Wiktionary cells are never overwritten.
+
+    Returns ``(verbs_touched, cells_added)``.
+    """
+    try:
+        from synth_verb_moods import synthesize_active_moods
+        from lsj_principal_parts import parse_principal_parts
+    except ImportError as e:
+        print(f"  synthesis skipped (import failure: {e})")
+        return 0, 0
+
+    head_texts = load_lsj_head_texts()
+    verbs_touched = 0
+    cells_added = 0
+    cells_skipped_overlap = 0
+    for lemma, paradigm in results.items():
+        head_text = head_texts.get(lemma, "")
+        try:
+            parts = parse_principal_parts(head_text, lemma) if head_text else {}
+        except Exception:
+            parts = {}
+        try:
+            templated = synthesize_active_moods(lemma, parts)
+        except Exception:
+            templated = {}
+        if not templated:
+            continue
+        forms = paradigm.setdefault("forms", {})
+        added = 0
+        for key, val in templated.items():
+            if key in forms:
+                cells_skipped_overlap += 1
+                continue
+            forms[key] = val
+            added += 1
+        if added:
+            verbs_touched += 1
+            cells_added += added
+            paradigm["form_count"] = len(forms)
+    print(f"  synthesised cells: {cells_added:,} across "
+          f"{verbs_touched:,} verbs")
+    print(f"  cells skipped (already present): {cells_skipped_overlap:,}")
+    return verbs_touched, cells_added
+
+
 def build_paradigms(only_lemmas=None):
     """Aggregate verb pairs from all sources into per-lemma paradigms."""
     print("Building Ancient Greek verb paradigms ...")
@@ -424,6 +515,19 @@ def build_paradigms(only_lemmas=None):
         counts = sorted(v["form_count"] for v in results.values())
         n = len(counts)
         print(f"  forms per lemma: min={counts[0]} median={counts[n//2]} "
+              f"max={counts[-1]} avg={sum(counts)/n:.1f}")
+
+    # Procedural synthesis pass: fill missing finite-mood cells
+    # (subjunctive / optative / imperative / aorist infinitive) for
+    # thematic -ω verbs from LSJ-extracted principal parts. Only writes
+    # into empty slots, never overwrites corpus-derived forms.
+    print("  synthesising missing moods from principal parts ...")
+    synthesize_missing_moods(results)
+    if results:
+        counts = sorted(v["form_count"] for v in results.values())
+        n = len(counts)
+        print(f"  forms per lemma (post-synth): "
+              f"min={counts[0]} median={counts[n//2]} "
               f"max={counts[-1]} avg={sum(counts)/n:.1f}")
     return results
 

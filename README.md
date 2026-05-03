@@ -1230,6 +1230,18 @@ About 712 LSJ-only verbs receive at least one parsed principal part
 through path 2; full-pipeline success on the 28,745 LSJ-only verb
 candidates is 99.27%.
 
+A separate post-processing pass in `build/build_grc_verb_paradigms.py`
+takes the same parsed principal parts and procedurally synthesises the
+missing finite-mood cells (subjunctive / optative / imperative /
+aorist infinitive) for thematic -ω verbs via
+`build/synth_verb_moods.py`. Stem-templating only fires on plain
+thematic actives (contracts, athematics, mediopassives are skipped),
+and only fills cells that aren't already attested by Wiktionary or
+GLAUx. On the 27K-verb output, this adds ~278K templated cells across
+~12K verbs and brings dilemma's per-mood coverage on shared lemmas vs
+jtauber from subj 27% / opt 16% / imp 19% to subj 59% / opt 44% /
+imp 50%.
+
 ### Export to ONNX
 
 Generates ONNX model files so inference works without PyTorch.
