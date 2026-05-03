@@ -506,7 +506,7 @@ The lookup table combines forms from multiple sources:
 | Source | Forms | Notes |
 |--------|------:|-------|
 | **Wiktionary** (EN + EL, all periods) | 5.2M | Baseline from kaikki.org dumps |
-| **LSJ** (Liddell-Scott-Jones) | 4.2M | 32K nouns, 22K verbs, 14K adjectives expanded via Wiktionary Lua modules |
+| **LSJ** (Liddell-Scott-Jones) | 4.2M | 32K nouns, 22K verbs (incl. 700+ with principal parts parsed from the entry head and ~800 athematic / irregular μι-verbs), 14K adjectives, all expanded via Wiktionary Lua modules |
 | **Sophocles Lexicon** (Byzantine/Patristic) | 1.0M | 13.5K nouns, 4.6K verbs, 1.5K adverbs from OCR'd TEI data |
 | **[GLAUx](https://github.com/alekkeersmaekers/glaux)** (Keersmaekers, 2021) | 557K | 17M-token corpus, 8th c. BC - 4th c. AD, 98.8% lemma accuracy |
 | **[Diorisis](https://figshare.com/articles/dataset/The_Diorisis_Ancient_Greek_Corpus/6187256)** (Vatri & McGillivray, 2018) | 76K new | 10M-token corpus, Homer - 5th c. AD, 91.4% lemma accuracy. Low-priority pairs (only added when no conflict with existing sources). Also provides frequency data (27M combined tokens with GLAUx). |
@@ -540,6 +540,25 @@ Homeric Lexicon (~12K headwords) isn't expanded this way because its
 headwords are a subset of LSJ and already covered by the LSJ expansion
 plus the GLAUx Homeric corpus (557K pairs). See
 [LSJ/Sophocles expansion](#lsjsophocles-expansion) for the build step.
+
+The verb expansion is more than just the present system. For each
+verb headword, an LSJ-entry parser (`build/lsj_principal_parts.py`)
+walks the head paragraph and pulls out whatever principal parts LSJ
+has labelled (`fut.`, `aor.` 1 / 2, `pf.`, `pf. m./p.`, `aor. p.`,
+`impf.`, `plpf.`), feeding each into `Module:grc-conj` as a
+positional argument. About 712 LSJ-only verbs receive at least one
+parsed principal part this way, lifting them from present-tense-only
+expansion to full paradigm coverage and adding ~+55 unique forms per
+eligible verb on average. The classifier itself
+(`build/expand_lsj.py::_classify_verb`) routes athematic and
+irregular verbs explicitly: -ννυμι / -νυμι / -ημι / -ωμι / -αμι /
+-μι suffix dispatch for the regular cases, plus a hand-coded Attic
+core paradigm for εἰμί, εἶμι, οἶδα, χρή, φημί and their preverbed
+compounds (πάρειμι, σύνειμι, εἴσειμι, ...) joined via a backtracking
+preverb splitter. Across the 28,745-candidate LSJ verb set the full
+pipeline succeeds on 28,535 (99.27%); the residual failures are all
+OCR-corrupt or non-Attic dialect entries with no canonical Attic
+base.
 
 The lookup table is built from Wiktionary [kaikki dumps](https://kaikki.org/)
 (EN and EL editions for MG and AG, plus EL Medieval Greek), expanded with
@@ -1191,6 +1210,25 @@ python build/expand_sophocles.py --expand-verbs  # expand Sophocles verbs
 This requires LSJ9 data from [lsj9](https://github.com/ciscoriordan/lsj9)
 (included in `data/lsjgr_bridges.json` and `data/lsj9_frequency.json`) and
 the Sophocles TEI data (included in `data/sophocles/`).
+
+`--expand-verbs` does three things:
+
+1. Classifies the headword via `_classify_verb` (suffix dispatch for
+   thematic and athematic types, explicit table for εἰμί / εἶμι /
+   οἶδα / χρή / φημί and their preverbed compounds) and runs
+   `Module:grc-conj` on the present-system paradigm.
+2. Parses the LSJ entry head paragraph with
+   `build/lsj_principal_parts.py` to extract whatever principal
+   parts LSJ has labelled (`fut.`, `aor.`, `pf.`, `pf. m./p.`,
+   `aor. p.`, `impf.`, `plpf.`).
+3. Re-invokes `Module:grc-conj` for each extracted tense, merging the
+   results into the verb's paradigm. Verbs without parsable principal
+   parts fall back to present-only behaviour, so the path is strictly
+   additive.
+
+About 712 LSJ-only verbs receive at least one parsed principal part
+through path 2; full-pipeline success on the 28,745 LSJ-only verb
+candidates is 99.27%.
 
 ### Export to ONNX
 
