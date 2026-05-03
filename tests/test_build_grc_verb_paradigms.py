@@ -639,3 +639,407 @@ class TestIsHomericRootAoristPassive:
             "ἐλύμην", "", "passive_aorist_indicative_1sg")
         assert not b.is_homeric_root_aorist_passive(
             "ἐλύμην", "λύω", None)
+
+
+# ---------------------------------------------------------------------------
+# is_enclitic_context_form
+# ---------------------------------------------------------------------------
+
+
+class TestIsEncliticContextForm:
+    """Treebank corpora preserve the surface accent that a following
+    enclitic projects onto its host word, so glaux ships forms like
+    ἤκουόν (= ἤκουον + τι) where the canonical 1sg-imperfect cell
+    expects a clean ἤκουον. Greek finite verbs are recessive and have
+    exactly one accent, so a primary accent + an extra acute on the
+    ultima vowel is the diagnostic signature of these enclitic-context
+    surface forms. Detection: NFD-decompose, count vowel marks; flag
+    when there are exactly two marks AND the rightmost vowel carries
+    an acute (not circumflex) AND there is exactly one other accent
+    earlier in the word.
+    """
+
+    @pytest.mark.parametrize("form", [
+        # The reported bug for ἀκούω 1sg imperfect: ἤκουόν.
+        "ἤκουόν",
+        # Same shape on other thematic verbs (3sg / 3pl aorist + enclitic).
+        "ἔπεμψέ",      # ἔπεμψε + (τι) -> ἔπεμψέ
+        "ἔπεμψέν",     # ἔπεμψεν + (τι)
+        "ἔγραφέ",      # γράφω 3sg impf + enclitic
+        "ἔγραψέν",
+        "ἤκουσέ",      # ἀκούω 3sg aor + enclitic
+        # Aorist participles with enclitic-following accent
+        "δράσαντές",   # δράσαντες + (τι)
+        "πέμψαντές",
+        # Perispomenon penult + ultima acute (a perispomenon's penult
+        # already echoes accent onto the ultima per Smyth #186).
+        "δῶκέ",        # δῶκε + enclitic
+        "δεῖράν",
+        # Infinitive endings: -σθαι / -σαι take an extra acute too.
+        "στῆσαί",      # στῆσαι + (τι)
+        # Optative / future / various tenses
+        "βουλεύοιέν",
+        "φώνησέν",     # φώνησεν + enclitic
+        # The 17K-form glaux survey: every one of these has the same
+        # shape regardless of mood / tense / voice.
+        "ἐπικλείοιτέ",
+        "ψεύδοιό",
+        "δεύοιτό",
+        "θαρσύνετόν",  # synthetic; 2du middle imperfect + enclitic
+        "βαρύθεσκέ",   # iterative + enclitic
+        "ὦρσέν",       # ὦρσεν + (τι)
+        "ἔτεκέν",
+    ])
+    def test_enclitic_context_detected(self, b, form):
+        assert b.is_enclitic_context_form(form), \
+            f"enclitic-context not detected: {form!r}"
+
+    @pytest.mark.parametrize("form", [
+        # Clean canonical citation forms: exactly one accent each.
+        "ἤκουον",       # 1sg / 3pl impf - the form ἤκουόν *should* collapse to.
+        "ἤκουσε",
+        "ἤκουσεν",
+        "ἔπεμψε",
+        "ἔπεμψεν",
+        "ἔγραφον",
+        "ἔγραψε",
+        "ἐποίει",
+        "ἐποίουν",
+        # Recessive accent on antepenult: still ONE accent.
+        "ἐποιήσαμεν",
+        "ἐδιδάσκετε",
+        # Circumflex-bearing forms: still one accent.
+        "λῦσε",
+        "δῶκε",
+        "βλέπω",
+        "ἐδίδασκον",
+        # Single oxytone accent on the ultima (e.g. πᾶς, αὐτός): one
+        # accent only, must NOT trigger.
+        "αὐτός",
+        "πᾶς",
+        "πατήρ",
+        # Forms with NO accent (corpus glitch / stripped form): not
+        # flagged as enclitic-context.
+        "ακουω",
+        "παυω",
+        # Empty / single-char.
+        "",
+        "α",
+    ])
+    def test_clean_forms_pass(self, b, form):
+        assert not b.is_enclitic_context_form(form), \
+            f"clean form falsely flagged as enclitic-context: {form!r}"
+
+    def test_circumflex_on_ultima_not_flagged(self, b):
+        # The ultima MUST carry an acute (the enclitic-derived mark).
+        # A perispomenon ultima (circumflex) is the verb's own accent
+        # and must not trigger, even if there's another accent earlier
+        # somehow (defensive: such forms are rare but possible in OCR).
+        assert not b.is_enclitic_context_form("λῦε")
+        assert not b.is_enclitic_context_form("δοκεῖ")
+
+    def test_three_or_more_accents_not_flagged(self, b):
+        # We only handle the conservative two-mark shape. Forms with
+        # 3+ accent marks are corpus glitches we don't try to repair
+        # heuristically; let them fall through.
+        # (Construct an artificial 3-acute form to verify gating.)
+        # ή́ + κ + ο + ύ + ο + ν́ -> 3 acutes
+        weird = "η" + "́" + "κο" + "υ" + "́" + "ο" + "ν" + "́"
+        # NFC-compose
+        import unicodedata
+        weird = unicodedata.normalize("NFC", weird)
+        assert not b.is_enclitic_context_form(weird)
+
+
+# ---------------------------------------------------------------------------
+# Integration: enclitic-context filter must not break past-indicative cells
+# ---------------------------------------------------------------------------
+
+
+class TestEncliticContextDoesNotShadowGoodForms:
+    """End-to-end check: with the filter active, the canonical 1sg /
+    3sg / 3pl imperfect cells for ἀκούω, γράφω, διδάσκω, πέμπω, ποιέω
+    must come out single-accented. The filter drops the corpus's
+    enclitic-context form ἤκουόν, leaving the cell empty (or filled
+    by a clean variant); the synth pass then writes ἤκουον into the
+    1sg slot.
+
+    These tests exercise the end-to-end pipeline but are scoped to a
+    single small `--only` build run so they don't slow the suite.
+    """
+
+    @pytest.fixture(scope="class")
+    def paradigms(self):
+        """Build paradigms for a small lemma set, reusing the real data
+        files. Skips if data files are not present."""
+        import importlib.util
+        from pathlib import Path
+        repo_root = Path(__file__).resolve().parents[1]
+        data_dir = repo_root / "data"
+        if not (data_dir / "ag_pairs.json").exists():
+            pytest.skip("data/ag_pairs.json not present; skipping integration")
+        if not (data_dir / "glaux_pairs.json").exists():
+            pytest.skip("data/glaux_pairs.json not present; skipping")
+        spec = importlib.util.spec_from_file_location(
+            "build_grc_verb_paradigms",
+            repo_root / "build" / "build_grc_verb_paradigms.py",
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        only = {"ἀκούω"}
+        return mod.build_paradigms(only_lemmas=only)
+
+    def test_akouo_imperfect_1sg_clean(self, paradigms):
+        # The reported bug: previously emitted ἤκουόν (double accent).
+        # After the fix: clean ἤκουον.
+        entry = paradigms.get("ἀκούω")
+        assert entry is not None, "no paradigm built for ἀκούω"
+        forms = entry["forms"]
+        got = forms.get("active_imperfect_indicative_1sg")
+        assert got == "ἤκουον", \
+            f"active_imperfect_indicative_1sg = {got!r} (expected ἤκουον)"
+
+    @pytest.mark.parametrize("key", [
+        "active_imperfect_indicative_1sg",
+        "active_imperfect_indicative_2sg",
+        "active_imperfect_indicative_3sg",
+        "active_imperfect_indicative_1pl",
+        "active_imperfect_indicative_2pl",
+        "active_imperfect_indicative_3pl",
+        "middle_imperfect_indicative_1sg",
+        "middle_imperfect_indicative_3sg",
+        "middle_imperfect_indicative_3pl",
+    ])
+    def test_akouo_imperfect_cells_single_accent(self, paradigms, key):
+        """Every imperfect-indicative cell in ἀκούω's paradigm must
+        have exactly one accent mark. The full set covers 1sg/2sg/3sg/
+        1pl/2pl/3pl active and 1sg/3sg/3pl middle - the cells that the
+        glaux corpus contributed enclitic-context variants for in the
+        original bug report.
+        """
+        import unicodedata
+        entry = paradigms.get("ἀκούω")
+        assert entry is not None
+        forms = entry["forms"]
+        f = forms.get(key)
+        if f is None:
+            pytest.skip(f"cell {key!r} not present (no source attests it)")
+        nfd = unicodedata.normalize("NFD", f)
+        n_accents = sum(1 for c in nfd if c in ("́", "͂"))
+        assert n_accents == 1, \
+            f"{key} = {f!r} has {n_accents} accents (expected 1)"
+
+
+# ---------------------------------------------------------------------------
+# Enclitic-context: grave-on-ultima coverage
+# ---------------------------------------------------------------------------
+
+
+class TestEncliticContextGraveOnUltima:
+    """An oxytone host word followed by an enclitic in running text often
+    surfaces with grave (not acute) on the ultima after editorial
+    accent-normalisation: ``ἐποίησὲ`` is the same enclitic-context shape
+    as ``ἐποίησέ`` (= ἐποίησε + τι), just rendered with the running-text
+    grave that an oxytone gets when more text follows. Both shapes must
+    be filtered, otherwise ``pick_best_form``'s polytonic-richness
+    tiebreaker preferred ``ἐποίησὲ`` over the canonical ``ἐποίησε``,
+    and the subsequent grave-to-acute pass turned the wrong winner into
+    the bogus ``ἐποίησέ``.
+    """
+
+    @pytest.mark.parametrize("form", [
+        # Aorist + grave-on-ultima from running text after enclitic.
+        "ἐποίησὲ",       # ποιέω 3sg aor + (τι) with grave normalisation
+        "ἤκουσὲ",        # ἀκούω 3sg aor variant
+        "ἔπεμψὲ",        # πέμπω 3sg aor variant
+        # Synthetic but morphologically sound: imperfect 1sg with grave.
+        "ἤκουὸν",
+    ])
+    def test_grave_on_ultima_detected(self, b, form):
+        assert b.is_enclitic_context_form(form), \
+            f"grave-on-ultima enclitic-context not flagged: {form!r}"
+
+    @pytest.mark.parametrize("form", [
+        # Oxytone words whose ultima carries grave because more text
+        # follows in running prose are GENUINE Greek words (αὐτός in
+        # mid-sentence -> αὐτὸς). They must NOT be flagged as enclitic-
+        # context: there is no other accent earlier in the word.
+        "αὐτὸς",
+        "πατὴρ",
+    ])
+    def test_grave_oxytone_alone_not_flagged(self, b, form):
+        assert not b.is_enclitic_context_form(form), \
+            f"single-grave oxytone falsely flagged: {form!r}"
+
+
+# ---------------------------------------------------------------------------
+# Iota-dropped contract-stem detector
+# ---------------------------------------------------------------------------
+
+
+class TestIsIotaDroppedContractForm:
+    """Hellenistic / Ionic spelling drops the iota in the contract stem
+    of an -ιέω verb: ποιέω -> ποέω, ἐποίησα -> ἐπόησα, ἐποίει -> ἐπόει.
+    Wiktionary lists ποέω as an alternative form of ποιέω and emits
+    its iota-less inflectional table under the canonical ποιέω lemma;
+    glaux likewise lemmatises iota-less Hellenistic tokens to ποιέω.
+    Once both sources pool, the ``-len(f)`` tiebreaker in
+    ``pick_best_form`` picks ἐπόησα over ἐποίησα and every past-
+    indicative cell ends up reporting the wrong canonical form.
+    """
+
+    @pytest.mark.parametrize("form,lemma", [
+        # Bug-report verbs.
+        ("ἐπόησα", "ποιέω"),
+        ("ἐπόησε", "ποιέω"),
+        ("ἐπόησέ", "ποιέω"),
+        ("ἐπόησαν", "ποιέω"),
+        ("ἐπόει", "ποιέω"),
+        ("ἐπόουν", "ποιέω"),
+        ("ποήσει", "ποιέω"),
+        ("ποήσεις", "ποιέω"),
+        # Bare alt headword (the ποέω lemma cited under ποιέω).
+        ("ποέω", "ποιέω"),
+        ("ποέει", "ποιέω"),
+        ("ποέεις", "ποιέω"),
+        # Prefixed compounds inherit the same orthographic pattern.
+        ("μετεπόησα", "μεταποιέω"),
+        ("ἐνεπόησα", "ἐμποιέω"),
+        ("περιεπόησα", "περιποιέω"),
+    ])
+    def test_iota_dropped_detected(self, b, form, lemma):
+        assert b.is_iota_dropped_contract_form(form, lemma), \
+            f"iota-dropped not detected: {form!r} for {lemma!r}"
+
+    @pytest.mark.parametrize("form,lemma", [
+        # Canonical Attic forms with the iota intact: must not flag.
+        ("ἐποίησα", "ποιέω"),
+        ("ἐποίησε", "ποιέω"),
+        ("ἐποίησεν", "ποιέω"),
+        ("ποίησα", "ποιέω"),
+        ("ἐποίει", "ποιέω"),
+        ("ἐποίουν", "ποιέω"),
+        ("ἐποίησάμην", "ποιέω"),
+        # Compound prefix with the iota intact.
+        ("μετεποίησα", "μεταποιέω"),
+        ("ἐνεποίησα", "ἐμποιέω"),
+        # Non-contract, non-ιέω lemmas: filter must always return False.
+        ("ἔγραψα", "γράφω"),
+        ("ἤκουσα", "ἀκούω"),
+        ("ἐπέμπον", "πέμπω"),
+        ("ἐδίδασκον", "διδάσκω"),
+        # ε-contract WITHOUT iota in the stem: filter doesn't fire.
+        ("ἐκίνησα", "κινέω"),
+        ("ἐδόκησα", "δοκέω"),
+        # α-contract: filter never fires (lemma doesn't end in -ιεω).
+        ("ἐτίμησα", "τιμάω"),
+        # Empty / degenerate.
+        ("", "ποιέω"),
+        ("ἐποίησα", ""),
+    ])
+    def test_clean_forms_pass(self, b, form, lemma):
+        assert not b.is_iota_dropped_contract_form(form, lemma), \
+            f"clean form falsely flagged: {form!r} for {lemma!r}"
+
+
+# ---------------------------------------------------------------------------
+# Integration: ποιέω canonical past-indicative cells survive synth + filter
+# ---------------------------------------------------------------------------
+
+
+class TestPoieoCanonicalPastIndicatives:
+    """End-to-end check on ποιέω: with the iota-dropped filter active
+    AND the grave-on-ultima extension to the enclitic detector AND the
+    sentence-initial form lowercase pass, the canonical past-indicative
+    cells must be the iota-bearing Attic forms with a single accent
+    each. Replicates the bug report.
+    """
+
+    @pytest.fixture(scope="class")
+    def paradigms(self):
+        import importlib.util
+        from pathlib import Path
+        repo_root = Path(__file__).resolve().parents[1]
+        data_dir = repo_root / "data"
+        if not (data_dir / "ag_pairs.json").exists():
+            pytest.skip("data/ag_pairs.json not present")
+        if not (data_dir / "glaux_pairs.json").exists():
+            pytest.skip("data/glaux_pairs.json not present")
+        spec = importlib.util.spec_from_file_location(
+            "build_grc_verb_paradigms",
+            repo_root / "build" / "build_grc_verb_paradigms.py",
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod.build_paradigms(only_lemmas={"ποιέω"})
+
+    @pytest.mark.parametrize("key,expected", [
+        ("active_aorist_indicative_1sg", "ἐποίησα"),
+        ("active_aorist_indicative_3sg", "ἐποίησε"),
+        ("active_aorist_indicative_3pl", "ἐποίησαν"),
+        ("active_imperfect_indicative_1sg", "ἐποίουν"),
+        ("active_imperfect_indicative_3sg", "ἐποίει"),
+        ("active_imperfect_indicative_3pl", "ἐποίουν"),
+    ])
+    def test_canonical_attic_form(self, paradigms, key, expected):
+        entry = paradigms.get("ποιέω")
+        assert entry is not None, "no paradigm for ποιέω"
+        got = entry["forms"].get(key)
+        assert got == expected, \
+            f"{key} = {got!r} (expected {expected!r})"
+
+
+# ---------------------------------------------------------------------------
+# Integration: γράφω / διδάσκω / πέμπω past-indicative cells single-accented
+# ---------------------------------------------------------------------------
+
+
+class TestThematicVerbsPastIndicativeAccents:
+    """End-to-end check that γράφω, διδάσκω, πέμπω each emit the
+    canonical 1sg / 3sg past-indicative forms reported in the bug
+    report after the enclitic + iota-dropped filter pass and synth
+    fallback finishes.
+    """
+
+    @pytest.fixture(scope="class")
+    def paradigms(self):
+        import importlib.util
+        from pathlib import Path
+        repo_root = Path(__file__).resolve().parents[1]
+        data_dir = repo_root / "data"
+        if not (data_dir / "ag_pairs.json").exists():
+            pytest.skip("data/ag_pairs.json not present")
+        if not (data_dir / "glaux_pairs.json").exists():
+            pytest.skip("data/glaux_pairs.json not present")
+        spec = importlib.util.spec_from_file_location(
+            "build_grc_verb_paradigms",
+            repo_root / "build" / "build_grc_verb_paradigms.py",
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod.build_paradigms(only_lemmas={"γράφω", "διδάσκω", "πέμπω"})
+
+    @pytest.mark.parametrize("lemma,key,expected", [
+        # γράφω: bug report had ἔγραφόν (double accent); expect ἔγραφον.
+        ("γράφω", "active_imperfect_indicative_1sg", "ἔγραφον"),
+        ("γράφω", "active_imperfect_indicative_3pl", "ἔγραφον"),
+        ("γράφω", "active_aorist_indicative_1sg", "ἔγραψα"),
+        ("γράφω", "active_aorist_indicative_3sg", "ἔγραψε"),
+        # διδάσκω: bug report had ἐδίδασκόν; expect ἐδίδασκον.
+        ("διδάσκω", "active_imperfect_indicative_1sg", "ἐδίδασκον"),
+        ("διδάσκω", "active_imperfect_indicative_3pl", "ἐδίδασκον"),
+        ("διδάσκω", "active_aorist_indicative_1sg", "ἐδίδαξα"),
+        ("διδάσκω", "active_aorist_indicative_3sg", "ἐδίδαξε"),
+        # πέμπω: bug report had Ἔπεμψέ (capital + double accent);
+        # expect ἔπεμψε with single accent and lowercase.
+        ("πέμπω", "active_aorist_indicative_1sg", "ἔπεμψα"),
+        ("πέμπω", "active_aorist_indicative_3sg", "ἔπεμψε"),
+        ("πέμπω", "active_imperfect_indicative_1sg", "ἔπεμπον"),
+        ("πέμπω", "active_imperfect_indicative_3sg", "ἔπεμπε"),
+    ])
+    def test_canonical_form(self, paradigms, lemma, key, expected):
+        entry = paradigms.get(lemma)
+        assert entry is not None, f"no paradigm for {lemma!r}"
+        got = entry["forms"].get(key)
+        assert got == expected, \
+            f"{lemma} {key} = {got!r} (expected {expected!r})"

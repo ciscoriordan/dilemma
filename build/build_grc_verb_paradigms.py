@@ -422,6 +422,218 @@ def is_crasis_form(form: str) -> bool:
     return False
 
 
+# ---------------------------------------------------------------------------
+# Enclitic-context (extra acute on ultima) detector
+#
+# AGDT / treebank corpora preserve every accent that appears on the surface
+# token in the running text, including the "extra" acute that a following
+# enclitic (τις, μοι, σε, με, γε, ...) projects back onto its host word.
+# The standard rules (Smyth #183-187): an enclitic immediately following a
+# host whose primary accent is on the antepenult, OR a perispomenon penult,
+# OR a properispomenon, "echoes" an acute on the ultima of the host. So
+# ``ἤκουόν τι`` (= ἤκουον + τι, "I heard something") shows up in the
+# treebank as a single host token ``ἤκουόν`` carrying both the original
+# acute on η and the enclitic-derived acute on ο.
+#
+# Greek verbs are recessive: a finite verb form in isolation has exactly
+# one accent. Any verb token tagged as a single-word paradigm cell that
+# carries a primary accent + an extra acute on the ultima vowel is
+# guaranteed to be one of these enclitic-context surface forms, NOT a
+# canonical citation form. We detect them and drop them at the ingestion
+# stage so the canonical paradigm slice gets the clean form (from
+# Wiktionary / kaikki, or from synthesised principal-parts templating).
+#
+# This pattern matters because glaux is the only source for some past-
+# indicative cells (kaikki Wiktionary tables don't expose a 1sg imperfect
+# tag for many verbs, so synthesis is the fallback). Without this filter
+# the bad enclitic-context form wins ``pick_best_form`` as the only
+# attested variant, and the synth pass declines to overwrite it.
+# ---------------------------------------------------------------------------
+
+
+_GREEK_VOWELS = set("αεηιουωΑΕΗΙΟΥΩ")
+_COMBINING_ACUTE = "́"
+_COMBINING_CIRCUMFLEX = "͂"  # GREEK PERISPOMENI
+_COMBINING_GRAVE = "̀"
+
+
+def _vowel_marks_per_base(form: str):
+    """Return list of (base_char, has_acute, has_circumflex, has_grave) for
+    each base (non-combining) NFD character in ``form``. Marks are
+    accumulated onto the immediately preceding base character.
+    """
+    nfd = unicodedata.normalize("NFD", form)
+    out = []
+    cur = None
+    cur_acute = cur_circ = cur_grave = False
+    for c in nfd:
+        if not unicodedata.combining(c):
+            if cur is not None:
+                out.append((cur, cur_acute, cur_circ, cur_grave))
+            cur = c
+            cur_acute = cur_circ = cur_grave = False
+        else:
+            if c == _COMBINING_ACUTE:
+                cur_acute = True
+            elif c == _COMBINING_CIRCUMFLEX:
+                cur_circ = True
+            elif c == _COMBINING_GRAVE:
+                cur_grave = True
+    if cur is not None:
+        out.append((cur, cur_acute, cur_circ, cur_grave))
+    return out
+
+
+def _ultima_vowel_index(marks):
+    """Return the index of the rightmost vowel in ``marks``, or -1 if no
+    vowel is present."""
+    for i in range(len(marks) - 1, -1, -1):
+        if marks[i][0] in _GREEK_VOWELS:
+            return i
+    return -1
+
+
+def is_enclitic_context_form(form: str) -> bool:
+    """True when ``form`` carries a primary accent plus an extra acute /
+    grave on the ultima, matching the surface pattern of a host word
+    followed by an enclitic.
+
+    A single-token Greek verb form has exactly one lexical accent. An
+    extra acute appearing on the ultima (the rightmost vowel of the
+    word) when there is already a primary accent earlier is the
+    canonical signature of enclitic accent-projection: e.g. ``ἤκουόν``
+    is the surface of ``ἤκουον + τι`` ("I heard something"), with τι's
+    accent transferred onto the host. The treebank annotates this as a
+    single token in the cell where a clean ``ἤκουον`` belongs.
+
+    The same projection also surfaces with a grave on the ultima
+    (``ἐποίησὲ``) when the editorial convention wrote a "no-following-
+    enclitic" oxytone — both forms originate as a host plus a clitic;
+    only the editor's accent normalisation differs. We treat both shapes
+    identically: an acute *or* grave on the ultima alongside one earlier
+    lexical accent flags the cell as enclitic-context noise.
+
+    Returns True only on the conservative two-mark shape: exactly one
+    accent earlier in the word AND an acute or grave (not circumflex)
+    on the ultima vowel. Forms with three or more accents, or with
+    circumflex on the ultima, or with the only accent on the ultima,
+    are NOT flagged - they fall through to the regular pipeline.
+
+    Why this is safe: Greek verbs are recessive. No clean canonical
+    verb form in any tense / mood / voice carries two accent marks.
+    The 17K-form glaux corpus survey shows >99% of double-accent verb
+    tokens match this exact shape; the remaining <1% are typo /
+    untokenised-multi-word artifacts that we'd want to drop anyway.
+    """
+    if not form:
+        return False
+    marks = _vowel_marks_per_base(form)
+    if len(marks) < 2:
+        return False
+    n_acute = sum(1 for m in marks if m[1])
+    n_circ = sum(1 for m in marks if m[2])
+    n_grave = sum(1 for m in marks if m[3])
+    if n_acute + n_circ + n_grave != 2:
+        return False
+    ult = _ultima_vowel_index(marks)
+    if ult < 0:
+        return False
+    # Ultima vowel must carry an acute or grave (the enclitic-derived
+    # mark, possibly normalised to grave by the editor) and NOT a
+    # circumflex (a perispomenon ultima is the verb's own accent, not
+    # enclitic-derived).
+    if marks[ult][2]:
+        return False
+    if not (marks[ult][1] or marks[ult][3]):
+        return False
+    # Exactly one OTHER accent earlier in the word: that's the verb's
+    # original lexical accent. If the only accent in the word is on the
+    # ultima we already returned via the n=2 check (n_acute+n_circ+
+    # n_grave==2 would never be hit with a single mark), but guard
+    # explicitly.
+    earlier_marks = sum(1 for i, m in enumerate(marks)
+                        if i < ult and (m[1] or m[2] or m[3]))
+    return earlier_marks == 1
+
+
+# ---------------------------------------------------------------------------
+# Iota-dropped contract-stem detector
+#
+# Hellenistic / Ionic spelling routinely drops the iota in the contract
+# stem of an ``-ιέω`` verb: ποιέω -> ποέω, ἐποίησα -> ἐπόησα, ἐποίει ->
+# ἐπόει. Wiktionary (and therefore kaikki) lists ``ποέω`` as an
+# alternative to ``ποιέω`` and emits all of its inflectional forms under
+# the ``ποιέω`` lemma. Glaux likewise lemmatises iota-less Hellenistic
+# tokens to the canonical Attic ``ποιέω``. Once both are pooled, the
+# ``pick_best_form`` ``-len(f)`` tiebreaker picks the iota-less variant
+# over the canonical Attic spelling (``ἐπόησα`` < ``ἐποίησα``), and
+# every past-indicative cell ends up reporting the wrong canonical form.
+#
+# The fix is to drop iota-less forms whose lemma is a -ιέω / -ιέομαι
+# contract verb, BEFORE ``pick_best_form`` runs. The synth fallback
+# (``synth_verb_moods.synthesize_past_indicatives``) and the canonical
+# Wiktionary ``ποιέω`` table will fill the slot with the correct
+# iota-bearing surface form.
+# ---------------------------------------------------------------------------
+
+
+import re as _re_iota  # local alias to avoid colliding with module-level imports
+
+_GREEK_CONS_FOR_IOTA = "βγδζθκλμνξπρστφχψ"
+_GREEK_VOWELS_LOWER = "αεηιοωυ"
+
+
+def is_iota_dropped_contract_form(form: str, lemma: str) -> bool:
+    """True when ``form`` is the iota-less Hellenistic / Ionic spelling
+    of an ``-ιέω`` (or ``-ιέομαι``) contract verb whose canonical Attic
+    spelling carries the contract-stem iota.
+
+    The lemma must end in ``-ιέω`` or ``-ιέομαι`` after diacritics are
+    stripped: ποιέω, ἐμποιέω, μεταποιέω, etc. The canonical contract
+    junction is ``CV + ι + (vowel)`` — e.g. ``ποι + η`` in the aor stem
+    ``ποιησ-``. The iota-less spelling collapses ``ποι`` to ``πο``,
+    yielding ``πο + η`` (``ποη-``), ``πο + ε`` (``ποε-``), ``πο + ει``
+    (``ποει-``), or ``πο + ου`` (``ποου-`` / ``ποουν``).
+
+    The detector tests whether the form's diacritic-stripped surface
+    contains the lemma's pre-iota CV pair followed directly by a
+    contract-fused vowel WITHOUT the canonical iota in between. Forms
+    that contain the canonical CV+ι sequence (i.e. the iota survives)
+    are NOT flagged. This keeps proper Attic forms safe and only drops
+    the orthographic variants.
+
+    Returns False for non-contract lemmas, athematic lemmas, lemmas
+    where the pre-iota slot isn't a CV pair, and forms whose
+    diacritic-stripped surface doesn't contain the canonical ``-CV``
+    region at all (suppletive variants, prefix-only fragments, etc.).
+    """
+    if not form or not lemma:
+        return False
+    lb = strip_accents(lemma).lower()
+    fb = strip_accents(form).lower().rstrip("'’ʼ᾽ʹ")
+    if not fb:
+        return False
+    if lb.endswith("ιεω"):
+        i_idx = len(lb) - 3
+    elif lb.endswith("ιεομαι"):
+        i_idx = len(lb) - 6
+    else:
+        return False
+    # Need at least 2 chars before the iota: CV.
+    if i_idx < 2:
+        return False
+    cv = lb[i_idx - 2:i_idx]
+    if cv[0] not in _GREEK_CONS_FOR_IOTA:
+        return False
+    if cv[1] not in _GREEK_VOWELS_LOWER:
+        return False
+    canonical_pat = _re_iota.escape(cv) + r"ι[" + _GREEK_VOWELS_LOWER + r"]"
+    dropped_pat = _re_iota.escape(cv) + r"(η|ει|ου|ω|ε|α)"
+    if _re_iota.search(canonical_pat, fb):
+        return False
+    return bool(_re_iota.search(dropped_pat, fb))
+
+
 # Iterative -σκ- infix endings. The Homeric iterative imperfect inserts
 # -σκ- between the present stem and a thematic personal ending. Active
 # endings: -ον / -ες / -ε(ν) / -ομεν / -ετε / -ον. Middle/passive
@@ -897,6 +1109,8 @@ def build_paradigms(only_lemmas=None):
     by_lemma_dialect_key = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
     dropped_internal_capital = 0
     dropped_crasis = 0
+    dropped_enclitic = 0
+    dropped_iota_dropped = 0
     rerouted_iterative = 0
     rerouted_unaugmented = 0
     rerouted_root_aorist_passive = 0
@@ -914,6 +1128,16 @@ def build_paradigms(only_lemmas=None):
             if has_internal_capital(lemma_raw):
                 dropped_internal_capital += 1
                 continue
+            # Glaux preserves sentence-initial capitalisation on tokens
+            # (``Ἐποίησα`` mid-sentence, ``Ἤκουσα`` at quote start). The
+            # canonical paradigm cell is always lowercase; an uppercase
+            # leading char would otherwise cause ``pick_best_form``'s
+            # alphabetical tiebreaker to prefer ``Ἐποίησα`` over
+            # ``ἐποίησα`` because capital ``Ε`` (U+0395) sorts before
+            # lowercase ``ε`` (U+03B5). Lowercase the leading char on
+            # the form too.
+            if form and form[0].isupper():
+                form = lowercase_initial(form)
             lemma = canonicalize_lemma(lemma_raw)
             if lemma is None:
                 continue
@@ -935,6 +1159,29 @@ def build_paradigms(only_lemmas=None):
             # dialect slice.
             if is_crasis_form(form):
                 dropped_crasis += 1
+                continue
+            # Enclitic-context forms (ἤκουόν from ἤκουον + τι) carry an
+            # extra acute on the ultima projected from a following
+            # enclitic. They are surface artifacts of the running text,
+            # not canonical paradigm cells. Drop entirely so the
+            # canonical slot stays open for the clean Wiktionary form
+            # or, failing that, the synthesised form. This is
+            # particularly important for past-indicative cells like
+            # ἀκούω 1sg imperfect where glaux is the only source and
+            # the synth pass only writes into empty cells.
+            if is_enclitic_context_form(form):
+                dropped_enclitic += 1
+                continue
+            # Iota-dropped Hellenistic / Ionic spellings (ποιέω -> ἐπόησα
+            # for ἐποίησα) come in under the canonical Attic lemma
+            # because Wiktionary lists ``ποέω`` as an alt for ``ποιέω``
+            # and pools both inflectional tables. The iota-less spelling
+            # would otherwise win ``pick_best_form`` on shorter length
+            # over the canonical Attic form. Drop these so the synth
+            # fallback (or a canonical Wiktionary cell) supplies the
+            # correct iota-bearing surface form.
+            if is_iota_dropped_contract_form(form, lemma):
+                dropped_iota_dropped += 1
                 continue
             dialect = extract_dialect(tags)
             # Glaux has no dialect axis, so Homeric / Epic forms come
@@ -961,6 +1208,12 @@ def build_paradigms(only_lemmas=None):
               f"{dropped_internal_capital:,}")
     if dropped_crasis:
         print(f"  dropped (crasis / sandhi): {dropped_crasis:,}")
+    if dropped_enclitic:
+        print(f"  dropped (enclitic-context double accent): "
+              f"{dropped_enclitic:,}")
+    if dropped_iota_dropped:
+        print(f"  dropped (iota-dropped contract spelling): "
+              f"{dropped_iota_dropped:,}")
     if rerouted_iterative:
         print(f"  rerouted to epic (Homeric iterative imperfect): "
               f"{rerouted_iterative:,}")
