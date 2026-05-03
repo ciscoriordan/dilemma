@@ -1235,15 +1235,19 @@ takes the same parsed principal parts and procedurally synthesises the
 missing finite-mood cells (subjunctive / optative / imperative / aorist
 infinitive) for thematic -ω verbs via `build/synth_verb_moods.py`, plus
 the full case×gender×number declension of every participle slot via
-`build/synth_verb_participles.py`. Stem-templating only fills cells
-that aren't already attested by Wiktionary or GLAUx; real corpus cells
-are never overwritten.
+`build/synth_verb_participles.py`, plus the past-indicative 1sg cells
+(active / middle imperfect; active / middle / passive aorist) for any
+verb where kaikki dropped the tense tag and the unaugmented Homeric
+variants got correctly filtered out into the epic dialect slice. Stem-
+templating only fills cells that aren't already attested by Wiktionary
+or GLAUx; real corpus cells are never overwritten.
 
 Coverage: on the 27K-verb output the synthesis adds ~278K finite-mood
-cells, ~775K participle cells, ~15K aor-2 cells, and ~430K contract
-cells (active + middle present participle). Comparing against
-jtauber/greek-inflexion's hand-curated paradigms on the 3.6K shared
-lemmas, dilemma's per-mood coverage is currently:
+cells, ~775K participle cells, ~15K aor-2 cells, ~430K contract cells
+(active + middle present participle), and ~36K past-indicative 1sg
+cells. Comparing against jtauber/greek-inflexion's hand-curated
+paradigms on the 3.6K shared lemmas, dilemma's per-mood coverage is
+currently:
 
 | mood        | dilemma / jtauber | notes                             |
 |-------------|-------------------|-----------------------------------|

@@ -633,6 +633,7 @@ def synthesize_missing_moods(results: dict) -> tuple[int, int]:
             synthesize_mp_moods,
             synthesize_aor2_moods,
             synthesize_contract_moods,
+            synthesize_past_indicatives,
         )
         from lsj_principal_parts import parse_principal_parts
     except ImportError as e:
@@ -645,6 +646,7 @@ def synthesize_missing_moods(results: dict) -> tuple[int, int]:
     mp_cells_added = 0
     aor2_cells_added = 0
     contract_cells_added = 0
+    past_cells_added = 0
     cells_skipped_overlap = 0
     for lemma, paradigm in results.items():
         head_text = head_texts.get(lemma, "")
@@ -668,14 +670,20 @@ def synthesize_missing_moods(results: dict) -> tuple[int, int]:
             templated_contract = synthesize_contract_moods(lemma, parts)
         except Exception:
             templated_contract = {}
+        try:
+            templated_past = synthesize_past_indicatives(lemma, parts)
+        except Exception:
+            templated_past = {}
         # Track per-voice to report stats; merge for the actual write.
-        if not (templated or templated_mp or templated_aor2 or templated_contract):
+        if not (templated or templated_mp or templated_aor2
+                or templated_contract or templated_past):
             continue
         forms = paradigm.setdefault("forms", {})
         added = 0
         added_mp = 0
         added_aor2 = 0
         added_contract = 0
+        added_past = 0
         for key, val in templated.items():
             if key in forms:
                 cells_skipped_overlap += 1
@@ -700,21 +708,31 @@ def synthesize_missing_moods(results: dict) -> tuple[int, int]:
                 continue
             forms[key] = val
             added_contract += 1
-        if added or added_mp or added_aor2 or added_contract:
+        for key, val in templated_past.items():
+            if key in forms:
+                cells_skipped_overlap += 1
+                continue
+            forms[key] = val
+            added_past += 1
+        if (added or added_mp or added_aor2 or added_contract
+                or added_past):
             verbs_touched += 1
             cells_added += added
             mp_cells_added += added_mp
             aor2_cells_added += added_aor2
             contract_cells_added += added_contract
+            past_cells_added += added_past
             paradigm["form_count"] = len(forms)
     print(f"  synthesised active cells: {cells_added:,} across "
           f"{verbs_touched:,} verbs")
     print(f"  synthesised mp/passive cells: {mp_cells_added:,}")
     print(f"  synthesised aor-2 cells: {aor2_cells_added:,}")
     print(f"  synthesised contract cells: {contract_cells_added:,}")
+    print(f"  synthesised past-indicative 1sg cells: {past_cells_added:,}")
     print(f"  cells skipped (already present): {cells_skipped_overlap:,}")
     return verbs_touched, (
-        cells_added + mp_cells_added + aor2_cells_added + contract_cells_added
+        cells_added + mp_cells_added + aor2_cells_added
+        + contract_cells_added + past_cells_added
     )
 
 

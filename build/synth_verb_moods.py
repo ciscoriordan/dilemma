@@ -79,6 +79,7 @@ __all__ = [
     "synthesize_mp_moods",
     "synthesize_aor2_moods",
     "synthesize_contract_moods",
+    "synthesize_past_indicatives",
     "is_thematic_omega",
     "is_contract",
     "contract_class",
@@ -1979,6 +1980,488 @@ def synthesize_contract_moods(
     for (p, n), end in imp_mid.items():
         out[f"middle_present_imperative_{p}{n}"] = bare_no_accent + end
     out["middle_present_infinitive"] = bare_no_accent + inf_mid
+
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Past-indicative 1sg synthesis (imperfect / aorist active / middle / passive)
+# ---------------------------------------------------------------------------
+#
+# kaikki occasionally drops tense tags on Wiktionary past-indicative cells,
+# so high-frequency verbs end up with the only attested 1sg-imperfect or
+# 1sg-aorist forms tagged as Homeric (which `build_grc_verb_paradigms` now
+# correctly filters out into ``dialects.epic``). The result: empty 1sg
+# slots in the canonical Attic slice.
+#
+# This module fills those gaps by templating the 1sg from principal parts
+# (when the parts dict is populated by :func:`lsj_principal_parts.parse_principal_parts`)
+# plus the lemma's present stem. Aorist 1sg cells come straight from the
+# principal-parts dict (the canonical principal part IS the 1sg active /
+# middle / passive aorist). Imperfect 1sg cells are built procedurally from
+# the present stem + augment + thematic ending.
+#
+# Conservatism rules:
+#   * Athematic -μι / -μαι verbs are skipped (covered by dilemma's own
+#     athematic synthesis where it exists).
+#   * Contract verbs (-άω / -έω / -όω) get separate ending tables for the
+#     imperfect (the contract vowel + thematic vowel fuse into ω / ουν).
+#   * Verbs whose lemma starts with η-, ω-, or a long-vowel diphthong are
+#     ambiguous on temporal augment (the augmented form looks identical to
+#     the unaugmented one), and we bail.
+#   * Prefixed compounds (lemma starts with ε- and the principal part
+#     also starts with ε-) get the augment internally between prefix and
+#     root; we don't try to insert it.
+#   * Aorist cells whose principal-part 1sg ending shape doesn't match the
+#     expected category (e.g. -μην for an aor_med slot) are skipped to
+#     avoid templating wrong-voice forms.
+
+
+# Vowel-lengthening map for temporal augment. Mirrors
+# ``dilemma.morph_diff._AUGMENT_VOWEL_LENGTHENINGS`` but lives here so this
+# module stays import-light.
+_TEMPORAL_AUGMENT: Dict[str, str] = {
+    "α": "η",
+    "ε": "η",
+    "ο": "ω",
+    "ι": "ι",  # length unchanged in Attic, just marked long; we keep ι
+    "υ": "υ",  # length unchanged; we keep υ
+    "αι": "ῃ",
+    "ει": "ῃ",
+    "οι": "ῳ",
+    "αυ": "ηυ",
+    "ευ": "ηυ",
+}
+
+
+# Imperfect endings. Active and middle/passive have separate tables.
+# 1sg / 3pl active are homophonous (-ον). 1sg middle is ``-όμην``;
+# accent on the augment for short-stem verbs (ἐλυόμην, ἐγραφόμην) but
+# the synthesis here just appends without re-accenting -- the stem we
+# pass already carries its accent, and ``-όμην`` ends-accented gets
+# stripped onto the stem accent only when the cell is end-accented.
+_IMPF_ACT_END: Dict[tuple, str] = {
+    ("1", "sg"): "ον",
+    ("2", "sg"): "ες",
+    ("3", "sg"): "ε",
+    ("1", "pl"): "ομεν",
+    ("2", "pl"): "ετε",
+    ("3", "pl"): "ον",
+}
+
+
+_IMPF_MP_END: Dict[tuple, str] = {
+    ("1", "sg"): "όμην",
+    ("2", "sg"): "ου",
+    ("3", "sg"): "ετο",
+    ("1", "pl"): "όμεθα",
+    ("2", "pl"): "εσθε",
+    ("3", "pl"): "οντο",
+}
+
+
+# Imperfect endings for contract verbs. The contract vowel + thematic
+# vowel fuse with the personal ending. Tables encode the fused result
+# without an accent; the caller computes recessive accent on the
+# augmented + ending sequence.
+#
+# Note on quantity: the fused vowels (ω, ου, α) are LONG even when not
+# circumflexed. ``_ending_is_long`` reads this off the surface vowel,
+# so ω / ου trigger penult accent (no antepenult). For the α-contract
+# impf 3sg ``ἐτίμα`` the surface α is long (ᾱ from ε+α+ε), but we don't
+# mark macron here — the accent placement is computed off the ending
+# shape ``-α`` which heuristically reads as short. We pre-mark the
+# alpha-contract 3sg ending with a macron so the heuristic correctly
+# skips the antepenult on 2-syllable forms like ``ἐτίμα`` (penult ι is
+# the only valid recessive position on the augmented stem).
+_IMPF_CONTRACT_ALPHA_ACT: Dict[tuple, str] = {
+    ("1", "sg"): "ων",      # ε + α + ον -> ων
+    ("2", "sg"): "ας",      # ε + α + ες -> ας
+    ("3", "sg"): "α",       # ε + α + ε  -> α (ᾱ surface)
+    ("1", "pl"): "ωμεν",    # ε + α + ομεν -> ωμεν
+    ("2", "pl"): "ατε",     # ε + α + ετε -> ατε
+    ("3", "pl"): "ων",      # ε + α + ον  -> ων
+}
+
+
+_IMPF_CONTRACT_ALPHA_MP: Dict[tuple, str] = {
+    ("1", "sg"): "ωμην",    # ε + α + ομην -> ωμην
+    ("2", "sg"): "ω",       # ε + α + ου  -> ω
+    ("3", "sg"): "ατο",     # ε + α + ετο -> ατο
+    ("1", "pl"): "ωμεθα",
+    ("2", "pl"): "ασθε",
+    ("3", "pl"): "ωντο",
+}
+
+
+_IMPF_CONTRACT_EPSILON_ACT: Dict[tuple, str] = {
+    ("1", "sg"): "ουν",     # ε + ε + ον -> ουν
+    ("2", "sg"): "εις",     # ε + ε + ες -> εις
+    ("3", "sg"): "ει",      # ε + ε + ε  -> ει
+    ("1", "pl"): "ουμεν",   # ε + ε + ομεν -> ουμεν
+    ("2", "pl"): "ειτε",
+    ("3", "pl"): "ουν",
+}
+
+
+_IMPF_CONTRACT_EPSILON_MP: Dict[tuple, str] = {
+    ("1", "sg"): "ουμην",   # ε + ε + ομην -> ουμην
+    ("2", "sg"): "ου",
+    ("3", "sg"): "ειτο",
+    ("1", "pl"): "ουμεθα",
+    ("2", "pl"): "εισθε",
+    ("3", "pl"): "ουντο",
+}
+
+
+_IMPF_CONTRACT_OMICRON_ACT: Dict[tuple, str] = {
+    ("1", "sg"): "ουν",     # ε + ο + ον -> ουν
+    ("2", "sg"): "ους",
+    ("3", "sg"): "ου",
+    ("1", "pl"): "ουμεν",
+    ("2", "pl"): "ουτε",
+    ("3", "pl"): "ουν",
+}
+
+
+_IMPF_CONTRACT_OMICRON_MP: Dict[tuple, str] = {
+    ("1", "sg"): "ουμην",   # ε + ο + ομην -> ουμην
+    ("2", "sg"): "ου",
+    ("3", "sg"): "ουτο",
+    ("1", "pl"): "ουμεθα",
+    ("2", "pl"): "ουσθε",
+    ("3", "pl"): "ουντο",
+}
+
+
+def _is_thematic_deponent(lemma: str) -> bool:
+    """True iff ``lemma`` is a plain thematic -ομαι deponent.
+
+    Mirrors :func:`is_thematic_omega` but for middle/passive citation
+    forms ending in -ομαι (γίγνομαι, βούλομαι, ἀγωνίζομαι). Excludes
+    athematic -μαι (κεῖμαι, δύναμαι, ἵσταμαι, ἐπίσταμαι, ...) and
+    contract -άομαι / -έομαι / -όομαι (which use the contract pattern
+    on a deponent stem).
+    """
+    if not lemma:
+        return False
+    base = _strip_accents_lower(lemma)
+    if not base.endswith("ομαι"):
+        return False
+    if base.endswith(("αομαι", "εομαι", "οομαι")):
+        return False
+    # Athematic -μαι forms end in stem-vowel (α / υ) + μαι (κεῖμαι, δύναμαι).
+    # Thematic deponents always have a consonant or short vowel BEFORE the
+    # -ομαι. Since we already required ``-ομαι`` and ruled out the
+    # contract suffixes, what's left is the thematic deponent class.
+    if len(base) < 5:
+        return False
+    return True
+
+
+def _add_augment(stem: str) -> Optional[str]:
+    """Prepend a syllabic ε- (with smooth breathing) to a consonant-initial
+    stem, or lengthen a leading vowel (temporal augment).
+
+    Returns the augmented stem with all tonal accents stripped (the
+    caller re-applies a recessive accent on the full inflected form).
+    Returns ``None`` when the augment is morphologically ambiguous
+    (long-vowel-initial stems where the augmented form is
+    indistinguishable from the unaugmented one).
+    """
+    if not stem:
+        return None
+    nfc = unicodedata.normalize("NFC", stem)
+    plain = _strip_accents_lower(nfc)
+    if not plain:
+        return None
+    first = plain[0]
+    # Long-vowel-initial: augment is invisible. Bail.
+    if first in ("η", "ω"):
+        return None
+    # Diphthong / long-vowel cases that we don't lengthen: ει-, ευ-, ου-
+    # (already long), ἀ- with macron (ambiguous). Be conservative.
+    if len(plain) >= 2 and plain[:2] in ("ει", "ου"):
+        return None
+
+    # Strip any existing tonal accents from the stem; the caller
+    # re-applies a recessive accent on the full augmented form.
+    stripped_stem = _strip_tonal_accents(nfc)
+
+    # Consonant-initial: prepend syllabic ε with smooth breathing (ἐ-).
+    if first not in _GREEK_VOWELS:
+        # Augmented form: ἐ + stem.  Smooth breathing on the ε.
+        # We use the precomposed ἐ (U+1F10) for the smooth-breathing
+        # form, which is what jtauber and Wiktionary use.
+        return "ἐ" + stripped_stem
+
+    # Vowel-initial: temporal augment.  Lengthen the leading vowel.
+    # First check 2-character diphthongs (αι/ει/οι/αυ/ευ) before single
+    # characters.
+    two = plain[:2] if len(plain) >= 2 else ""
+    if two in _TEMPORAL_AUGMENT:
+        return _replace_initial_vowels(stripped_stem, 2, _TEMPORAL_AUGMENT[two])
+    if first in _TEMPORAL_AUGMENT:
+        target = _TEMPORAL_AUGMENT[first]
+        # Skip when target == first (η/ω/ι/υ already long) -- that's
+        # covered by the η/ω bail above for η/ω, and ι/υ are
+        # quantitatively long but not orthographically distinct.
+        if target == first:
+            return None
+        return _replace_initial_vowels(stripped_stem, 1, target)
+    return None
+
+
+def _replace_initial_vowels(form: str, count: int, replacement: str) -> str:
+    """Replace the first ``count`` base characters of ``form`` with
+    ``replacement``, preserving any breathing mark that was attached
+    to the first character (rough / smooth) and dropping tonal accents
+    on the replaced segment. The replacement string is used as-is.
+    """
+    nfd = unicodedata.normalize("NFD", form)
+    chars = list(nfd)
+    base_seen = 0
+    breathing: Optional[str] = None
+    keep_marks: list[str] = []
+    i = 0
+    while i < len(chars) and base_seen < count:
+        c = chars[i]
+        if not unicodedata.combining(c):
+            base_seen += 1
+        else:
+            # Collect breathing mark from the FIRST base char's combining
+            # marks; drop tonal accents from all replaced segments.
+            if c in ("̓", "̔") and breathing is None:
+                breathing = c
+            # Macron / breve quantity marks: drop, replacement implies length.
+        i += 1
+    rest = "".join(chars[i:])
+    new = replacement
+    if breathing is not None:
+        # Insert breathing after the FIRST base char of the replacement.
+        # The replacement is plain Greek (no diacritics), so we splice
+        # breathing in at NFD index 1 of the first character.
+        nfd_repl = unicodedata.normalize("NFD", replacement)
+        repl_chars = list(nfd_repl)
+        if repl_chars:
+            # Find index after the first base char.
+            j = 1
+            while j < len(repl_chars) and unicodedata.combining(repl_chars[j]):
+                j += 1
+            new = "".join(repl_chars[:j]) + breathing + "".join(repl_chars[j:])
+    return unicodedata.normalize("NFC", new + rest)
+
+
+def _imperfect_active_stem(lemma: str) -> Optional[str]:
+    """Return the augmented imperfect-active stem for a thematic -ω
+    lemma, or None when synthesis isn't safe.
+
+    The returned stem carries the augment but NOT the imperfect ending;
+    the caller appends the ending. For ``λύω`` -> ``ἐλυ``; ``ἀκούω`` ->
+    ``ἤκου``; ``γράφω`` -> ``ἔγραφ``.
+
+    Bails when the lemma starts with η/ω (augment invisible), starts
+    with ει- / ου- (already long), or is a contract / athematic / aor-2
+    pattern that doesn't fit the simple thematic mould.
+    """
+    if not lemma:
+        return None
+    pres_stem = _present_stem(lemma)
+    if not pres_stem:
+        return None
+    # Check for prefixed-compound shape: stem starts with ε- AND the
+    # next character is a vowel (covers ἐπι-, ἐξ-, ἐν-, ἐκ-). We bail
+    # because the augment goes between the prefix and the root, and we
+    # can't reliably split the prefix without a morphological dictionary.
+    plain = _strip_accents_lower(pres_stem)
+    if plain.startswith("ε") and len(plain) >= 2:
+        # ε followed by another vowel (diphthong / hiatus) is genuine
+        # initial-ε; no compound.  ε followed by a consonant could be
+        # the root or a compound prefix.  We bail conservatively here:
+        # plain ε-initial verbs whose augmented imperfect is εἰ- (ἐθέλω
+        # -> ἤθελον but also ἔχω -> εἶχον) are tricky; let other
+        # sources fill these.
+        if plain[1] not in _GREEK_VOWELS:
+            return None
+    return _add_augment(pres_stem)
+
+
+def _imperfect_mp_stem(lemma: str) -> Optional[str]:
+    """Return the augmented imperfect-mp stem for a thematic -ω OR
+    -ομαι lemma. Mirrors :func:`_imperfect_active_stem` but accepts
+    deponents whose citation form ends in -ομαι.
+    """
+    if not lemma:
+        return None
+    base = _strip_accents_lower(lemma)
+    if base.endswith("ομαι"):
+        # Strip the -ομαι to get the stem, then augment.  We work in NFC
+        # and trim 4 characters (ο, μ, α, ι are all base codepoints in
+        # standard NFC for these forms).
+        nfc = unicodedata.normalize("NFC", lemma)
+        if len(nfc) < 4:
+            return None
+        stem = nfc[:-4]
+        if not stem:
+            return None
+        plain = _strip_accents_lower(stem)
+        if plain.startswith("ε") and len(plain) >= 2 and plain[1] not in _GREEK_VOWELS:
+            return None
+        return _add_augment(stem)
+    return _imperfect_active_stem(lemma)
+
+
+def _looks_like_active_aor_1sg(form: str) -> bool:
+    """Sanity check: the form should end in -α / -κα / -ον / -ην /
+    -ξα / -ψα for an active aorist 1sg.  Rejects -μην (middle 1sg)
+    so deponent middle-aorist principal parts don't leak into active
+    cells.
+
+    -ην is included for κ-aor 3rd-person-style forms and for athematic
+    aor-2 (ἔστην, ἔβην, ἔγνων, ἔδραν) where the 1sg active genuinely
+    ends in -ην or -ων.  -ν alone (no preceding η) is rejected to keep
+    middle 1sg out.
+    """
+    if not form:
+        return False
+    plain = _strip_accents_lower(form)
+    if not plain:
+        return False
+    # Middle 1sg ends in -μην; reject.
+    if plain.endswith("μην"):
+        return False
+    # Accept the conventional active-aorist 1sg endings.
+    if plain.endswith(("α", "ᾰ")):
+        return True
+    if plain.endswith("ον"):
+        return True
+    if plain.endswith(("ην", "ων")):
+        return True
+    return False
+
+
+def _looks_like_middle_aor_1sg(form: str) -> bool:
+    """Sanity check: middle aorist 1sg ends in -μην."""
+    if not form:
+        return False
+    plain = _strip_accents_lower(form)
+    return plain.endswith("μην")
+
+
+def _looks_like_passive_aor_1sg(form: str) -> bool:
+    """Sanity check: passive aorist 1sg ends in -ην (-θην, -ην for
+    aor-2-passive ἐγράφην-style)."""
+    if not form:
+        return False
+    plain = _strip_accents_lower(form)
+    return plain.endswith("ην")
+
+
+def synthesize_past_indicatives(
+    lemma: str,
+    principal_parts: Optional[Dict[str, str]] = None,
+) -> Dict[str, str]:
+    """Synthesise missing past-indicative 1sg cells for a verb.
+
+    Returns a dict ``{paradigm_key: form}`` covering up to five cells:
+        active_imperfect_indicative_1sg
+        middle_imperfect_indicative_1sg
+        active_aorist_indicative_1sg
+        middle_aorist_indicative_1sg
+        passive_aorist_indicative_1sg
+
+    Aorist 1sg cells come straight from the principal-parts dict (the
+    canonical principal part IS the 1sg form). Imperfect 1sg cells are
+    built from the lemma's present stem + augment + thematic ending.
+
+    Returns an empty dict when the lemma is athematic (-μι), suppletive
+    in a way that makes the augment ambiguous (η-/ω-initial), or a
+    prefixed compound where the augment's position can't be safely
+    determined.
+
+    Caller decides whether to merge into an existing paradigm (only
+    write empty cells) or overwrite.
+    """
+    if not lemma:
+        return {}
+    parts = principal_parts or {}
+
+    out: Dict[str, str] = {}
+
+    # ---- Aorist principal-part copies ----
+    # Active aorist 1sg comes from parts['aor'] (the canonical aor 1sg).
+    # The principal part is already augmented, so direct copy.
+    if "aor" in parts and _looks_like_active_aor_1sg(parts["aor"]):
+        out["active_aorist_indicative_1sg"] = parts["aor"]
+
+    # Middle aorist 1sg: parts['aor_med'] when LSJ explicitly attests
+    # it (separate :--Med. section). Many verbs have only a sigmatic
+    # active aorist, so we don't synthesise the middle from the active
+    # here -- if LSJ doesn't carry a separate aor_med the verb may not
+    # have an Attic-attested middle aorist 1sg.
+    if "aor_med" in parts and _looks_like_middle_aor_1sg(parts["aor_med"]):
+        out["middle_aorist_indicative_1sg"] = parts["aor_med"]
+
+    # Passive aorist 1sg: parts['aor_p'] (the canonical aor passive 1sg).
+    if "aor_p" in parts and _looks_like_passive_aor_1sg(parts["aor_p"]):
+        out["passive_aorist_indicative_1sg"] = parts["aor_p"]
+
+    # ---- Imperfect synthesis ----
+    # The imperfect 1sg is templated from the lemma's present stem +
+    # augment + ending. We dispatch on lemma shape (plain thematic ω,
+    # contract -άω/-έω/-όω, deponent -ομαι) and bail on athematic forms.
+    # Imperfect indicative is recessive-accented across the board, so we
+    # compose the stem and ending and let _recessive_full_form place the
+    # accent.
+    cls = contract_class(lemma)
+    if cls is not None:
+        # Contract verbs: bare stem + augment + fused ending.  We splice
+        # the augmented bare stem with the unaccented fused ending and
+        # let the recessive-accent helper place a single accent on the
+        # correct syllable. The fused vowels (-ων / -ουν) are long, so
+        # 3-syllable forms get penult accent (ἐποίουν), 2-syllable forms
+        # get penult (ἐτίμα), and 4+-syllable forms still get antepenult
+        # only when the ultima is short (impf endings ending in -ε / -α
+        # only).
+        bare = _contract_bare_stem(lemma)
+        if bare is not None:
+            aug_bare = _add_augment(bare)
+            if aug_bare is not None:
+                if cls == "alpha":
+                    act_end = _IMPF_CONTRACT_ALPHA_ACT
+                    mp_end = _IMPF_CONTRACT_ALPHA_MP
+                elif cls == "epsilon":
+                    act_end = _IMPF_CONTRACT_EPSILON_ACT
+                    mp_end = _IMPF_CONTRACT_EPSILON_MP
+                else:  # omicron
+                    act_end = _IMPF_CONTRACT_OMICRON_ACT
+                    mp_end = _IMPF_CONTRACT_OMICRON_MP
+                end_act = act_end.get(("1", "sg"))
+                end_mp = mp_end.get(("1", "sg"))
+                if end_act:
+                    out["active_imperfect_indicative_1sg"] = (
+                        _recessive_full_form(aug_bare, end_act)
+                    )
+                if end_mp:
+                    out["middle_imperfect_indicative_1sg"] = (
+                        _recessive_full_form(aug_bare, end_mp)
+                    )
+    elif is_thematic_omega(lemma):
+        aug_stem = _imperfect_active_stem(lemma)
+        if aug_stem is not None:
+            out["active_imperfect_indicative_1sg"] = _recessive_full_form(
+                aug_stem, _IMPF_ACT_END[("1", "sg")]
+            )
+            out["middle_imperfect_indicative_1sg"] = _recessive_full_form(
+                aug_stem, _IMPF_MP_END[("1", "sg")]
+            )
+    elif _is_thematic_deponent(lemma):
+        # Deponent -ομαι: only middle/passive imperfect; no active.
+        aug_stem = _imperfect_mp_stem(lemma)
+        if aug_stem is not None:
+            out["middle_imperfect_indicative_1sg"] = _recessive_full_form(
+                aug_stem, _IMPF_MP_END[("1", "sg")]
+            )
 
     return out
 
