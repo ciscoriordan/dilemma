@@ -385,3 +385,257 @@ class TestBackwardCompatibility:
     def test_empty_returns_none(self, b):
         assert b.pick_best_form([]) is None
         assert b.pick_best_form(set()) is None
+
+
+# ---------------------------------------------------------------------------
+# is_crasis_form
+# ---------------------------------------------------------------------------
+
+
+class TestIsCrasisForm:
+    """Crasis forms (καί + verb -> κἄβλεψας, etc.) leak into glaux's
+    indicative-active-aorist-2sg slot for βλέπω because glaux has no
+    sandhi axis. Detection: a consonant-initial word with a breathing
+    mark on its second base letter is crasis. Native verbs never put
+    breathings on internal vowels.
+    """
+
+    @pytest.mark.parametrize("form", [
+        "κἄβλεψας",   # καί + ἔβλεψας: the reported bug for βλέπω
+        "κἀγώ",       # καί + ἐγώ
+        "κἀκείνων",   # καί + ἐκείνων
+        "χἠμεῖς",     # καί + ἡμεῖς (κ aspirated to χ before rough breathing)
+        "τοὔνομα",    # τό + ὄνομα: breathing on second vowel of ου-diphthong
+        "τἀνδρός",    # τοῦ + ἀνδρός
+        "τἆλλα",      # τὰ + ἄλλα: breathing + circumflex
+    ])
+    def test_crasis_forms_detected(self, b, form):
+        assert b.is_crasis_form(form), f"crasis not detected: {form}"
+
+    @pytest.mark.parametrize("form", [
+        # Native consonant-initial verbs: no breathing on second letter
+        "κάμνω",      # κ + α + acute
+        "κρίνω",      # κ + ρ (consonant cluster, no breathing)
+        "γράφω", "γράψω", "ἔγραψα",
+        "λέγω", "ἔλεξα", "λύω", "λύει",
+        "παύω", "ἔπαυσε", "παύσομαι",
+        "βλέπω", "βλέψω", "ἔβλεψα",
+        "τρέχω", "πέμπω", "δίδωμι",
+        "φέρω", "πείθω", "γίγνομαι",
+        # Vowel-initial native verbs: breathing on first letter is fine
+        "ἀκούω", "ἤκουσα", "ἐθέλω", "ἤθελον",
+        "εἰμί", "εἶδον", "ἦν",
+        # Diphthong-initial: breathing on second vowel of diphthong is
+        # at base position 0/1 but the FIRST base char is a vowel.
+        "αὐτός", "εὐχή", "οὐρανός",
+        # Verbs with augment on diphthong (ηὐ-, ηὐχόμην, ηὐλόγει)
+        "ηὐχόμην", "ηὐλόγει",
+    ])
+    def test_native_forms_pass(self, b, form):
+        assert not b.is_crasis_form(form), \
+            f"native form falsely flagged as crasis: {form}"
+
+    def test_empty_form_not_crasis(self, b):
+        assert not b.is_crasis_form("")
+
+    def test_single_letter_not_crasis(self, b):
+        # Too short to have crasis structure.
+        assert not b.is_crasis_form("ἁ")
+        assert not b.is_crasis_form("κ")
+
+
+# ---------------------------------------------------------------------------
+# is_homeric_iterative_imperfect
+# ---------------------------------------------------------------------------
+
+
+class TestIsHomericIterativeImperfect:
+    """Homeric iterative imperfect inserts -σκ- between the present
+    stem and a thematic personal ending (παύεσκον, ἔσκε, ἀμφιέπεσκεν).
+    Verbs whose lemma natively ends in -σκω (διδάσκω, γιγνώσκω,
+    εὑρίσκω) carry σκ in their present stem and must NOT be flagged.
+    """
+
+    @pytest.mark.parametrize("form,lemma,key", [
+        # The reported bug: παύεσκον leaking into παύω 1sg active impf.
+        ("παύεσκον", "παύω", "active_imperfect_indicative_1sg"),
+        ("παύεσκες", "παύω", "active_imperfect_indicative_2sg"),
+        ("παύεσκε", "παύω", "active_imperfect_indicative_3sg"),
+        ("παύεσκεν", "παύω", "active_imperfect_indicative_3sg"),
+        # Other Homeric iteratives in the corpus
+        ("κλαίεσκεν", "κλαίω", "active_imperfect_indicative_3sg"),
+        ("πέρθεσκον", "πέρθω", "active_imperfect_indicative_3pl"),
+        ("ἄγεσκον", "ἄγω", "active_imperfect_indicative_3pl"),
+        ("τέμνεσκεν", "τέμνω", "active_imperfect_indicative_3sg"),
+        ("ἔσκε", "εἰμί", "active_imperfect_indicative_3sg"),
+        ("ἔσκεν", "εἰμί", "active_imperfect_indicative_3sg"),
+        # Middle / passive iteratives
+        ("παυέσκετο", "παύω", "middle_imperfect_indicative_3sg"),
+        ("παυεσκόμην", "παύω", "middle_imperfect_indicative_1sg"),
+        ("παυέσκοντο", "παύω", "middle_imperfect_indicative_3pl"),
+        # Long-vowel iterative variants -ασκον / -οσκον
+        ("γοάασκεν", "γοάω", "active_imperfect_indicative_3sg"),
+        ("βοάασκεν", "βοάω", "active_imperfect_indicative_3sg"),
+    ])
+    def test_iterative_detected(self, b, form, lemma, key):
+        assert b.is_homeric_iterative_imperfect(form, lemma, key), \
+            f"iterative not detected: {form} ({lemma}, {key})"
+
+    @pytest.mark.parametrize("form,lemma,key", [
+        # Native -σκω lemmas: σκ is part of the present stem, not iterative
+        ("ἐδίδασκον", "διδάσκω", "active_imperfect_indicative_1sg"),
+        ("ἐγίγνωσκον", "γιγνώσκω", "active_imperfect_indicative_1sg"),
+        ("ηὕρισκον", "εὑρίσκω", "active_imperfect_indicative_1sg"),
+        ("ἔβοσκον", "βόσκω", "active_imperfect_indicative_1sg"),
+        ("ἔπασχον", "πάσχω", "active_imperfect_indicative_1sg"),
+        # Non-imperfect cells must never be flagged, even with -σκ-
+        ("παύεσκον", "παύω", "active_aorist_indicative_1sg"),
+        ("παύεσκον", "παύω", "active_present_indicative_1sg"),
+        ("διδασκόμενον", "διδάσκω",
+         "middle_present_participle_acc_m_sg"),
+        # Forms without iterative shape
+        ("ἔπαυον", "παύω", "active_imperfect_indicative_1sg"),
+        ("ἔλυον", "λύω", "active_imperfect_indicative_1sg"),
+        ("ἔγραφον", "γράφω", "active_imperfect_indicative_1sg"),
+    ])
+    def test_non_iterative_pass(self, b, form, lemma, key):
+        assert not b.is_homeric_iterative_imperfect(form, lemma, key), \
+            f"non-iterative falsely flagged: {form} ({lemma}, {key})"
+
+    def test_empty_inputs_safe(self, b):
+        assert not b.is_homeric_iterative_imperfect(
+            "", "παύω", "active_imperfect_indicative_1sg")
+        assert not b.is_homeric_iterative_imperfect(
+            "παύεσκον", "", "active_imperfect_indicative_1sg")
+        assert not b.is_homeric_iterative_imperfect(
+            "παύεσκον", "παύω", "")
+        assert not b.is_homeric_iterative_imperfect(
+            "παύεσκον", "παύω", None)
+
+
+# ---------------------------------------------------------------------------
+# is_homeric_unaugmented_past_indicative
+# ---------------------------------------------------------------------------
+
+
+class TestIsHomericUnaugmentedPastIndicative:
+    """Past-indicative cells require the augment in Attic. Unaugmented
+    surface forms are Homeric / Epic variants and should be routed to
+    the dialect slice rather than the canonical paradigm.
+    """
+
+    @pytest.mark.parametrize("form,lemma,key", [
+        # The reported bug: λυόμην leaking into λύω middle impf 1sg
+        ("λυόμην", "λύω", "middle_imperfect_indicative_1sg"),
+        ("λύετο", "λύω", "middle_imperfect_indicative_3sg"),
+        ("λύοντο", "λύω", "middle_imperfect_indicative_3pl"),
+        ("λύον", "λύω", "active_imperfect_indicative_3pl"),
+        ("λῦσε", "λύω", "active_aorist_indicative_3sg"),
+        ("λῦσαν", "λύω", "active_aorist_indicative_3pl"),
+        # γράφω, παύω equivalents
+        ("γράψε", "γράφω", "active_aorist_indicative_3sg"),
+        ("παῦσε", "παύω", "active_aorist_indicative_3sg"),
+        ("παύοντο", "παύω", "middle_imperfect_indicative_3pl"),
+    ])
+    def test_unaugmented_detected(self, b, form, lemma, key):
+        assert b.is_homeric_unaugmented_past_indicative(
+            form, lemma, key), \
+            f"unaugmented not detected: {form} ({lemma}, {key})"
+
+    @pytest.mark.parametrize("form,lemma,key", [
+        # Augmented forms must never be flagged
+        ("ἐλυόμην", "λύω", "middle_imperfect_indicative_1sg"),
+        ("ἔλυσε", "λύω", "active_aorist_indicative_3sg"),
+        ("ἔλυσαν", "λύω", "active_aorist_indicative_3pl"),
+        ("ἔλυον", "λύω", "active_imperfect_indicative_3pl"),
+        ("ἤκουσε", "ἀκούω", "active_aorist_indicative_3sg"),
+        ("ἤθελον", "ἐθέλω", "active_imperfect_indicative_1sg"),
+        # Non-past-indicative cells: detector must be off
+        ("λύσῃ", "λύω", "active_aorist_subjunctive_3sg"),
+        ("λῦσον", "λύω", "active_aorist_imperative_2sg"),
+        ("λῦσαι", "λύω", "active_aorist_infinitive"),
+        ("λύω", "λύω", "active_present_indicative_1sg"),
+        # Long-vowel-initial lemmas (η, ω): augment is invisible, skip
+        ("ηὕρισκον", "εὑρίσκω", "active_imperfect_indicative_1sg"),
+        # Prefixed verbs: lemma starts with ε- (ἐκ-, ἐν-, ἐπι-, ἐξ-,
+        # etc.), augment is internal between prefix and root. The
+        # syllabic-augment detector only spots word-initial augments,
+        # so it sees these as unaugmented; we explicitly skip ε-
+        # prefixed lemmas with ε-prefixed forms to avoid clobbering
+        # legitimate compound-verb past indicatives.
+        ("ἐξέμολεν", "ἐκμολεῖν", "active_aorist_indicative_3sg"),
+        ("ἐξεμόλομεν", "ἐκμολεῖν", "active_aorist_indicative_1pl"),
+        ("ἐνεκάλεσε", "ἐγκαλέω", "active_aorist_indicative_3sg"),
+        ("ἐπέγραψε", "ἐπιγράφω", "active_aorist_indicative_3sg"),
+    ])
+    def test_augmented_or_non_past_pass(self, b, form, lemma, key):
+        assert not b.is_homeric_unaugmented_past_indicative(
+            form, lemma, key), \
+            f"falsely flagged: {form} ({lemma}, {key})"
+
+    def test_empty_inputs_safe(self, b):
+        assert not b.is_homeric_unaugmented_past_indicative(
+            "", "λύω", "active_aorist_indicative_3sg")
+        assert not b.is_homeric_unaugmented_past_indicative(
+            "λῦσε", "", "active_aorist_indicative_3sg")
+        assert not b.is_homeric_unaugmented_past_indicative(
+            "λῦσε", "λύω", None)
+
+
+# ---------------------------------------------------------------------------
+# is_homeric_root_aorist_passive
+# ---------------------------------------------------------------------------
+
+
+class TestIsHomericRootAoristPassive:
+    """The Homeric / Epic root-aorist used middle-voice personal endings
+    (-μην / -σο / -το / -μεθα / -σθε / -ντο) on the bare verb root in
+    passive function. Glaux tags these identically to the Attic
+    1st-aorist-passive cells, so without filtering we ship ἐλύμην /
+    ἔλυντο in the slot where ἐλύθην / ἐλύθησαν belongs.
+    """
+
+    @pytest.mark.parametrize("form,lemma,key", [
+        # The reported bug for λύω passive aorist
+        ("ἐλύμην", "λύω", "passive_aorist_indicative_1sg"),
+        ("ἔλυντο", "λύω", "passive_aorist_indicative_3pl"),
+        ("λύμην", "λύω", "passive_aorist_indicative_1sg"),
+        ("λύτο", "λύω", "passive_aorist_indicative_3sg"),
+        ("λύντο", "λύω", "passive_aorist_indicative_3pl"),
+        ("λῦτο", "λύω", "passive_aorist_indicative_3sg"),
+    ])
+    def test_root_aorist_detected(self, b, form, lemma, key):
+        assert b.is_homeric_root_aorist_passive(form, lemma, key), \
+            f"root-aorist not detected: {form} ({lemma}, {key})"
+
+    @pytest.mark.parametrize("form,lemma,key", [
+        # Attic 1st-aorist-passive: -θη- formant + active endings
+        ("ἐλύθην", "λύω", "passive_aorist_indicative_1sg"),
+        ("ἐλύθης", "λύω", "passive_aorist_indicative_2sg"),
+        ("ἐλύθη", "λύω", "passive_aorist_indicative_3sg"),
+        ("ἐλύθημεν", "λύω", "passive_aorist_indicative_1pl"),
+        ("ἐλύθητε", "λύω", "passive_aorist_indicative_2pl"),
+        ("ἐλύθησαν", "λύω", "passive_aorist_indicative_3pl"),
+        # Attic 2nd-aorist-passive (γράφω: ἐγράφην, no θ but active endings)
+        ("ἐγράφην", "γράφω", "passive_aorist_indicative_1sg"),
+        ("ἐγράφη", "γράφω", "passive_aorist_indicative_3sg"),
+        ("ἐγράφησαν", "γράφω", "passive_aorist_indicative_3pl"),
+        # Other θη-aorists
+        ("ἐπείσθη", "πείθω", "passive_aorist_indicative_3sg"),
+        ("ἐτύφθη", "τύπτω", "passive_aorist_indicative_3sg"),
+        # Detector must be inactive on non-passive-aorist-indicative keys
+        ("ἐλύμην", "λύω", "middle_aorist_indicative_1sg"),
+        ("ἐλυσάμην", "λύω", "middle_aorist_indicative_1sg"),
+        ("λύομαι", "λύω", "middle_present_indicative_1sg"),
+    ])
+    def test_attic_or_other_keys_pass(self, b, form, lemma, key):
+        assert not b.is_homeric_root_aorist_passive(form, lemma, key), \
+            f"falsely flagged: {form} ({lemma}, {key})"
+
+    def test_empty_inputs_safe(self, b):
+        assert not b.is_homeric_root_aorist_passive(
+            "", "λύω", "passive_aorist_indicative_1sg")
+        assert not b.is_homeric_root_aorist_passive(
+            "ἐλύμην", "", "passive_aorist_indicative_1sg")
+        assert not b.is_homeric_root_aorist_passive(
+            "ἐλύμην", "λύω", None)

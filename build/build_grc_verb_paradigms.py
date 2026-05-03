@@ -320,6 +320,259 @@ def extract_dialect(tags):
     return ""
 
 
+# ---------------------------------------------------------------------------
+# Non-Attic / sandhi form detectors
+#
+# GLAUx provides AGDT 9-position morph tags but no dialect axis: a Homeric
+# unaugmented imperfect / aorist is tagged identically to its Attic
+# counterpart, and a sandhi crasis form like κἄβλεψας gets the same
+# active-aorist-2sg tag as a regular ἔβλεψας would. The detectors below
+# recover dialect / sandhi status from the surface form itself, so the
+# canonical Attic paradigm slice doesn't get polluted with Homeric or
+# textual-artifact entries that glaux mis-tags. Forms detected as Epic
+# get routed to the ``epic`` dialect slice (still kept in the paradigm,
+# just out of the Attic default); crasis forms are dropped entirely.
+# ---------------------------------------------------------------------------
+
+
+_BREATHING_MARKS = ("̓", "̔")  # smooth, rough
+
+
+def _has_breathing(form: str, position: int) -> bool:
+    """True when the letter at NFD index ``position`` carries a breathing
+    mark. ``position`` indexes into the base-letter sequence after NFD
+    decomposition, not the raw NFC string.
+    """
+    nfd = unicodedata.normalize("NFD", form)
+    base_idx = -1
+    i = 0
+    while i < len(nfd):
+        c = nfd[i]
+        if not unicodedata.combining(c):
+            base_idx += 1
+            if base_idx == position:
+                # Look ahead at combining marks attached to this base
+                j = i + 1
+                while j < len(nfd) and unicodedata.combining(nfd[j]):
+                    if nfd[j] in _BREATHING_MARKS:
+                        return True
+                    j += 1
+                return False
+        i += 1
+    return False
+
+
+def _nfd_base_chars(form: str) -> list:
+    """Return the list of base (non-combining) characters in ``form``."""
+    nfd = unicodedata.normalize("NFD", form)
+    return [c for c in nfd if not unicodedata.combining(c)]
+
+
+_GREEK_CONSONANTS = set("βγδζθκλμνξπρστφχψ")
+
+
+_DIPHTHONG_SECOND = set("ιυ")  # second vowel of a Greek diphthong
+
+
+def is_crasis_form(form: str) -> bool:
+    """True when ``form`` is a crasis / sandhi artifact rather than a
+    canonical paradigm cell.
+
+    Crasis (the contraction of two adjacent words into one) produces
+    surface forms whose first base letter is a CONSONANT and whose
+    second OR third base letter carries a smooth or rough breathing
+    mark - the coronis. Examples:
+
+    - κἄβλεψας (καί + ἔβλεψας): breathing on position 1 (α)
+    - κἀγώ (καί + ἐγώ): breathing on position 1 (α)
+    - χἠμεῖς (καί + ἡμεῖς): breathing on position 1 (η)
+    - τοὔνομα (τό + ὄνομα): breathing on position 2 (υ of ου-diphthong)
+    - τἀνδρός (τοῦ + ἀνδρός): breathing on position 1 (α)
+
+    No native Greek verb form starts with consonant + breathing-marked
+    internal vowel: breathing only attaches to word-initial vowels,
+    and the presence of a breathing mark on a non-initial base letter
+    always indicates crasis or a typesetting artifact. We drop these
+    entirely so they don't leak into the canonical paradigm.
+
+    Diphthongs at word start (αὐ-, εὐ-, οὐ-, ηὐ-) put the breathing on
+    the first vowel of the diphthong (position 0), so first-base-char
+    is a vowel and the consonant gate doesn't fire.
+    """
+    if not form:
+        return False
+    base_chars = _nfd_base_chars(form)
+    if len(base_chars) < 2:
+        return False
+    first = base_chars[0].lower()
+    if first not in _GREEK_CONSONANTS:
+        return False
+    # Direct case: breathing on position 1 (κἀγώ, τἀνδρός).
+    if _has_breathing(form, 1):
+        return True
+    # Diphthong case: breathing on position 2 when position-1 + position-2
+    # is a Greek diphthong (τοὔνομα = τ + ου + breathing). Without the
+    # diphthong gate we'd flag any consonant-vowel-vowel-breathing form,
+    # which is too permissive.
+    if len(base_chars) >= 3:
+        c1 = base_chars[1].lower()
+        c2 = base_chars[2].lower()
+        if c1 in "αεοηω" and c2 in _DIPHTHONG_SECOND and _has_breathing(form, 2):
+            return True
+    return False
+
+
+# Iterative -σκ- infix endings. The Homeric iterative imperfect inserts
+# -σκ- between the present stem and a thematic personal ending. Active
+# endings: -ον / -ες / -ε(ν) / -ομεν / -ετε / -ον. Middle/passive
+# endings: -όμην / -εο/-ευ/-ου / -ετο / -όμεθα / -εσθε / -οντο. The
+# infix attaches with one of the thematic vowels (ε, α, ο), giving the
+# accent-stripped suffixes below. Forms ending here AND tagged as
+# imperfect indicative are reclassified as Epic.
+_ITERATIVE_SUFFIXES = (
+    # Active
+    "εσκον", "εσκες", "εσκε", "εσκεν", "εσκομεν", "εσκετε",
+    "εσκετον", "εσκετην",
+    "ασκον", "ασκες", "ασκε", "ασκεν", "ασκομεν", "ασκετε",
+    "ασκετον", "ασκετην",
+    "οσκον", "οσκες", "οσκε", "οσκεν", "οσκομεν", "οσκετε",
+    "οσκετον", "οσκετην",
+    # Middle / passive
+    "εσκομην", "εσκετο", "εσκοντο", "εσκομεθα", "εσκεσθε",
+    "εσκεσθον", "εσκεσθην", "εσκεο", "εσκευ", "εσκου",
+    "ασκομην", "ασκετο", "ασκοντο", "ασκομεθα", "ασκεσθε",
+    "ασκεο", "ασκευ",
+    "οσκομην", "οσκετο", "οσκοντο", "οσκομεθα", "οσκεσθε",
+)
+
+
+def is_homeric_iterative_imperfect(
+    form: str, lemma: str, key: str | None
+) -> bool:
+    """True when ``form`` is a Homeric iterative imperfect.
+
+    The iterative infix ``-σκ-`` between the present stem and a
+    thematic personal ending is a Homeric / Ionic dialect feature. It
+    only attests in imperfect indicative cells. Verbs whose lemma
+    natively contains the inceptive ``-σκ-`` (διδάσκω, γιγνώσκω,
+    εὑρίσκω, μιμνήσκω, βιβρώσκω, βόσκω, ...) are NOT iterative when
+    they show ``-σκ-`` in their imperfect; we filter them out here by
+    requiring the lemma's stripped form to NOT end in ``σκω`` /
+    ``σκομαι``.
+    """
+    if not form or not lemma or not key:
+        return False
+    if "_imperfect_indicative" not in key:
+        return False
+    fb = strip_accents(form).lower().rstrip("’'ʼ᾽ʹ")
+    lb = strip_accents(lemma).lower()
+    # Lemma natively has an inceptive σκ in its present stem -> not iterative.
+    if lb.endswith("σκω") or lb.endswith("σκομαι") or lb.endswith("σκον"):
+        return False
+    return any(fb.endswith(suffix) for suffix in _ITERATIVE_SUFFIXES)
+
+
+def is_homeric_unaugmented_past_indicative(
+    form: str, lemma: str, key: str | None
+) -> bool:
+    """True when ``form`` is an unaugmented past-indicative form.
+
+    Augment is mandatory in Attic indicative aorist / imperfect /
+    pluperfect; an unaugmented surface form in those slots is a
+    Homeric / Epic variant (Wiktionary explicitly tags the same
+    citations as Epic, but glaux's AGDT tagger has no dialect axis).
+    Routing such forms to the ``epic`` dialect slice keeps the data
+    available without polluting the canonical Attic paradigm.
+
+    The augment check uses :func:`has_augment` which wraps the
+    syllabic / temporal augment detectors in :mod:`dilemma.morph_diff`.
+    Only fires when the lemma starts with a consonant (syllabic
+    augment) or a short vowel (temporal augment). For lemmas where
+    augment is morphologically blocked (already long-vowel initial,
+    diphthong-initial in some classes), this function returns False.
+    """
+    if not form or not lemma or not key:
+        return False
+    if not is_past_indicative_key(key):
+        return False
+    if has_augment(form, lemma):
+        return False
+    # Augment must be morphologically observable for this lemma; if
+    # the lemma already starts with a long vowel (η / ω) the temporal
+    # augment is invisible and we can't distinguish Homeric from Attic.
+    lb = _strip_diacritics(lemma)
+    if not lb:
+        return False
+    first = lb[0]
+    # Syllabic augment: consonant-initial lemmas always show ἐ-.
+    # Temporal augment: short-vowel-initial lemmas (α/ε/ο/ι/υ) lengthen.
+    # Long-vowel / diphthong starts are ambiguous and skipped here.
+    if first in ("η", "ω"):
+        return False
+    # Prefixed compound verbs (ἐκ-, ἐν-, ἐπι-, ἐξ-, etc.) hide their
+    # augment between prefix and root: ἐκ-μολεῖν -> ἐξ-έ-μολεν, with
+    # the augment inside the form rather than at position 0. The
+    # augment detector :func:`_detect_syllabic_augment` only spots
+    # initial augments and reports such forms as unaugmented, so we
+    # skip them here. We use a conservative shape test: lemma starts
+    # with ε-, AND form starts with the same character. Real Homeric
+    # unaugmented variants of vowel-initial verbs (ἤκουον vs ἀκούω)
+    # start with a different initial vowel from the lemma so they
+    # still pass.
+    if first == "ε":
+        fb = _strip_diacritics(form)
+        if fb and fb[0] == "ε":
+            return False
+    return True
+
+
+# Middle-voice personal endings. The Homeric root-aorist used these on
+# the bare verb root in passive function (ἐλύμην, ἔλυντο, λύτο), even
+# though Attic distinguishes middle (uses these endings) from passive
+# (uses -θη- + active endings, or -η- + active endings for aor-2). When
+# glaux tags such forms as ``aorist passive indicative``, the middle-
+# voice ending shape is the giveaway that we're looking at a Homeric
+# root-aorist mis-classified as 1st-aorist-passive.
+_ROOT_AORIST_MIDDLE_ENDINGS = (
+    "μην",        # 1sg
+    "σο",         # 2sg
+    "το",         # 3sg (also 3sg dual)
+    "μεθα",       # 1pl
+    "σθε",        # 2pl
+    "ντο",        # 3pl
+    "σθον",       # 2du
+    "σθην",       # 3du
+)
+
+
+def is_homeric_root_aorist_passive(
+    form: str, lemma: str, key: str | None
+) -> bool:
+    """True when ``form`` is a Homeric root-aorist passive.
+
+    The Homeric / Epic root-aorist used middle-voice personal endings
+    (``-μην / -σο / -το / -μεθα / -σθε / -ντο``) on the bare verb root
+    in passive function: ``ἐλύμην``, ``ἔλυντο``, ``λύμην``, ``λύτο``,
+    ``λύντο``, ``λῦτο``. Glaux tags these as ``aorist passive indicative
+    <person>-<number>``, putting them in the same cell as the Attic
+    1st-aorist-passive (``ἐλύθην`` / ``ἐλύθη``) and confusing readers
+    expecting a Classical paradigm.
+
+    Distinguishing the Homeric root-aorist passive from Attic forms is
+    a question of ending shape, not of the ``-θ-`` marker: the Attic
+    2nd / strong aorist passive (``ἐγράφην`` for γράφω) also lacks θ
+    but uses active endings (``-ν``, ``-ς``, ``-η``, ...). What
+    uniquely flags the Homeric root-aorist passive is the use of the
+    middle-voice personal endings on a slot tagged passive.
+    """
+    if not form or not lemma or not key:
+        return False
+    if not key.startswith("passive_aorist_indicative_"):
+        return False
+    fb = strip_accents(form).lower().rstrip("’'ʼ᾽ʹ")
+    return any(fb.endswith(ending) for ending in _ROOT_AORIST_MIDDLE_ENDINGS)
+
+
 def load_pairs(path: Path):
     if not path.exists():
         print(f"  skipping {path.name} (not present)", flush=True)
@@ -625,6 +878,10 @@ def build_paradigms(only_lemmas=None):
     # Group by lemma, then by dialect, then by paradigm key
     by_lemma_dialect_key = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
     dropped_internal_capital = 0
+    dropped_crasis = 0
+    rerouted_iterative = 0
+    rerouted_unaugmented = 0
+    rerouted_root_aorist_passive = 0
     canonicalized = 0
     lowercased = 0
     for src_name, verb_pairs in sources:
@@ -654,11 +911,47 @@ def build_paradigms(only_lemmas=None):
             key = verb_key_from_tags(tags)
             if not key:
                 continue
+            # Crasis / sandhi forms (κἄβλεψας from καί + ἔβλεψας) are
+            # textual artifacts, not canonical paradigm cells. Drop
+            # entirely so they leak into neither the Attic slice nor a
+            # dialect slice.
+            if is_crasis_form(form):
+                dropped_crasis += 1
+                continue
             dialect = extract_dialect(tags)
+            # Glaux has no dialect axis, so Homeric / Epic forms come
+            # in tagged identically to their Attic counterparts. The
+            # detectors below recover dialect status from the surface
+            # form itself and route detected non-Attic variants to the
+            # ``epic`` dialect slice rather than the canonical Attic
+            # paradigm. Attic slots stay clean; the Homeric / Epic
+            # forms are still preserved for downstream consumers that
+            # want them.
+            if not dialect:
+                if is_homeric_iterative_imperfect(form, lemma, key):
+                    dialect = "epic"
+                    rerouted_iterative += 1
+                elif is_homeric_root_aorist_passive(form, lemma, key):
+                    dialect = "epic"
+                    rerouted_root_aorist_passive += 1
+                elif is_homeric_unaugmented_past_indicative(form, lemma, key):
+                    dialect = "epic"
+                    rerouted_unaugmented += 1
             by_lemma_dialect_key[lemma][dialect][key].append(form)
     if dropped_internal_capital:
         print(f"  dropped (internal capitals / mojibake): "
               f"{dropped_internal_capital:,}")
+    if dropped_crasis:
+        print(f"  dropped (crasis / sandhi): {dropped_crasis:,}")
+    if rerouted_iterative:
+        print(f"  rerouted to epic (Homeric iterative imperfect): "
+              f"{rerouted_iterative:,}")
+    if rerouted_root_aorist_passive:
+        print(f"  rerouted to epic (Homeric root-aorist passive): "
+              f"{rerouted_root_aorist_passive:,}")
+    if rerouted_unaugmented:
+        print(f"  rerouted to epic (unaugmented past indicative): "
+              f"{rerouted_unaugmented:,}")
     if lowercased:
         print(f"  lowercased sentence-initial verb lemmas: {lowercased:,}")
     if canonicalized:

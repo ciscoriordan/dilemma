@@ -1271,6 +1271,35 @@ stem extraction; ο-contract middle participles are skipped because
 jtauber's pattern is too inconsistent cell-by-cell; and a small set of
 verbs with idiosyncratic accent (e.g. ὁρᾷς) are deferred to corpus.
 
+#### Non-Attic form filtering
+
+GLAUx provides AGDT 9-position morph tags but no dialect axis: a
+Homeric unaugmented imperfect / aorist gets the same active-imperfect
+or aorist tag as its Attic counterpart, and a sandhi crasis form like
+κἄβλεψας gets the same active-aorist-2sg tag as a regular ἔβλεψας
+would. The build pass recovers dialect / sandhi status from the
+surface form itself before populating the canonical Attic slice:
+
+- Crasis forms (consonant-initial words with a breathing mark on a
+  non-initial vowel: κἄβλεψας, τοὔνομα, χἠμεῖς) are dropped entirely
+  as textual artifacts. ~650 forms are removed across the 27K-verb
+  output.
+- Homeric iterative imperfects (-εσκον / -ασκον / -οσκον infix forms
+  on verbs whose lemma doesn't natively end in -σκω) are routed to
+  the ``epic`` dialect slice. ~370 forms.
+- Athematic root-aorist passives (ἐλύμην / ἔλυντο / λύτο series, with
+  middle-voice personal endings on a slot tagged passive aorist) go
+  to ``epic``. ~130 forms.
+- Unaugmented past-indicatives (aorist / imperfect / pluperfect cells
+  whose form lacks the augment that Attic mandates) go to ``epic``.
+  ~27K forms.
+
+Detection is conservative: lemmas starting with ε- whose forms also
+start with ε- are skipped to avoid clobbering compound-prefix verbs
+where the augment is internal (ἐκμολεῖν → ἐξέμολεν), and lemmas with
+long-vowel initials (η-, ω-) are skipped because their temporal
+augment is morphologically invisible.
+
 ### Export to ONNX
 
 Generates ONNX model files so inference works without PyTorch.
