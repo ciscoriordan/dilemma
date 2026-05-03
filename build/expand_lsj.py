@@ -27,12 +27,17 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(SCRIPT_DIR))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from dilemma.form_sanitize import sanitize_form  # noqa: E402
+from lsj_principal_parts import (  # noqa: E402
+    parse_principal_parts, derive_grc_conj_args,
+)
 
 DATA_DIR = SCRIPT_DIR / "data"
 LSJ9_DIR = Path.home() / "Documents" / "lsj9"
 LSJ9_FORMS = LSJ9_DIR / "lsj9_forms.tsv"
 LSJ9_HEADWORDS = LSJ9_DIR / "lsj9_headwords.json"
+LSJ9_GLOSSES = LSJ9_DIR / "lsj9_glosses.jsonl"
 KAIKKI_DIR = Path(os.environ.get(
     "KAIKKI_DIR", Path.home() / "Documents" / "Klisy" / "word_collector"))
 # Try nested layout first (en-el/), then flat layout
@@ -628,8 +633,453 @@ def expand_noun(wtp, headword, gender, genitive="", wikt_genitives=None):
 _VERB_CACHE = {}
 
 
+# Cache: principal-parts grc-conj-args tuple -> set of forms.
+# Keyed on (tense_code, *stems) so verbs that share a passive stem (e.g.
+# all -ευω verbs producing "-ευθ" passives) reuse the expansion.
+_PP_CACHE: dict[tuple, set[str]] = {}
+
+
+_LSJ_HEAD_TEXTS: dict[str, str] | None = None
+
+
+def load_lsj_head_texts() -> dict[str, str]:
+    """Load the leading paragraph of every LSJ entry (gloss without
+    `level` / `number` is the entry head, which carries the
+    principal-part header before the English definition starts).
+
+    Cached after first call.
+    """
+    global _LSJ_HEAD_TEXTS
+    if _LSJ_HEAD_TEXTS is not None:
+        return _LSJ_HEAD_TEXTS
+    heads: dict[str, str] = {}
+    if not LSJ9_GLOSSES.exists():
+        print(f"  lsj9_glosses.jsonl not found at {LSJ9_GLOSSES}")
+        _LSJ_HEAD_TEXTS = heads
+        return heads
+    with open(LSJ9_GLOSSES, encoding="utf-8") as f:
+        for line in f:
+            try:
+                e = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            hw = e.get("headword")
+            if not hw:
+                continue
+            if "level" in e or "number" in e:
+                continue
+            if hw not in heads:
+                heads[hw] = e.get("text", "")
+    print(f"  lsj9 head texts: {len(heads):,}")
+    _LSJ_HEAD_TEXTS = heads
+    return heads
+
+
+def _expand_principal_part(wtp, headword: str, tense_args: list[str]
+                            ) -> set[str]:
+    """Expand a single ``{{grc-conj|...}}`` invocation derived from
+    LSJ principal parts, returning the resulting set of forms.
+
+    Caches the result keyed on the argument tuple so verbs that share
+    e.g. a passive stem don't pay the Lua cost twice.
+    """
+    cache_key = tuple(tense_args)
+    if cache_key in _PP_CACHE:
+        return _PP_CACHE[cache_key]
+
+    # Build the {{grc-conj|...}} call.
+    tpl = "{{grc-conj|" + "|".join(tense_args) + "}}"
+    try:
+        wtp.start_page(headword)
+        html = wtp.expand(tpl)
+    except Exception:
+        _PP_CACHE[cache_key] = set()
+        return set()
+    forms = parse_html_forms(html, headword)
+    _PP_CACHE[cache_key] = forms
+    return forms
+
+
+def expand_principal_parts(wtp, headword: str, head_text: str) -> set[str]:
+    """Extract LSJ principal parts and expand each into a paradigm.
+
+    Returns the union of forms produced by the per-tense grc-conj
+    invocations. Returns an empty set if no parts could be parsed
+    (caller should fall back to present-only expansion).
+    """
+    parts = parse_principal_parts(head_text, headword)
+    if not parts:
+        return set()
+    args_by_tense = derive_grc_conj_args(parts, headword)
+    if not args_by_tense:
+        return set()
+    forms: set[str] = set()
+    for tense_args in args_by_tense.values():
+        forms |= _expand_principal_part(wtp, headword, tense_args)
+    return forms
+
+
+# Common verbal preverb endings (preposition-prefixes) used in compound -μι
+# verbs. We list the diacritic-stripped, lowercased forms only. The
+# splitter below matches the longest known prefix that leaves at least the
+# expected base ending (e.g. "ειμι"). Composite prefixes are constructed
+# automatically from the building blocks below; we don't enumerate every
+# attested combination by hand.
+_AG_PREVERB_ATOMS = (
+    # Two-vowel atoms first so longest-match works at the atom level
+    "παρα", "περι", "ἀνα", "δια", "κατα", "μετα", "ἀπο", "ὑπο", "ὑπερ",
+    "ἀντι", "ἐπι", "προ", "προσ", "ἐκ", "ἐξ", "ἐν", "ἐμ", "εἰσ", "συμ", "συν",
+    "συγ", "ἀν", "ἀπ", "ἀφ", "δι", "ἐπ", "ἐφ", "καθ", "κατ", "μετ",
+    "μεθ", "ἀνθ", "ἀντ", "παρ", "ὑπ", "ὑφ", "ὑπε", "ὑπεκ", "ὑπεξ",
+    "ὑπεισ", "ἀνταπο", "ἀντεκ", "ἀντεξ", "ἀντεπι", "ἀντεπε", "ἀντεπεισ",
+    "ἀντεπαπο", "ἀντιπαρα", "ἀντιπερι", "ἀντιπρο", "ἀντιπροσ", "ἀντικα",
+    "ἀντικαθ", "ἀντιμε", "ἀντιδια", "ἀνθυπο", "ἀνθυπ",
+    "ἐπανα", "ἐπαν", "ἐπικα", "ἐπικατα", "ἐπιπαρα", "ἐπιπαρ",
+    "ἐπιπροσ", "ἐπισυν", "ἐπισυμπαρ",
+    "παραπρο", "παρακα", "παρακατα",
+    "προαπο", "προεκ", "προεξ", "προεπι", "προεν", "προε",
+    "προπαρ", "προπερι", "προσπαρ", "προσυν", "προσυπ", "προυπ",
+    "συγκα", "συγκατα", "συμπαρα", "συμπερι", "συμπροσ", "συμπρο",
+    "συναπο", "συνδια", "συνδιεξ", "συνδιολ", "συνεισ", "συνεξ",
+    "συνεπει", "συνεπι", "συνεπε", "συνπαρα", "συνπρο", "συνυπ",
+    "ὑπεραπο", "ὑπερεν", "ὑποκατ", "ὑποπαρα", "ὑποπερι", "ὑποπρο",
+    "ἐκπερι", "εἰσανα", "εἰσαν",
+    "ἐναπο", "ἐνδια",
+)
+
+# Recognised base-stems for the irregular dispatcher. The splitter's job
+# is to find the longest preverb such that what's left starts with one
+# of these (diacritic-stripped, lowercased) bases.
+_IRREGULAR_BASE_STEMS = ("ειμι", "οιδα", "χρη", "φημι")
+
+
+def _strip_diacritics_lower(s):
+    return strip_diacritics(s).lower()
+
+
+def _split_preverb(headword):
+    """Split a headword into (preverb, base) by stripping a recognised
+    irregular base ending (e.g. ``ειμι``).
+
+    The headword's diacritic-stripped suffix must be one of
+    ``_IRREGULAR_BASE_STEMS``. The portion before that suffix is the
+    preverb. Returns (preverb_orig, base_orig) preserving the original
+    diacritics. If no base matches, returns ("", headword).
+    """
+    hw_plain = _strip_diacritics_lower(headword)
+    for base in sorted(_IRREGULAR_BASE_STEMS, key=len, reverse=True):
+        if hw_plain.endswith(base):
+            n = len(hw_plain) - len(base)
+            if n == 0:
+                # Bare base headword - no preverb
+                return "", headword
+            # Validate preverb consists of recognised atoms (in any
+            # combination, longest-first). A non-recognised prefix
+            # (e.g. random OCR junk) is rejected so we don't blindly
+            # generate forms.
+            preverb_plain = hw_plain[:n]
+            if _is_valid_preverb(preverb_plain):
+                return headword[:n], headword[n:]
+            # Otherwise fall through and try a shorter base
+    return "", headword
+
+
+_AG_PREVERB_ATOMS_PLAIN = None
+
+
+def _get_preverb_atoms_plain():
+    global _AG_PREVERB_ATOMS_PLAIN
+    if _AG_PREVERB_ATOMS_PLAIN is None:
+        _AG_PREVERB_ATOMS_PLAIN = sorted(
+            {strip_diacritics(a).lower() for a in _AG_PREVERB_ATOMS},
+            key=len, reverse=True)
+    return _AG_PREVERB_ATOMS_PLAIN
+
+
+def _is_valid_preverb(preverb_plain):
+    """Check that a (lowercased, diacritic-stripped) preverb decomposes
+    into recognised _AG_PREVERB_ATOMS via *backtracking* longest-match.
+
+    Greedy longest-first match fails on cases like ``αντεπεξ`` where the
+    longest atom (``αντεπε``) leaves a residue ``ξ`` that no atom
+    matches; the right segmentation is ``αντ + επ + εξ``.
+    """
+    atoms = _get_preverb_atoms_plain()
+
+    def _try(s):
+        if not s:
+            return True
+        for a in atoms:
+            if s.startswith(a) and _try(s[len(a):]):
+                return True
+        return False
+
+    return _try(preverb_plain)
+
+
+# A handful of irregular AG verbs whose paradigms cannot be generated by the
+# Wiktionary `Module:grc-conj` rule-based dispatch (they map to
+# `pres-irreg` on Wiktionary, with every form filled in by hand). We list a
+# minimal but useful Attic core paradigm here so compound forms (πάρειμι,
+# σύνειμι, εἴσειμι, ...) can be expanded by stem-prepending.
+#
+# Each value is a set of bare Attic forms (without preverb prefix). We
+# deliberately keep this list small: only the forms that show up in real
+# corpora and that the lookup table needs in order to map them back to a
+# headword. Augmented past-tense forms include the augmented stem (so a
+# compound prepends *to* the augmented form, e.g. παρ + ῆν -> παρῆν).
+_IRREGULAR_BASE_FORMS = {
+    # εἰμί 'to be' (Attic core: present, imperfect, future, optative,
+    # subjunctive, imperative, infinitive, participle)
+    "εἰμί": {
+        # Present indicative active
+        "εἰμί", "εἶ", "ἐστί", "ἐστίν", "ἐσμέν", "ἐστέ", "εἰσί", "εἰσίν",
+        "ἐστόν",
+        # Subjunctive
+        "ὦ", "ᾖς", "ᾖ", "ὦμεν", "ἦτε", "ὦσι", "ὦσιν", "ἦτον",
+        # Optative
+        "εἴην", "εἴης", "εἴη", "εἶμεν", "εἶτε", "εἶεν", "εἴητε",
+        "εἴημεν", "εἴησαν", "εἴητον", "εἰήτην",
+        # Imperative
+        "ἴσθι", "ἔστω", "ἔστε", "ἔστων", "ἔστωσαν", "ἤτω", "ὄντων",
+        # Imperfect (augmented)
+        "ἦν", "ἦσθα", "ἦς", "ἦμεν", "ἦτε", "ἦσαν", "ἦστον", "ἤστην",
+        # Future
+        "ἔσομαι", "ἔσῃ", "ἔσει", "ἔσται", "ἐσόμεθα", "ἔσεσθε",
+        "ἔσονται", "ἔσεσθαι",
+        # Infinitive
+        "εἶναι",
+        # Participles (m/f/n nom sg)
+        "ὤν", "οὖσα", "ὄν",
+        "ὄντος", "οὔσης", "ὄντι", "οὔσῃ", "ὄντα", "οὖσαν",
+        "ὄντες", "οὖσαι", "ὄντα", "ὄντων", "οὐσῶν", "οὖσι", "οὔσαις",
+    },
+    # εἶμι 'to go' (Attic core)
+    "εἶμι": {
+        # Present indicative active
+        "εἶμι", "εἶ", "εἶσι", "εἶσιν", "ἴμεν", "ἴτε", "ἴᾱσι", "ἴᾱσιν",
+        "ἴτον",
+        # Subjunctive
+        "ἴω", "ἴῃς", "ἴῃ", "ἴωμεν", "ἴητε", "ἴωσι", "ἴωσιν",
+        # Optative
+        "ἴοιμι", "ἴοις", "ἴοι", "ἴοιμεν", "ἴοιτε", "ἴοιεν", "ἰοίην",
+        "ἴοιτον", "ἰοίτην",
+        # Imperative
+        "ἴθι", "ἴτω", "ἴτε", "ἴτων", "ἴτωσαν", "ἰόντων",
+        # Imperfect (augmented)
+        "ᾖα", "ᾔειν", "ᾔεις", "ᾔει", "ᾔειν", "ᾖμεν", "ᾔειμεν",
+        "ᾖτε", "ᾔειτε", "ᾖσαν", "ᾔεσαν", "ᾔειτον", "ᾐείτην",
+        # Infinitive
+        "ἰέναι", "ἴναι",
+        # Participles
+        "ἰών", "ἰοῦσα", "ἰόν",
+        "ἰόντος", "ἰούσης", "ἰόντι", "ἰούσῃ", "ἰόντα", "ἰοῦσαν",
+        "ἰόντες", "ἰοῦσαι", "ἰόντα", "ἰόντων", "ἰουσῶν", "ἰοῦσι",
+    },
+    # οἶδα 'know' (perfect-with-present meaning)
+    "οἶδα": {
+        # Indicative
+        "οἶδα", "οἶσθα", "οἶδε", "οἶδεν", "ἴσμεν", "ἴστε", "ἴσασι",
+        "ἴσασιν", "ἴστον",
+        # Subjunctive
+        "εἰδῶ", "εἰδῇς", "εἰδῇ", "εἰδῶμεν", "εἰδῆτε", "εἰδῶσι",
+        "εἰδῶσιν",
+        # Optative
+        "εἰδείην", "εἰδείης", "εἰδείη", "εἰδεῖμεν", "εἰδεῖτε",
+        "εἰδεῖεν", "εἰδείημεν", "εἰδείητε", "εἰδείησαν",
+        # Imperative
+        "ἴσθι", "ἴστω", "ἴστε", "ἴστων", "ἴστωσαν",
+        # Pluperfect (augmented)
+        "ᾔδη", "ᾔδειν", "ᾔδεις", "ᾔδεισθα", "ᾔδει", "ᾔδειν",
+        "ᾔδεμεν", "ᾔδειμεν", "ᾔδετε", "ᾔδειτε", "ᾔδεσαν", "ᾔδεισαν",
+        # Future (εἴσομαι)
+        "εἴσομαι", "εἴσῃ", "εἴσει", "εἴσεται", "εἰσόμεθα", "εἴσεσθε",
+        "εἴσονται",
+        # Infinitive
+        "εἰδέναι",
+        # Participle
+        "εἰδώς", "εἰδυῖα", "εἰδός",
+        "εἰδότος", "εἰδυίας", "εἰδότι", "εἰδυίᾳ", "εἰδότα",
+        "εἰδυῖαν", "εἰδότες", "εἰδυῖαι", "εἰδότων", "εἰδυιῶν",
+        "εἰδόσι",
+    },
+    # χρή 'it is necessary' (defective; only 3sg-style forms)
+    "χρή": {
+        "χρή", "χρῇ", "χρῆν", "χρῆναι", "χρεών", "χρῆται",
+        "χρῷη", "χρείη",
+    },
+    # φημί 'say' — the existing dispatcher routes φημί to pres-emi, but
+    # Wiktionary uses pres-ami for it (stem 'φ'). We keep the explicit
+    # paradigm here as a robust fallback.
+    "φημί": {
+        # Indicative
+        "φημί", "φῄς", "φησί", "φησίν", "φαμέν", "φατέ", "φᾱσί",
+        "φᾱσίν", "φατόν",
+        # Subjunctive
+        "φῶ", "φῇς", "φῇ", "φῶμεν", "φῆτε", "φῶσι", "φῶσιν",
+        # Optative
+        "φαίην", "φαίης", "φαίη", "φαῖμεν", "φαῖτε", "φαῖεν",
+        # Imperative
+        "φαθί", "φάθι", "φάτω", "φάτε", "φάντων", "φάτωσαν",
+        # Imperfect (no preverb augment to apply)
+        "ἔφην", "ἔφης", "ἔφη", "ἔφαμεν", "ἔφατε", "ἔφασαν",
+        # Infinitive / participle
+        "φάναι", "φάς", "φᾶσα", "φάν",
+    },
+}
+
+
+def _join_preverb(preverb, base_form):
+    """Prepend `preverb` to `base_form` for an AG compound verb.
+
+    Strategy: we generate two surface candidates - one with the
+    diacritics stripped from the base form (so the natural-accent
+    placement falls out from downstream NFC + accent rules) and one
+    that keeps the base's diacritics. We add both to the set the
+    caller will store: the lookup table indexes both accented and
+    diacritic-stripped keys, so a slightly imperfect accent on the
+    accented version is acceptable as long as the stripped key is
+    correct.
+
+    The preverb's trailing vowel elides before a vowel-initial base
+    form; the base's leading breathing is dropped in the joined form.
+    Aspirate-mutation (κατά + ἵστημι -> καθίστημι) is approximated
+    by mapping τ/π/κ -> θ/φ/χ when the base had a rough breathing.
+    """
+    if not preverb:
+        return base_form
+    nfd_base = unicodedata.normalize("NFD", base_form)
+    base_first = None
+    base_had_rough = False
+    base_first_idx = None
+    for i, ch in enumerate(nfd_base):
+        if not unicodedata.combining(ch):
+            base_first = ch
+            base_first_idx = i
+            break
+    # Detect rough breathing on first base char
+    if base_first_idx is not None:
+        for ch in nfd_base[base_first_idx + 1:]:
+            if not unicodedata.combining(ch):
+                break
+            if ord(ch) == 0x0314:
+                base_had_rough = True
+
+    # Strip ALL combining marks from the first base char (breathing + accent)
+    # so the preverb's accent or syllable structure dictates the surface.
+    if base_first_idx is not None:
+        out = []
+        i = 0
+        # Keep chars before the first base char (none usually)
+        out.extend(nfd_base[:base_first_idx + 1])
+        i = base_first_idx + 1
+        # Drop combining marks immediately after the first base char
+        while i < len(nfd_base) and unicodedata.combining(nfd_base[i]):
+            i += 1
+        out.extend(nfd_base[i:])
+        base_clean = unicodedata.normalize("NFC", "".join(out))
+    else:
+        base_clean = base_form
+
+    base_starts_vowel = base_first is not None and base_first in "αεηιουωΑΕΗΙΟΥΩ"
+
+    pv_nfd = unicodedata.normalize("NFD", preverb)
+    pv_chars = list(pv_nfd)
+
+    if base_starts_vowel:
+        # Find last base char of preverb
+        last_base_idx = None
+        for i in range(len(pv_chars) - 1, -1, -1):
+            if not unicodedata.combining(pv_chars[i]):
+                last_base_idx = i
+                break
+        if last_base_idx is not None:
+            last = pv_chars[last_base_idx]
+            if last in "αεηιουωΑΕΗΙΟΥΩ":
+                # Elide trailing vowel + its combining marks
+                end = last_base_idx
+                while end + 1 < len(pv_chars) and unicodedata.combining(
+                        pv_chars[end + 1]):
+                    end += 1
+                pv_chars = pv_chars[:last_base_idx] + pv_chars[end + 1:]
+            elif base_had_rough:
+                aspirate_map = {"τ": "θ", "π": "φ", "κ": "χ"}
+                if last in aspirate_map:
+                    pv_chars[last_base_idx] = aspirate_map[last]
+    pv_str = unicodedata.normalize("NFC", "".join(pv_chars))
+    return pv_str + base_clean
+
+
+def _expand_irregular_compound(headword):
+    """Try to expand an irregular -μι compound (e.g. πάρειμι, εἴσειμι).
+
+    Strategy: identify a known preverb prefix and a recognised
+    irregular base (εἰμί, εἶμι, οἶδα, χρή, φημί). If it matches,
+    generate forms by joining each base form with the preverb.
+    Returns the set of accented forms (and their stripped variants)
+    or empty set if no base matches.
+    """
+    preverb, base = _split_preverb(headword)
+    base_plain = _strip_diacritics_lower(base)
+    base_aliases = {
+        "ειμι": ["εἰμί", "εἶμι"],   # ambiguous: emit forms for both
+        "οιδα": ["οἶδα"],
+        "χρη": ["χρή"],
+        "φημι": ["φημί"],
+    }
+    bases = base_aliases.get(base_plain, [])
+    if not bases:
+        return set()
+    forms = set()
+    for canon in bases:
+        for f in _IRREGULAR_BASE_FORMS.get(canon, ()):
+            joined = _join_preverb(preverb, f)
+            forms.add(joined)
+            # Also emit the stripped form; lookup keys are stripped too
+            forms.add(strip_diacritics(joined))
+    return forms
+
+
+# Trivial OCR-corruption guard. Drop any headword that contains a combining
+# underdot / diaeresis-below mark (often inserted in scanned papyrus
+# editions) or that has an obviously ill-formed consonant cluster
+# (e.g. "ννν", "λλλ", "μμμ"). These are not real Greek words and they
+# routinely trigger Lua errors when fed to grc-conj.
+_OCR_BAD_COMBINING = {0x0323, 0x0324, 0x032E, 0x0325}
+_BAD_CONSONANT_CLUSTERS = ("ννν", "λλλ", "μμμ", "ρρρ", "σσσ")
+
+
+def _is_corrupt_headword(headword):
+    if not headword or len(headword) < 3:
+        return True
+    nfd = unicodedata.normalize("NFD", headword)
+    for ch in nfd:
+        if ord(ch) in _OCR_BAD_COMBINING:
+            return True
+    plain = strip_diacritics(headword.lower())
+    for c in _BAD_CONSONANT_CLUSTERS:
+        if c in plain:
+            return True
+    # Guard against headwords containing whitespace or commas
+    # (e.g. 'προεῖναι, πρόειμι', 'πρόσειμι εἰμί') which are LSJ
+    # cross-references mis-extracted as headwords.
+    if any(ch in headword for ch in " ,;"):
+        return True
+    return False
+
+
 def _classify_verb(headword):
-    """Classify a verb into conjugation type and stem. Returns (conj_type, stem) or (None, None)."""
+    """Classify a verb into conjugation type and stem. Returns (conj_type, stem) or (None, None).
+
+    The returned ``conj_type`` is the parameter-1 string that
+    ``Module:grc-conj`` understands. We support all rule-based
+    dispatches the Lua module exposes (pres-con-{a,e,o},
+    pres-{ami,emi,omi,numi,lumi}, plain pres). For genuinely
+    irregular athematic verbs whose Wiktionary entries use
+    ``pres-irreg`` (εἰμί, εἶμι, οἶδα, χρή, and their compounds),
+    we return the sentinel ``conj_type='irreg'`` so the caller can
+    dispatch to ``_expand_irregular_compound`` instead of Lua.
+    """
     hw_plain = strip_diacritics(headword)
 
     if hw_plain.endswith("εω"):
@@ -638,18 +1088,44 @@ def _classify_verb(headword):
         return "pres-con-a", strip_diacritics(headword[:-2])
     elif hw_plain.endswith("οω"):
         return "pres-con-o", strip_diacritics(headword[:-2])
+    # -όλλυμι (ὄλλυμι and compounds) uses pres-lumi, NOT pres-numi.
+    # The Wiktionary stem strips back to '-ολ' (e.g. ἀπόλλυμι -> ἀπολ).
+    # Detect *before* the more general -ννυμι rule which would otherwise
+    # mis-route these to pres-numi.
+    elif hw_plain.endswith("ολλυμι"):
+        return "pres-lumi", strip_diacritics(headword[:-4])
     elif hw_plain.endswith("ννυμι"):
         return "pres-numi", strip_diacritics(headword[:-5])
     elif hw_plain.endswith("νυμι"):
         return "pres-numi", strip_diacritics(headword[:-4])
+    # Irregular -ειμι compounds (εἰμί 'to be' / εἶμι 'to go' families).
+    # These need pres-irreg with hand-coded forms; we route to the
+    # irregular dispatcher rather than failing into a Lua error.
+    elif hw_plain.endswith("ειμι"):
+        return "irreg", ""
+    # -ημι: most are pres-emi (τίθημι, ἵημι, ἵστημι), but φημί is pres-ami
+    # with stem 'φ'. The single-consonant-stem case is the tell.
     elif hw_plain.endswith("ημι"):
+        if len(hw_plain) == 3:
+            # φ + ημι would be 4 chars; this is only ημι itself
+            return "pres-emi", strip_diacritics(headword[:-3])
         return "pres-emi", strip_diacritics(headword[:-3])
     elif hw_plain.endswith("ωμι"):
         return "pres-omi", strip_diacritics(headword[:-3])
     elif hw_plain.endswith("αμι"):
         return "pres-ami", strip_diacritics(headword[:-3])
+    elif hw_plain == "φημι" or hw_plain.endswith("φημι"):
+        # φημί and compounds (συμφημι, σύμφημι, πρόφημι) use pres-ami
+        # with consonant stem 'φ'. Only routes here if we didn't match
+        # the longer -ημι suffix above (we did, so this branch is mostly
+        # safety; the explicit irregular base for φημί covers it too).
+        return "irreg", ""
     elif hw_plain.endswith("μι"):
-        return "pres-mi", strip_diacritics(headword[:-2])
+        # No remaining rule-based dispatch handles a generic '-μι'
+        # ending. Most surviving cases are mis-OCR'd or unusual; route
+        # to the irregular dispatcher which will return empty if no
+        # known base matches.
+        return "irreg", ""
     elif hw_plain.endswith("ω"):
         return "pres", strip_diacritics(headword[:-1])
     elif hw_plain.endswith("μαι"):
@@ -690,51 +1166,92 @@ def _apply_suffix_cache(stem, suffixes, headword):
     return forms
 
 
-def expand_verb(wtp, headword):
+def expand_verb(wtp, headword, head_text: str = ""):
     """Expand a verb using grc-conj template. Returns set of forms.
 
-    Uses a cache keyed by conjugation type: if we've already expanded a verb
-    with the same conj_type, apply the suffix pattern instead of calling Lua.
+    Always expands the present-system paradigm. When ``head_text`` is
+    provided (the lead paragraph of the LSJ entry, see
+    :func:`load_lsj_head_texts`), additional principal parts (fut.,
+    aor., pf., aor. p., etc.) are extracted from the entry text and
+    their paradigms are unioned in. Without ``head_text`` the function
+    behaves exactly as before (present-system only).
+
+    Uses a cache keyed by conjugation type: if we've already expanded a
+    verb with the same conj_type, apply the suffix pattern instead of
+    calling Lua.
     """
+    # Reject obviously corrupt OCR'd headwords up front: they would only
+    # produce Lua errors and zero forms.
+    if _is_corrupt_headword(headword):
+        return set(), "corrupt-headword"
+
     conj_type, stem = _classify_verb(headword)
     if conj_type is None:
         return set(), f"unknown-ending:{headword[-3:]}"
 
-    # Check cache
-    if conj_type in _VERB_CACHE:
-        forms = _apply_suffix_cache(stem, _VERB_CACHE[conj_type], headword)
+    # Irregular verbs (εἰμί / εἶμι / οἶδα / χρή / φημί and compounds): use
+    # the hand-coded paradigm + preverb-prepending rather than Lua.
+    # Principal-parts expansion is skipped for these because the
+    # hand-coded paradigm already covers all attested tenses.
+    if conj_type == "irreg":
+        forms = _expand_irregular_compound(headword)
         if forms:
             return forms, ""
+        return set(), "irregular-no-base-match"
 
-    # Cache miss - call Lua
-    template = "{{grc-conj|" + conj_type + "|" + stem + "}}"
+    # Present-system expansion (with cache).
+    forms: set[str] = set()
+    err = ""
+    if conj_type in _VERB_CACHE:
+        forms = _apply_suffix_cache(stem, _VERB_CACHE[conj_type], headword)
+    if not forms:
+        # Cache miss or empty cached result - call Lua.
+        template = "{{grc-conj|" + conj_type + "|" + stem + "}}"
+        try:
+            wtp.start_page(headword)
+            html = wtp.expand(template)
+            forms = parse_html_forms(html, headword)
+        except Exception as e:
+            err = str(e)
+            # For -μι verbs that fail Lua dispatch, fall back to
+            # pres-emi (a real conjugation type), then plain 'pres'
+            # for thematic.
+            if conj_type.startswith("pres-") and conj_type != "pres":
+                for fallback in ["pres-emi", "pres"]:
+                    if fallback == conj_type:
+                        continue
+                    try:
+                        template = ("{{grc-conj|" + fallback + "|"
+                                    + stem + "}}")
+                        wtp.start_page(headword)
+                        html = wtp.expand(template)
+                        fallback_forms = parse_html_forms(html, headword)
+                        if fallback_forms:
+                            _VERB_CACHE[conj_type] = _build_suffix_cache(
+                                fallback_forms, stem)
+                            forms = fallback_forms
+                            err = ""
+                            break
+                    except Exception:
+                        continue
+        if forms and conj_type not in _VERB_CACHE:
+            _VERB_CACHE[conj_type] = _build_suffix_cache(forms, stem)
 
-    try:
-        wtp.start_page(headword)
-        html = wtp.expand(template)
-    except Exception as e:
-        # For -μι verbs, try falling back to simpler conjugation types
-        if conj_type.startswith("pres-") and conj_type != "pres":
-            for fallback in ["pres-mi", "pres"]:
-                if fallback == conj_type:
-                    continue
-                try:
-                    template = "{{grc-conj|" + fallback + "|" + stem + "}}"
-                    wtp.start_page(headword)
-                    html = wtp.expand(template)
-                    forms = parse_html_forms(html, headword)
-                    if forms:
-                        # Cache the working fallback under the original conj_type
-                        _VERB_CACHE[conj_type] = _build_suffix_cache(forms, stem)
-                        return forms, ""
-                except Exception:
-                    continue
-        return set(), str(e)
+    if err and not forms:
+        return set(), err
 
-    forms = parse_html_forms(html, headword)
-    # Cache the suffix pattern for this conjugation type
-    if forms and conj_type not in _VERB_CACHE:
-        _VERB_CACHE[conj_type] = _build_suffix_cache(forms, stem)
+    # Principal-parts expansion (additive). When the LSJ head text
+    # exposes principal parts beyond the present system, expand each
+    # tense via grc-conj and union the resulting forms in. Best
+    # effort: any failure is silent and falls back to the present-only
+    # paradigm above.
+    if head_text:
+        try:
+            extra = expand_principal_parts(wtp, headword, head_text)
+        except Exception:
+            extra = set()
+        if extra:
+            forms = forms | extra
 
     return forms, ""
 
@@ -790,7 +1307,13 @@ def test_one(word):
         forms, err = expand_noun(wtp, word, entry["gender"], entry["genitive"])
         print(f"\ngrc-decl result: {len(forms)} forms" + (f" (error: {err})" if err else ""))
     else:
-        forms, err = expand_verb(wtp, word)
+        head_texts = load_lsj_head_texts()
+        head_text = head_texts.get(word, "")
+        if head_text:
+            from lsj_principal_parts import parse_principal_parts as _ppp
+            parts = _ppp(head_text, word)
+            print(f"LSJ principal parts: {parts}")
+        forms, err = expand_verb(wtp, word, head_text=head_text)
         print(f"\ngrc-conj result: {len(forms)} forms" + (f" (error: {err})" if err else ""))
 
     if forms:
@@ -980,6 +1503,8 @@ def expand_verbs():
     print("Loading data...")
     lsj_entries = parse_lsj_entries()
     wikt = load_wiktionary_forms()
+    print("Loading LSJ entry head texts (for principal-parts extraction)...")
+    head_texts = load_lsj_head_texts()
 
     print(f"Loading {AG_LOOKUP}...")
     with open(AG_LOOKUP, encoding="utf-8") as f:
@@ -1003,17 +1528,26 @@ def expand_verbs():
 
     wtp = get_wtp()
 
-    stats = {"expanded": 0, "failed": 0, "new_forms": 0, "collisions": 0}
+    stats = {"expanded": 0, "failed": 0, "new_forms": 0, "collisions": 0,
+             "with_pp": 0}
     t0 = time.time()
 
     for i, hw in enumerate(candidates):
-        forms, err = expand_verb(wtp, hw)
+        head_text = head_texts.get(hw, "")
+        forms, err = expand_verb(wtp, hw, head_text=head_text)
 
         if err or not forms:
             stats["failed"] += 1
             continue
 
         stats["expanded"] += 1
+        if head_text:
+            # Track verbs that contributed at least one extra principal
+            # part. We re-parse here rather than threading the result
+            # through expand_verb to keep that signature simple.
+            from lsj_principal_parts import parse_principal_parts as _ppp
+            if _ppp(head_text, hw):
+                stats["with_pp"] += 1
 
         # See sanitize_form() rationale in expand_all() above.
         hw_clean = sanitize_form(hw)
@@ -1047,6 +1581,7 @@ def expand_verbs():
     elapsed = time.time() - t0
     print(f"\nDone in {elapsed:.0f}s")
     print(f"  Expanded: {stats['expanded']:,} / {len(candidates):,} verbs")
+    print(f"  With LSJ principal parts: {stats['with_pp']:,}")
     print(f"  Failed: {stats['failed']:,}")
     print(f"  New forms added: {stats['new_forms']:,}")
     print(f"  Collisions (kept existing): {stats['collisions']:,}")
