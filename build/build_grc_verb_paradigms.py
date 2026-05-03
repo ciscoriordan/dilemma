@@ -303,15 +303,20 @@ def synthesize_missing_moods(results: dict) -> tuple[int, int]:
     """Fill in missing finite-mood cells via principal-parts templating.
 
     For each verb in ``results``, parse its LSJ head text into
-    principal parts and run them through ``synth_verb_moods.synthesize_active_moods``
-    to produce templated subjunctive / optative / imperative / aorist-
-    infinitive forms. Only writes into slots that are currently empty;
-    real corpus / Wiktionary cells are never overwritten.
+    principal parts and run them through
+    ``synth_verb_moods.synthesize_active_moods`` and
+    ``synth_verb_moods.synthesize_mp_moods`` to produce templated
+    subjunctive / optative / imperative / aorist-infinitive forms in
+    active, middle, and passive voices. Only writes into slots that are
+    currently empty; real corpus / Wiktionary cells are never overwritten.
 
     Returns ``(verbs_touched, cells_added)``.
     """
     try:
-        from synth_verb_moods import synthesize_active_moods
+        from synth_verb_moods import (
+            synthesize_active_moods,
+            synthesize_mp_moods,
+        )
         from lsj_principal_parts import parse_principal_parts
     except ImportError as e:
         print(f"  synthesis skipped (import failure: {e})")
@@ -320,6 +325,7 @@ def synthesize_missing_moods(results: dict) -> tuple[int, int]:
     head_texts = load_lsj_head_texts()
     verbs_touched = 0
     cells_added = 0
+    mp_cells_added = 0
     cells_skipped_overlap = 0
     for lemma, paradigm in results.items():
         head_text = head_texts.get(lemma, "")
@@ -331,24 +337,38 @@ def synthesize_missing_moods(results: dict) -> tuple[int, int]:
             templated = synthesize_active_moods(lemma, parts)
         except Exception:
             templated = {}
-        if not templated:
+        try:
+            templated_mp = synthesize_mp_moods(lemma, parts)
+        except Exception:
+            templated_mp = {}
+        # Track per-voice to report stats; merge for the actual write.
+        if not templated and not templated_mp:
             continue
         forms = paradigm.setdefault("forms", {})
         added = 0
+        added_mp = 0
         for key, val in templated.items():
             if key in forms:
                 cells_skipped_overlap += 1
                 continue
             forms[key] = val
             added += 1
-        if added:
+        for key, val in templated_mp.items():
+            if key in forms:
+                cells_skipped_overlap += 1
+                continue
+            forms[key] = val
+            added_mp += 1
+        if added or added_mp:
             verbs_touched += 1
             cells_added += added
+            mp_cells_added += added_mp
             paradigm["form_count"] = len(forms)
-    print(f"  synthesised cells: {cells_added:,} across "
+    print(f"  synthesised active cells: {cells_added:,} across "
           f"{verbs_touched:,} verbs")
+    print(f"  synthesised mp/passive cells: {mp_cells_added:,}")
     print(f"  cells skipped (already present): {cells_skipped_overlap:,}")
-    return verbs_touched, cells_added
+    return verbs_touched, cells_added + mp_cells_added
 
 
 def synthesize_missing_participles(results: dict) -> tuple[int, int]:
