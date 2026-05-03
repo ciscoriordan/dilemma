@@ -351,6 +351,62 @@ def synthesize_missing_moods(results: dict) -> tuple[int, int]:
     return verbs_touched, cells_added
 
 
+def synthesize_missing_participles(results: dict) -> tuple[int, int]:
+    """Fill in missing participle cells via principal-parts templating.
+
+    For each verb in ``results``, parse its LSJ head text into principal
+    parts and run them through
+    ``synth_verb_participles.synthesize_participles`` to produce the
+    full case×gender×number declension for present-active /
+    present-mp / future-active / future-middle / future-passive /
+    aorist-active / aorist-middle / aorist-passive / perfect-active /
+    perfect-mp participles. Only writes into slots that are currently
+    empty; real corpus / Wiktionary cells are never overwritten.
+
+    Returns ``(verbs_touched, cells_added)``.
+    """
+    try:
+        from synth_verb_participles import synthesize_participles
+        from lsj_principal_parts import parse_principal_parts
+    except ImportError as e:
+        print(f"  participle synthesis skipped (import failure: {e})")
+        return 0, 0
+
+    head_texts = load_lsj_head_texts()
+    verbs_touched = 0
+    cells_added = 0
+    cells_skipped_overlap = 0
+    for lemma, paradigm in results.items():
+        head_text = head_texts.get(lemma, "")
+        try:
+            parts = parse_principal_parts(head_text, lemma) if head_text else {}
+        except Exception:
+            parts = {}
+        try:
+            templated = synthesize_participles(lemma, parts)
+        except Exception:
+            templated = {}
+        if not templated:
+            continue
+        forms = paradigm.setdefault("forms", {})
+        added = 0
+        for key, val in templated.items():
+            if key in forms:
+                cells_skipped_overlap += 1
+                continue
+            forms[key] = val
+            added += 1
+        if added:
+            verbs_touched += 1
+            cells_added += added
+            paradigm["form_count"] = len(forms)
+    print(f"  synthesised participle cells: {cells_added:,} across "
+          f"{verbs_touched:,} verbs")
+    print(f"  participle cells skipped (already present): "
+          f"{cells_skipped_overlap:,}")
+    return verbs_touched, cells_added
+
+
 def build_paradigms(only_lemmas=None):
     """Aggregate verb pairs from all sources into per-lemma paradigms."""
     print("Building Ancient Greek verb paradigms ...")
@@ -526,7 +582,18 @@ def build_paradigms(only_lemmas=None):
     if results:
         counts = sorted(v["form_count"] for v in results.values())
         n = len(counts)
-        print(f"  forms per lemma (post-synth): "
+        print(f"  forms per lemma (post-mood-synth): "
+              f"min={counts[0]} median={counts[n//2]} "
+              f"max={counts[-1]} avg={sum(counts)/n:.1f}")
+
+    # Second synthesis pass: full case×gender×number participle
+    # declension. Like the mood pass, only fills empty cells.
+    print("  synthesising missing participles from principal parts ...")
+    synthesize_missing_participles(results)
+    if results:
+        counts = sorted(v["form_count"] for v in results.values())
+        n = len(counts)
+        print(f"  forms per lemma (post-participle-synth): "
               f"min={counts[0]} median={counts[n//2]} "
               f"max={counts[-1]} avg={sum(counts)/n:.1f}")
     return results
