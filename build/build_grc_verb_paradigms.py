@@ -47,6 +47,17 @@ _BUILD_DIR = Path(__file__).resolve().parent
 if str(_BUILD_DIR) not in sys.path:
     sys.path.insert(0, str(_BUILD_DIR))
 
+# Make the dilemma package importable for the augment helpers in
+# dilemma.morph_diff (used by `is_augmented_past_indicative`).
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from dilemma.morph_diff import (  # noqa: E402
+    _detect_syllabic_augment,
+    _detect_temporal_augment,
+    _strip_diacritics,
+)
+
 AG_PAIRS = DATA_DIR / "ag_pairs.json"
 GLAUX_PAIRS = DATA_DIR / "glaux_pairs.json"
 VERB_EXTRA_PAIRS = DATA_DIR / "verb_extra_pairs.json"
@@ -172,8 +183,54 @@ def lowercase_initial(s: str) -> str:
     return unicodedata.normalize("NFC", "".join(out))
 
 
-def pick_best_form(forms):
-    """Pick the canonical surface form from a list of variants."""
+_PAST_INDICATIVE_TENSES = ("aorist", "imperfect", "pluperfect")
+
+
+def is_past_indicative_key(key: str) -> bool:
+    """True when ``key`` names a past-tense indicative cell.
+
+    Augment is mandatory in indicative aorist / imperfect / pluperfect.
+    Non-indicative moods (subjunctive / optative / imperative / infinitive
+    / participle) never carry augment, so this check is gated on
+    ``_indicative`` appearing alongside one of the past-tense markers.
+    """
+    if not key:
+        return False
+    if "_indicative_" not in key and not key.endswith("_indicative"):
+        return False
+    return any(t in key for t in _PAST_INDICATIVE_TENSES)
+
+
+def has_augment(form: str, lemma: str) -> bool:
+    """True when ``form`` carries a syllabic or temporal augment vs ``lemma``.
+
+    Wraps the augment detectors in :mod:`dilemma.morph_diff`. Used to
+    rank past-indicative variants in :func:`pick_best_form` so we never
+    emit an unaugmented 3sg / 3pl when an augmented variant is also
+    attested in the corpus.
+    """
+    if not form or not lemma:
+        return False
+    fb = _strip_diacritics(form)
+    lb = _strip_diacritics(lemma)
+    if _detect_syllabic_augment(fb, lb):
+        return True
+    if _detect_temporal_augment(fb, lb):
+        return True
+    return False
+
+
+def pick_best_form(forms, key: str | None = None, lemma: str | None = None):
+    """Pick the canonical surface form from a list of variants.
+
+    For past-indicative cells (aorist / imperfect / pluperfect) where
+    ``lemma`` is provided we prefer augment-bearing variants. Multiple
+    Wiktionary / GLAUx entries for the same cell often include both
+    Homeric un-augmented forms (``λῦσε``, ``λῦσαν``) and Attic augmented
+    forms (``ἔλυσε``, ``ἔλυσαν``); without the augment preference, the
+    `-len(f)` tie-breaker silently picks the shorter, un-augmented
+    variant for the canonical Attic slice.
+    """
     if not forms:
         return None
     if isinstance(forms, set):
@@ -185,8 +242,13 @@ def pick_best_form(forms):
     if no_elide:
         pool = no_elide
     counts = Counter(forms)
+    prefer_augment = bool(lemma) and is_past_indicative_key(key or "")
     return max(pool, key=lambda f: (
         counts[f],          # most attested wins
+        # Past-indicative cells: augment-bearing forms win over un-
+        # augmented variants regardless of count, so we never emit
+        # λῦσε / λῦσαν over ἔλυσε / ἔλυσαν for the canonical 3sg / 3pl.
+        has_augment(f, lemma) if prefer_augment else False,
         has_polytonic(f),   # break ties by polytonic richness
         -len(f),            # shorter wins (ἐστί over ἐστίν)
         f,                  # alphabetical for determinism
@@ -611,7 +673,7 @@ def build_paradigms(only_lemmas=None):
         # Pick the best form for each key in the Attic slice
         attic_forms = {}
         for key, variants in attic_forms_raw.items():
-            best = pick_best_form(variants)
+            best = pick_best_form(variants, key=key, lemma=lemma)
             if best:
                 attic_forms[key] = grave_to_acute(best)
 
@@ -636,13 +698,17 @@ def build_paradigms(only_lemmas=None):
             "source": "dilemma",
         }
 
-        # Add per-dialect paradigm slices for non-Attic dialects
+        # Add per-dialect paradigm slices for non-Attic dialects.
+        # We do NOT pass `lemma` for the augment-preference rule here:
+        # Epic / Homeric / Doric variants regularly omit the augment
+        # (e.g. λῦσε in Homer is the canonical Epic 3sg), so forcing
+        # augment-preference would override the dialect's own usage.
         for dialect, kv in by_dialect.items():
             if not dialect:
                 continue
             picked = {}
             for key, variants in kv.items():
-                best = pick_best_form(variants)
+                best = pick_best_form(variants, key=key)
                 if best:
                     picked[key] = grave_to_acute(best)
             if picked:
