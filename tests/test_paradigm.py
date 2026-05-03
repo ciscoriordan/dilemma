@@ -445,3 +445,261 @@ class TestFillCanonicalDict:
         assert stats["lemmas_touched"] == 0
         assert "inflections_source" not in filled["x.yml"]
         assert filled["x.yml"]["inflections"] == {"attic": {}}
+
+
+# ---------------------------------------------------------------------------
+# End-to-end determinism on a Klisy-shaped input
+# ---------------------------------------------------------------------------
+
+
+class TestFillDeterminismTemplateOnly:
+    """Determinism guarantees that hold on a clean checkout (no JSON sources).
+
+    These tests run with the JSON sources empty so only the template
+    fallback path is exercised. They guard against regressions where
+    someone adds a `set()` or `defaultdict` whose iteration order
+    leaks into the output even when no paradigm JSONs are present.
+    """
+
+    def setup_method(self):
+        reset_cache()
+
+    def _pin_empty_sources(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            "dilemma.paradigm._candidate_data_dirs",
+            lambda: [tmp_path],
+        )
+        reset_cache()
+
+    @staticmethod
+    def _template_only_canonical():
+        # All lemmas the template fallback can fill from scratch:
+        # plain thematic -ω verb (γράφω -> present-system active),
+        # 1st-decl long-α noun (χώρα), 1st-decl η noun (τέχνη),
+        # 2nd-decl -ος noun (λόγος), 2-1-2 -ος adj (καλός).
+        return {
+            "g/γράφω.yml": {"lemma": "γράφω", "pos": "verb"},
+            "x/χώρα.yml": {"lemma": "χώρα", "pos": "noun"},
+            "t/τέχνη.yml": {"lemma": "τέχνη", "pos": "noun"},
+            "l/λόγος.yml": {"lemma": "λόγος", "pos": "noun"},
+            "k/καλός.yml": {"lemma": "καλός", "pos": "adj"},
+        }
+
+    def test_template_fill_byte_identical(self, tmp_path, monkeypatch):
+        self._pin_empty_sources(tmp_path, monkeypatch)
+        canonical = self._template_only_canonical()
+        first = json.dumps(
+            fill_canonical_dict(
+                json.loads(json.dumps(canonical, ensure_ascii=False)),
+                allow_template=True, dialect="attic",
+            )[0],
+            ensure_ascii=False,
+        )
+        # Second invocation: separate input copy, fresh empty source cache.
+        reset_cache()
+        second = json.dumps(
+            fill_canonical_dict(
+                json.loads(json.dumps(canonical, ensure_ascii=False)),
+                allow_template=True, dialect="attic",
+            )[0],
+            ensure_ascii=False,
+        )
+        assert first == second
+
+
+@needs_jtauber
+class TestFillDeterminism:
+    """Two fills of the same canonical input must produce byte-identical JSON.
+
+    The Klisy build pipeline relies on this: it writes the
+    `pending_canonical` hash to a tempfile, runs `python -m dilemma
+    paradigm fill`, parses the output, then later compares each
+    candidate YAML against any existing on-disk file and skips
+    unchanged ones. If the fill output drifts between runs (e.g. dict
+    iteration order, set iteration leaking into output, hash-randomised
+    set membership), every YAML gets rewritten and downstream caches
+    invalidate. The test below builds a representative multi-POS
+    canonical-shape input -- mixing verbs, nouns, adjectives, pre-
+    populated and empty inflection maps -- then asserts byte-for-byte
+    equality of `json.dumps` (NOT `sort_keys=True`) across two
+    independent fill invocations.
+    """
+
+    def setup_method(self):
+        reset_cache()
+
+    @staticmethod
+    def _representative_canonical():
+        # Mixed corpus of lemmas hitting each precedence-chain branch
+        # we ship: jtauber (γράφω), Morpheus (ag_noun_paradigms covers
+        # ζηλωτός as adj), dilemma_corpus (χώρα is in
+        # dilemma_ag_noun_paradigms), and a non-inflectable POS
+        # entry (καί) that must pass through untouched. Each entry is
+        # given a distinct shape so the full fill_canonical_dict
+        # branches (no inflections, empty attic, partial attic, sources
+        # block, additional_pos passthrough) all execute.
+        return {
+            "g/γράφω.yml": {
+                "lemma": "γράφω",
+                "pos": "verb",
+                # Empty inflections on the verb -> fill populates from jtauber.
+                "inflections": {"attic": {}},
+            },
+            "f/φέρω.yml": {
+                "lemma": "φέρω",
+                "pos": "verb",
+                # Pre-populated cells: fill must not overwrite the user
+                # value AND must add missing cells. Tests the "skip
+                # existing" branch.
+                "inflections": {
+                    "attic": {
+                        "active_present_indicative_1sg": "ZZZ_KEEP_ME",
+                    },
+                },
+            },
+            "x/χώρα.yml": {
+                "lemma": "χώρα",
+                "pos": "noun",
+                # No inflections key at all -> fill must create the
+                # nested {attic: {}} and populate from dilemma noun
+                # source.
+            },
+            "z/ζηλωτός.yml": {
+                "lemma": "ζηλωτός",
+                "pos": "adj",
+                # adj path through generate(): exercises the noun-fallback
+                # order (Morpheus first, dilemma_corpus second).
+                "inflections": {"attic": {}},
+            },
+            "k/καί.yml": {
+                "lemma": "καί",
+                "pos": "conj",
+                # Non-inflectable: fill must leave it byte-identical.
+                "inflections": {"attic": {}},
+            },
+            "g/γέρων.yml": {
+                "lemma": "γέρων",
+                "pos": "noun",
+                # 3rd-decl consonant stem: dilemma_corpus may have
+                # partial coverage; ensures we exercise lemmas where
+                # only some cells are filled. No template fallback.
+                "inflections": {"attic": {}},
+            },
+        }
+
+    def _run_fill_via_api(self, canonical_in):
+        # Use json roundtrip to mimic the on-disk read the CLI does.
+        # The bug (if any) lives downstream of json.loads, so the
+        # roundtrip ensures we measure the same code path.
+        data = json.loads(json.dumps(canonical_in, ensure_ascii=False))
+        filled, _ = fill_canonical_dict(data, allow_template=False, dialect="attic")
+        return json.dumps(filled, ensure_ascii=False)
+
+    def test_two_consecutive_fills_byte_identical(self):
+        # Core regression: same input, two fill invocations, identical
+        # bytes. Without sort_keys -- so any drift in dict iteration
+        # order surfaces immediately.
+        canonical = self._representative_canonical()
+        first = self._run_fill_via_api(canonical)
+        second = self._run_fill_via_api(canonical)
+        assert first == second, (
+            "fill_canonical_dict produced non-byte-identical output "
+            "across two consecutive invocations on the same input. "
+            "This breaks Klisy's compare-and-skip write phase and "
+            "indicates a non-deterministic ordering somewhere in the "
+            "fill chain (set iteration, dict-from-set, randomised hash, ...)."
+        )
+
+    def test_fill_then_refill_byte_identical(self):
+        # Idempotence: filling once then filling the result again must
+        # yield byte-identical output. Distinct from the test above
+        # because some bugs only manifest when a second pass over the
+        # already-filled cells is requested.
+        canonical = self._representative_canonical()
+        once = self._run_fill_via_api(canonical)
+        twice_input = json.loads(once)
+        twice = json.dumps(twice_input, ensure_ascii=False)
+        # First sanity: parsing+re-dumping shouldn't move bytes.
+        assert once == twice
+        # Now run fill on the already-filled output: no new cells
+        # should appear, byte-identical guaranteed.
+        twice_data = json.loads(once)
+        filled, stats = fill_canonical_dict(
+            twice_data, allow_template=False, dialect="attic",
+        )
+        third = json.dumps(filled, ensure_ascii=False)
+        assert once == third
+        # And the stats should reflect zero new fills (every cell the
+        # sources covered was filled in pass one).
+        assert stats["lemmas_touched"] == 0
+
+    def test_input_dict_order_does_not_change_per_lemma_cells(self):
+        # When the *input* dict is reordered (different insertion order
+        # for the outer {filepath: entry} keys), the resulting cells
+        # PER LEMMA must be the same set with the same values. Output
+        # bytes will differ because the outer JSON encodes input key
+        # order, but per-entry semantics must not.
+        canonical = self._representative_canonical()
+        keys = list(canonical.keys())
+        reversed_canonical = {k: canonical[k] for k in reversed(keys)}
+        a, _ = fill_canonical_dict(
+            json.loads(json.dumps(canonical, ensure_ascii=False)),
+            allow_template=False, dialect="attic",
+        )
+        b, _ = fill_canonical_dict(
+            json.loads(json.dumps(reversed_canonical, ensure_ascii=False)),
+            allow_template=False, dialect="attic",
+        )
+        assert set(a.keys()) == set(b.keys())
+        for k in a:
+            a_attic = a[k].get("inflections", {}).get("attic", {})
+            b_attic = b[k].get("inflections", {}).get("attic", {})
+            # Same cell set, same forms.
+            assert a_attic == b_attic, (
+                f"per-lemma cells differ for {k!r} when input order "
+                f"changes: only-in-A={set(a_attic) - set(b_attic)}, "
+                f"only-in-B={set(b_attic) - set(a_attic)}"
+            )
+            # And the source attribution must match too.
+            a_src = a[k].get("inflections_source", {}).get("attic", {})
+            b_src = b[k].get("inflections_source", {}).get("attic", {})
+            assert a_src == b_src
+
+    def test_fill_via_cli_subprocess_byte_identical(self):
+        # End-to-end: run the actual `python -m dilemma paradigm fill`
+        # CLI in two separate processes (so any fork-time
+        # non-determinism, e.g. PYTHONHASHSEED, surfaces) and assert
+        # byte-identical output files. The Klisy build calls dilemma
+        # exactly this way; this test catches CLI-only regressions
+        # the in-process tests above might miss.
+        import subprocess
+        import tempfile
+        canonical = self._representative_canonical()
+        with tempfile.TemporaryDirectory() as td:
+            in_path = Path(td) / "in.json"
+            out_a = Path(td) / "out_a.json"
+            out_b = Path(td) / "out_b.json"
+            in_path.write_text(json.dumps(canonical, ensure_ascii=False))
+            for out_path in (out_a, out_b):
+                env = dict(os.environ)
+                # Honour caller's $DILEMMA_PARADIGM_DATA; otherwise
+                # the CLI loads no sources and the test is meaningless.
+                # @needs_jtauber decorator already gates on this var.
+                proc = subprocess.run(
+                    [
+                        "python3", "-m", "dilemma", "paradigm", "fill",
+                        "--in", str(in_path),
+                        "--out", str(out_path),
+                        "--dialect", "attic",
+                    ],
+                    env=env, capture_output=True, text=True, check=False,
+                )
+                assert proc.returncode == 0, (
+                    f"CLI failed: stdout={proc.stdout!r} stderr={proc.stderr!r}"
+                )
+            assert out_a.read_bytes() == out_b.read_bytes(), (
+                "two consecutive `python -m dilemma paradigm fill` "
+                "subprocess invocations on the same input produced "
+                "different bytes; this is the exact regression Klisy's "
+                "build_canonical_ag.rb consumes."
+            )
