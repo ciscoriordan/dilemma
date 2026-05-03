@@ -1021,3 +1021,170 @@ class TestContractMoodsSchemaAlignment:
     def test_skip_athematic(self, synth):
         out = synth.synthesize_contract_moods("τίθημι", {})
         assert out == {}
+
+
+# ---------------------------------------------------------------------------
+# v4: mixed-α aor-2 (πίπτω-style ἔπεσα / εἶπα / εὗρα) detection +
+# alpha-pattern indicative synthesis. Aor 1sg ends in -α not -ον but the
+# rest of the paradigm uses regular aor-2 ο-thematic endings.
+# ---------------------------------------------------------------------------
+
+
+class TestAor2AlphaDetection:
+    """The classifier ``_is_aor_2_alpha_form`` distinguishes mixed-α
+    aor-2 forms from clean sigmatic σ-aorists by checking root identity
+    against the lemma stem."""
+
+    def test_pipto_alpha_detected(self, synth):
+        # ἔπεσα is mixed-α: σ comes from a different root (πεσ- vs πιπτ-).
+        assert synth._is_aor_2_alpha_form("ἔπεσα", "πίπτω")
+
+    def test_lego_alpha_detected(self, synth):
+        # εἶπα: π before α, lemma λέγω predicts cluster ξ via γ → mismatch
+        # but actually our heuristic catches this through the cluster
+        # mismatch (σ != ξ). Either way, εἶπα is recognised as α-aor-2.
+        assert synth._is_aor_2_alpha_form("εἶπα", "λέγω")
+
+    def test_heurisko_alpha_detected(self, synth):
+        # εὗρα: ρ before α (not σ/ψ/ξ) → α-aor-2.
+        assert synth._is_aor_2_alpha_form("εὗρα", "εὑρίσκω")
+
+    def test_lyo_sigmatic_rejected(self, synth):
+        # ἔλυσα: σ before α, lemma λύω is vowel-stem → predicts σ →
+        # cluster matches → root λυ matches → clean σ-aorist, NOT α-aor-2.
+        assert not synth._is_aor_2_alpha_form("ἔλυσα", "λύω")
+
+    def test_grapho_sigmatic_rejected(self, synth):
+        # ἔγραψα: clean ψ-aorist (γρ + φ → ψ predicted, root γρα matches).
+        assert not synth._is_aor_2_alpha_form("ἔγραψα", "γράφω")
+
+    def test_paideo_sigmatic_rejected(self, synth):
+        assert not synth._is_aor_2_alpha_form("ἐπαίδευσα", "παιδεύω")
+
+    def test_athematic_rejected(self, synth):
+        # δίδωμι has -μι → not thematic → α-aor-2 detection bails.
+        assert not synth._is_aor_2_alpha_form("ἔδωκα", "δίδωμι")
+
+    def test_no_lemma_rejected(self, synth):
+        # Without lemma we can't distinguish suppletion → conservative reject.
+        assert not synth._is_aor_2_alpha_form("ἔπεσα", None)
+
+    def test_extract_stem_alpha(self, synth):
+        # Alpha-pattern aor 1sg → unaugmented stem.
+        assert synth.extract_aor2_stem("ἔπεσα", "πίπτω") == "πεσ"
+        assert synth.extract_aor2_stem("εὗρα", "εὑρίσκω") == "εὗρ"
+
+
+class TestSuppletionGuard:
+    """``_aorist_stem_from_lemma_and_aor`` returns None for suppletive
+    aor stems (different ROOT from lemma): πίπτω + ἔπεσα would naively
+    splice σ onto πιπτ → πιπσ-, but the bodies don't match → None."""
+
+    def test_pipto_suppletion_rejected(self, synth):
+        # Without the suppletion guard this would return πίπσ.
+        assert synth._aorist_stem_from_lemma_and_aor(
+            "πίπτω", "ἔπεσα"
+        ) is None
+
+    def test_lyo_regular_kept(self, synth):
+        stem = synth._aorist_stem_from_lemma_and_aor("λύω", "ἔλυσα")
+        assert stem == "λύσ"
+
+    def test_grapho_regular_kept(self, synth):
+        stem = synth._aorist_stem_from_lemma_and_aor("γράφω", "ἔγραψα")
+        assert stem == "γράψ"
+
+
+class TestAor2AlphaIndicative:
+    """Mixed-α aor-2 verbs synthesise α-pattern indicative cells
+    (-α / -ας / -αμεν / -ατε / -αν) on the augmented stem, exactly
+    matching jtauber's verbatim output."""
+
+    def test_pipto_active_indicative_1sg(self, synth):
+        out = synth.synthesize_aor2_moods("πίπτω", {"aor": "ἔπεσα"})
+        assert out["active_aorist_indicative_1sg"] == "ἔπεσα"
+
+    def test_pipto_active_indicative_2sg(self, synth):
+        out = synth.synthesize_aor2_moods("πίπτω", {"aor": "ἔπεσα"})
+        assert out["active_aorist_indicative_2sg"] == "ἔπεσας"
+
+    def test_pipto_active_indicative_1pl_recessive(self, synth):
+        out = synth.synthesize_aor2_moods("πίπτω", {"aor": "ἔπεσα"})
+        # ἐπέσαμεν: 4-syllable form, antepenult acute on ε of πεσ.
+        assert out["active_aorist_indicative_1pl"] == "ἐπέσαμεν"
+
+    def test_pipto_active_indicative_3pl(self, synth):
+        out = synth.synthesize_aor2_moods("πίπτω", {"aor": "ἔπεσα"})
+        assert out["active_aorist_indicative_3pl"] == "ἔπεσαν"
+
+    def test_pipto_active_no_3sg(self, synth):
+        # jtauber doesn't emit a 3sg for these; we mirror.
+        out = synth.synthesize_aor2_moods("πίπτω", {"aor": "ἔπεσα"})
+        assert "active_aorist_indicative_3sg" not in out
+
+    def test_eipa_active_indicative_circumflex(self, synth):
+        # εἶπα has circumflex on long penult ει + short ult α.
+        out = synth.synthesize_aor2_moods("λέγω", {"aor": "εἶπα"})
+        assert out["active_aorist_indicative_1sg"] == "εἶπα"
+        assert out["active_aorist_indicative_2sg"] == "εἶπας"
+        assert out["active_aorist_indicative_3pl"] == "εἶπαν"
+
+    def test_eipa_active_indicative_acute_3syl(self, synth):
+        # εἴπαμεν: 3-syl, antepenult on long ει → acute.
+        out = synth.synthesize_aor2_moods("λέγω", {"aor": "εἶπα"})
+        assert out["active_aorist_indicative_1pl"] == "εἴπαμεν"
+        assert out["active_aorist_indicative_2pl"] == "εἴπατε"
+
+    def test_heura_active_indicative(self, synth):
+        out = synth.synthesize_aor2_moods("εὑρίσκω", {"aor": "εὗρα"})
+        assert out["active_aorist_indicative_1sg"] == "εὗρα"
+        assert out["active_aorist_indicative_2sg"] == "εὗρας"
+        assert out["active_aorist_indicative_3pl"] == "εὗραν"
+        assert out["active_aorist_indicative_1pl"] == "εὕραμεν"
+
+    def test_pipto_middle_indicative(self, synth):
+        out = synth.synthesize_aor2_moods("πίπτω", {"aor": "ἔπεσα"})
+        assert out["middle_aorist_indicative_1sg"] == "ἐπεσάμην"
+        assert out["middle_aorist_indicative_3sg"] == "ἐπέσατο"
+        assert out["middle_aorist_indicative_1pl"] == "ἐπεσάμεθα"
+        assert out["middle_aorist_indicative_2pl"] == "ἐπέσασθε"
+        assert out["middle_aorist_indicative_3pl"] == "ἐπέσαντο"
+
+    def test_pipto_subjunctive_unchanged(self, synth):
+        # Subjunctive uses regular aor-2 ο-thematic endings on πεσ-.
+        out = synth.synthesize_aor2_moods("πίπτω", {"aor": "ἔπεσα"})
+        assert out["active_aorist_subjunctive_1sg"] == "πέσω"
+        assert out["active_aorist_subjunctive_2sg"] == "πέσῃς"
+        assert out["active_aorist_subjunctive_1pl"] == "πέσωμεν"
+
+    def test_pipto_optative_unchanged(self, synth):
+        out = synth.synthesize_aor2_moods("πίπτω", {"aor": "ἔπεσα"})
+        assert out["active_aorist_optative_1sg"] == "πέσοιμι"
+
+    def test_pipto_imperative_unchanged(self, synth):
+        out = synth.synthesize_aor2_moods("πίπτω", {"aor": "ἔπεσα"})
+        assert out["active_aorist_imperative_2sg"] == "πέσε"
+        assert out["active_aorist_imperative_3sg"] == "πεσέτω"
+
+    def test_pipto_infinitive_unchanged(self, synth):
+        out = synth.synthesize_aor2_moods("πίπτω", {"aor": "ἔπεσα"})
+        assert out["active_aorist_infinitive"] == "πεσεῖν"
+
+    def test_jtauber_verbatim_pipto(self, synth):
+        # Spot-check verbatim against jtauber for ἔπεσα.
+        out = synth.synthesize_aor2_moods("πίπτω", {"aor": "ἔπεσα"})
+        assert out["active_aorist_indicative_1sg"] == "ἔπεσα"
+        assert out["active_aorist_indicative_2sg"] == "ἔπεσας"
+        assert out["active_aorist_indicative_1pl"] == "ἐπέσαμεν"
+        assert out["active_aorist_indicative_2pl"] == "ἐπέσατε"
+        assert out["active_aorist_indicative_3pl"] == "ἔπεσαν"
+        assert out["middle_aorist_indicative_1sg"] == "ἐπεσάμην"
+        assert out["middle_aorist_indicative_3sg"] == "ἐπέσατο"
+        assert out["middle_aorist_indicative_3pl"] == "ἐπέσαντο"
+
+
+# ---------------------------------------------------------------------------
+# v4: macron / breve quantity marks on participle endings live in
+# tests/test_synth_verb_participles.py — they're tested in tandem with
+# the participle synthesis there.
+# ---------------------------------------------------------------------------

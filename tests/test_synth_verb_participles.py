@@ -98,13 +98,14 @@ class TestPresentActive:
 
     def test_lyo_present_active_feminine(self, synth):
         out = synth.synthesize_participles("λύω", {})
-        assert out["active_present_participle_nom_f_sg"] == "λύουσα"
+        # jtauber convention: -σᾰ / -σᾰν get breve, -σᾱς gets macron.
+        assert out["active_present_participle_nom_f_sg"] == "λύουσᾰ"
         assert out["active_present_participle_gen_f_sg"] == "λυούσης"
         assert out["active_present_participle_dat_f_sg"] == "λυούσῃ"
-        assert out["active_present_participle_acc_f_sg"] == "λύουσαν"
+        assert out["active_present_participle_acc_f_sg"] == "λύουσᾰν"
         assert out["active_present_participle_nom_f_pl"] == "λύουσαι"
         assert out["active_present_participle_dat_f_pl"] == "λυούσαις"
-        assert out["active_present_participle_acc_f_pl"] == "λυούσας"
+        assert out["active_present_participle_acc_f_pl"] == "λυούσᾱς"
 
     def test_lyo_present_active_neuter(self, synth):
         out = synth.synthesize_participles("λύω", {})
@@ -116,7 +117,7 @@ class TestPresentActive:
         out = synth.synthesize_participles("γράφω", {})
         assert out["active_present_participle_nom_m_sg"] == "γράφων"
         assert out["active_present_participle_gen_m_pl"] == "γραφόντων"
-        assert out["active_present_participle_nom_f_sg"] == "γράφουσα"
+        assert out["active_present_participle_nom_f_sg"] == "γράφουσᾰ"
         assert out["active_present_participle_dat_f_sg"] == "γραφούσῃ"
 
 
@@ -181,25 +182,28 @@ class TestAoristActive:
 
     def test_lyo_aorist_active_feminine(self, synth):
         out = synth.synthesize_participles("λύω", {"fut": "λύσω"})
-        assert out["active_aorist_participle_nom_f_sg"] == "λύσασα"
-        assert out["active_aorist_participle_gen_f_sg"] == "λυσάσης"
-        assert out["active_aorist_participle_dat_f_sg"] == "λυσάσῃ"
-        assert out["active_aorist_participle_acc_f_sg"] == "λύσασαν"
-        assert out["active_aorist_participle_nom_f_pl"] == "λύσασαι"
+        # jtauber: σ-stem α gets MACRON throughout the fem decl
+        # (λύσᾱσα / λυσᾱ́σης / λύσᾱσαι / λυσᾱ́σᾱς).
+        assert out["active_aorist_participle_nom_f_sg"] == "λύσᾱσα"
+        assert out["active_aorist_participle_gen_f_sg"] == "λυσᾱ́σης"
+        assert out["active_aorist_participle_dat_f_sg"] == "λυσᾱ́σῃ"
+        assert out["active_aorist_participle_acc_f_sg"] == "λύσᾱσαν"
+        assert out["active_aorist_participle_nom_f_pl"] == "λύσᾱσαι"
+        assert out["active_aorist_participle_acc_f_pl"] == "λυσᾱ́σᾱς"
 
     def test_grapho_aorist_active_from_aor(self, synth):
         """γράφω + aor ἔγραψα: graft ψ-cluster onto present stem."""
         out = synth.synthesize_participles("γράφω", {"aor": "ἔγραψα"})
         assert out["active_aorist_participle_nom_m_sg"] == "γράψας"
         assert out["active_aorist_participle_gen_m_pl"] == "γραψάντων"
-        assert out["active_aorist_participle_nom_f_sg"] == "γράψασα"
-        assert out["active_aorist_participle_dat_f_pl"] == "γραψάσαις"
+        assert out["active_aorist_participle_nom_f_sg"] == "γράψᾱσα"
+        assert out["active_aorist_participle_dat_f_pl"] == "γραψᾱ́σαις"
 
     def test_pempo_aorist_active(self, synth):
         out = synth.synthesize_participles("πέμπω", {"fut": "πέμψω"})
         assert out["active_aorist_participle_nom_m_sg"] == "πέμψας"
         assert out["active_aorist_participle_acc_m_sg"] == "πέμψαντα"
-        assert out["active_aorist_participle_nom_f_sg"] == "πέμψασα"
+        assert out["active_aorist_participle_nom_f_sg"] == "πέμψᾱσα"
 
 
 # ---------------------------------------------------------------------------
@@ -297,10 +301,12 @@ class TestPerfectActive:
 
     def test_lyo_perfect_active_feminine(self, synth):
         out = synth.synthesize_participles("λύω", {"pf": "λέλυκα"})
+        # jtauber: macron on gen_f_sg α (-υίᾱς) and acc_f_pl α (-υίᾱς).
         assert out["active_perfect_participle_nom_f_sg"] == "λελυκυῖα"
-        assert out["active_perfect_participle_gen_f_sg"] == "λελυκυίας"
+        assert out["active_perfect_participle_gen_f_sg"] == "λελυκυίᾱς"
         assert out["active_perfect_participle_dat_f_sg"] == "λελυκυίᾳ"
         assert out["active_perfect_participle_acc_f_sg"] == "λελυκυῖαν"
+        assert out["active_perfect_participle_acc_f_pl"] == "λελυκυίᾱς"
 
     def test_lyo_perfect_active_neuter(self, synth):
         out = synth.synthesize_participles("λύω", {"pf": "λέλυκα"})
@@ -361,8 +367,11 @@ class TestFutureActive:
         assert out["active_future_participle_nom_m_sg"] == "λύσων"
         assert out["active_future_participle_gen_m_sg"] == "λύσοντος"
         assert out["active_future_participle_acc_m_sg"] == "λύσοντα"
+        # Future-pattern fem: NO breve on final α (jtauber writes
+        # γράψουσα plain, not γράψουσᾰ).
         assert out["active_future_participle_nom_f_sg"] == "λύσουσα"
         assert out["active_future_participle_dat_f_sg"] == "λυσούσῃ"
+        assert out["active_future_participle_acc_f_pl"] == "λυσούσᾱς"
 
     def test_grapho_future_active(self, synth):
         """γράφω: derive σ-stem from aor since no fut given."""
@@ -773,3 +782,127 @@ class TestContractParticipleSchemaAlignment:
             assert parts[1] == "present", k
             assert parts[2] == "participle", k
             assert parts[0] in ("active", "middle"), k
+
+
+# ---------------------------------------------------------------------------
+# v4: macron / breve quantity marks on feminine participle endings.
+# jtauber's convention is per-tense / per-pattern, NOT per-lemma:
+#   * Present active 3rd-decl -ουσᾰ family: BREVE on final α in
+#     nom/voc/acc f sg, MACRON in nom/voc/acc f du and acc f pl.
+#   * Aorist active 3rd-decl -σᾱσα family: MACRON on σ-stem α (the
+#     first α between σ's) UNIVERSALLY across every f cell, plus
+#     MACRON on final α in acc f pl.
+#   * Aor-2 / future / aorist-passive 3rd-decl -οῦσα / -σουσα / -εῖσα:
+#     no breve, MACRON only on acc f pl.
+#   * Perfect active -υῖα: MACRON on gen f sg AND acc f pl final α.
+#   * 1st/2nd-decl -μενος/-η/-ον: MACRON on acc f pl (-μενᾱς).
+#   * Alpha-contract present active -ῶσᾰ: BREVE on final α in
+#     nom/voc/acc f sg (matching the present-active pattern).
+# ---------------------------------------------------------------------------
+
+
+class TestParticipleQuantityMarks:
+    """Spot-checks of the macron / breve marks on feminine participle
+    endings against jtauber's verbatim output."""
+
+    def test_present_active_lyo_breve_on_nom_acc(self, synth):
+        out = synth.synthesize_participles("λύω", {})
+        assert out["active_present_participle_nom_f_sg"] == "λύουσᾰ"
+        assert out["active_present_participle_voc_f_sg"] == "λύουσᾰ"
+        assert out["active_present_participle_acc_f_sg"] == "λύουσᾰν"
+
+    def test_present_active_lyo_macron_on_acc_pl(self, synth):
+        out = synth.synthesize_participles("λύω", {})
+        assert out["active_present_participle_acc_f_pl"] == "λυούσᾱς"
+
+    def test_present_active_lyo_unmarked_dat_gen(self, synth):
+        out = synth.synthesize_participles("λύω", {})
+        # No quantity mark on dat / gen feminine cells.
+        assert out["active_present_participle_gen_f_sg"] == "λυούσης"
+        assert out["active_present_participle_dat_f_sg"] == "λυούσῃ"
+        assert out["active_present_participle_gen_f_pl"] == "λυουσῶν"
+        assert out["active_present_participle_dat_f_pl"] == "λυούσαις"
+
+    def test_aorist_active_lyo_macron_throughout_fem(self, synth):
+        out = synth.synthesize_participles("λύω", {"fut": "λύσω"})
+        # σ-stem α gets MACRON across all f cells; final α also gets
+        # MACRON in acc f pl (-σᾱ́σᾱς).
+        assert out["active_aorist_participle_nom_f_sg"] == "λύσᾱσα"
+        assert out["active_aorist_participle_acc_f_sg"] == "λύσᾱσαν"
+        assert out["active_aorist_participle_gen_f_sg"] == "λυσᾱ́σης"
+        assert out["active_aorist_participle_dat_f_sg"] == "λυσᾱ́σῃ"
+        assert out["active_aorist_participle_gen_f_pl"] == "λυσᾱσῶν"
+        assert out["active_aorist_participle_dat_f_pl"] == "λυσᾱ́σαις"
+        assert out["active_aorist_participle_acc_f_pl"] == "λυσᾱ́σᾱς"
+        assert out["active_aorist_participle_nom_f_pl"] == "λύσᾱσαι"
+
+    def test_aorist_active_grapho(self, synth):
+        # γράψᾱσα / γραψᾱ́σᾱς / γραψᾱσῶν against jtauber.
+        out = synth.synthesize_participles("γράφω", {"aor": "ἔγραψα"})
+        assert out["active_aorist_participle_nom_f_sg"] == "γράψᾱσα"
+        assert out["active_aorist_participle_acc_f_pl"] == "γραψᾱ́σᾱς"
+        assert out["active_aorist_participle_gen_f_pl"] == "γραψᾱσῶν"
+
+    def test_future_active_lyo_no_breve(self, synth):
+        # Future active uses present-style 3rd-decl endings BUT without
+        # the breve on f sg. jtauber writes γράψουσα plain (no marks).
+        out = synth.synthesize_participles("λύω", {"fut": "λύσω"})
+        assert out["active_future_participle_nom_f_sg"] == "λύσουσα"
+        assert out["active_future_participle_acc_f_sg"] == "λύσουσαν"
+        assert out["active_future_participle_acc_f_pl"] == "λυσούσᾱς"
+
+    def test_aorist_passive_lyo_macron_only_acc_pl(self, synth):
+        out = synth.synthesize_participles("λύω", {"aor_p": "ἐλύθην"})
+        assert out["passive_aorist_participle_nom_f_sg"] == "λυθεῖσα"
+        assert out["passive_aorist_participle_acc_f_sg"] == "λυθεῖσαν"
+        # Only acc_f_pl gets a macron.
+        assert out["passive_aorist_participle_acc_f_pl"] == "λυθείσᾱς"
+
+    def test_perfect_active_lyo_macron_gen_acc_pl(self, synth):
+        out = synth.synthesize_participles("λύω", {"pf": "λέλυκα"})
+        # gen_f_sg AND acc_f_pl both get macron.
+        assert out["active_perfect_participle_gen_f_sg"] == "λελυκυίᾱς"
+        assert out["active_perfect_participle_acc_f_pl"] == "λελυκυίᾱς"
+        # Other cells unmarked.
+        assert out["active_perfect_participle_nom_f_sg"] == "λελυκυῖα"
+        assert out["active_perfect_participle_acc_f_sg"] == "λελυκυῖαν"
+
+    def test_middle_present_lyo_macron_only_acc_pl(self, synth):
+        out = synth.synthesize_participles("λύω", {})
+        # Only acc_f_pl in -μενᾱς gets a macron.
+        assert out["middle_present_participle_acc_f_pl"] == "λυομένᾱς"
+        assert out["middle_present_participle_nom_f_sg"] == "λυομένη"
+        assert out["middle_present_participle_acc_f_sg"] == "λυομένην"
+
+    def test_middle_perfect_lyo_macron_only_acc_pl(self, synth):
+        out = synth.synthesize_participles(
+            "λύω", {"pf_mp": "λέλυμαι"}
+        )
+        assert out["middle_perfect_participle_acc_f_pl"] == "λελυμένᾱς"
+        assert out["middle_perfect_participle_nom_f_sg"] == "λελυμένη"
+
+    def test_alpha_contract_breve_on_nom_acc(self, synth):
+        out = synth.synthesize_contract_participles("τιμάω", {})
+        # τιμῶσᾰ (breve), τιμῶσᾰν (breve), τιμώσᾱς (macron).
+        assert out["active_present_participle_nom_f_sg"] == "τιμῶσᾰ"
+        assert out["active_present_participle_voc_f_sg"] == "τιμῶσᾰ"
+        assert out["active_present_participle_acc_f_sg"] == "τιμῶσᾰν"
+        assert out["active_present_participle_acc_f_pl"] == "τιμώσᾱς"
+
+    def test_epsilon_contract_breve_on_nom_acc(self, synth):
+        # ε-contract: BREVE on nom/voc/acc f sg, MACRON on acc f pl.
+        # Matches jtauber's ποιοῦσᾰ / ποιοῦσᾰν / ποιούσᾱς.
+        out = synth.synthesize_contract_participles("ποιέω", {})
+        assert out["active_present_participle_nom_f_sg"] == "ποιοῦσᾰ"
+        assert out["active_present_participle_voc_f_sg"] == "ποιοῦσᾰ"
+        assert out["active_present_participle_acc_f_sg"] == "ποιοῦσᾰν"
+        assert out["active_present_participle_acc_f_pl"] == "ποιούσᾱς"
+
+    def test_aor2_pesa_macron_only_acc_pl(self, synth):
+        out = synth.synthesize_aor2_participles(
+            "πίπτω", {"aor": "ἔπεσον"}
+        )
+        # πεσοῦσα has no breve on final α; πεσούσᾱς has macron.
+        assert out["active_aorist_participle_nom_f_sg"] == "πεσοῦσα"
+        assert out["active_aorist_participle_acc_f_sg"] == "πεσοῦσαν"
+        assert out["active_aorist_participle_acc_f_pl"] == "πεσούσᾱς"

@@ -174,6 +174,121 @@ def _is_aor_2_active_form(aor_form: str) -> bool:
     return False
 
 
+# Mixed α-aor-2 detection: aor 1sg ends in -α but is NOT a clean sigmatic
+# σ/ψ/ξ-aorist or κ-aorist. Examples: ἔπεσα (πίπτω), εἶπα (λέγω),
+# ἤνεγκα (φέρω), ἦλθα (ἔρχομαι), εὗρα (εὑρίσκω). These verbs take
+# α-style endings on the active and middle indicative, but the rest of
+# the paradigm (subj/opt/imp/inf/ptc) follows the aor-2 ο-thematic pattern.
+def _is_aor_2_alpha_form(aor_form: str, lemma: Optional[str] = None) -> bool:
+    """True iff ``aor_form`` is a mixed-α aor-2 1sg active form.
+
+    Heuristic: the form ends in -α (not -ον) and is NOT cleanly sigmatic
+    (not -σα / -ψα / -ξα where the σ/ψ/ξ is a regular sigmatic-aorist
+    cluster predicted from the lemma's present stem). κ-aorists (ἔδωκα)
+    are excluded because they belong to the athematic system.
+
+    When ``lemma`` is supplied, we additionally validate that a
+    σ/ψ/ξ ending really is suppletive (i.e. the σ doesn't match a
+    sigmatic-aorist prediction from the lemma's stem). This catches
+    ἔπεσα (πίπτω): πτ + σ would predict πσ which is not what the corpus
+    has.
+
+    Returns False when the form is missing, doesn't end in -α, or is a
+    clean sigmatic / κ-aorist.
+    """
+    if not aor_form:
+        return False
+    plain = _strip_accents_lower(aor_form)
+    if not plain.endswith(("α", "ᾰ")):
+        return False
+    if len(plain) < 3:
+        return False
+    if not lemma:
+        # Conservative: without a lemma we can't tell suppletion from
+        # sigmatic; reject.  The caller always passes a lemma.
+        return False
+    # Athematic verbs (-μι / -μαι) handle κ-aorists in their own
+    # athematic synthesis pipeline; we only treat thematic -ω verbs.
+    if not is_thematic_omega(lemma):
+        return False
+    # Check whether the form is a CLEAN sigmatic σ/ψ/ξ-aorist whose
+    # cluster is predicted from the lemma's present stem AND whose
+    # body (after stripping the augment + cluster + α) matches the
+    # lemma stem (after stripping the predicted-cluster source
+    # consonant). Forms that pass both checks are treated as regular
+    # sigmatic σ-aorists, not mixed-α aor-2.
+    cluster = plain[-2]
+    if cluster in ("σ", "ψ", "ξ"):
+        pres_stem = _present_stem(lemma)
+        if pres_stem:
+            plain_pres = _strip_accents_lower(pres_stem)
+            if plain_pres:
+                last = plain_pres[-1]
+                expected: Optional[str] = None
+                cluster_source: Optional[str] = None
+                if last in ("π", "β", "φ"):
+                    expected = "ψ"; cluster_source = last
+                elif last in ("κ", "γ", "χ"):
+                    expected = "ξ"; cluster_source = last
+                elif last in ("τ", "δ", "θ", "ν", "ζ"):
+                    expected = "σ"; cluster_source = last
+                elif last in _GREEK_VOWELS:
+                    expected = "σ"; cluster_source = ""  # no consonant absorbed
+                if expected == cluster:
+                    # Strip the augment from the aor form and trim the
+                    # σ/ψ/ξ + α cluster.  Compare the result to the
+                    # lemma stem with the cluster-source consonant
+                    # trimmed off (vowel-stems trim 0 chars).
+                    body_no_aug = _strip_simple_augment(aor_form)
+                    if body_no_aug is not None:
+                        body_plain = _strip_accents_lower(body_no_aug)
+                        # body_plain ends in cluster + α; trim those.
+                        if body_plain.endswith(cluster + "α") or \
+                                body_plain.endswith(cluster + "ᾰ"):
+                            body_root = body_plain[:-2]
+                            lemma_root = (
+                                plain_pres[:-1] if cluster_source
+                                else plain_pres
+                            )
+                            if body_root == lemma_root:
+                                # Clean sigmatic σ-aorist; not mixed-α.
+                                return False
+    # Otherwise: any -α ending that isn't a clean sigmatic σ/ψ/ξ-aorist
+    # (verified against the lemma's present stem) is treated as mixed-α.
+    return True
+
+
+def _strip_simple_augment(form: str) -> Optional[str]:
+    """Strip a syllabic ε-augment from ``form``. Returns the unaugmented
+    form, or ``None`` if no augment was found.
+
+    This is a lightweight version of ``_strip_augment`` (which handles
+    breathing marks) used by the mixed-α detection heuristic. It
+    handles syllabic augment ε + consonant and the common temporal
+    augments η -> α, ω -> ο.
+    """
+    if not form:
+        return None
+    nfd = unicodedata.normalize("NFD", form)
+    chars = list(nfd)
+    if not chars:
+        return None
+    if chars[0] == "ε":
+        i = 1
+        while i < len(chars) and unicodedata.combining(chars[i]):
+            i += 1
+        if i < len(chars) and chars[i] not in _GREEK_VOWELS:
+            rest = "".join(chars[i:])
+            return unicodedata.normalize("NFC", rest)
+    if chars[0] == "η":
+        chars[0] = "α"
+        return unicodedata.normalize("NFC", "".join(chars))
+    if chars[0] == "ω":
+        chars[0] = "ο"
+        return unicodedata.normalize("NFC", "".join(chars))
+    return unicodedata.normalize("NFC", form)
+
+
 def extract_aor2_stem(
     aor_form: str, lemma: Optional[str] = None
 ) -> Optional[str]:
@@ -185,6 +300,9 @@ def extract_aor2_stem(
     ``εὗρον``  -> ``εὑρ``  (no augment if root starts with vowel + breath)
     ``ἤγαγον`` -> ``ἀγαγ``  (temporal augment η -> α)
 
+    Also accepts mixed-α aor-2 forms (-α suffix instead of -ον):
+    ``ἔπεσα`` -> ``πεσ``, ``εἶπα`` -> ``εἰπ``, ``ἤνεγκα`` -> ``ἐνεγκ``.
+
     Returns ``None`` if the form doesn't look like an aor-2.
 
     The stem retains its accent. For accent-recovery on cells where the
@@ -192,12 +310,39 @@ def extract_aor2_stem(
     """
     if not aor_form:
         return None
-    if not _is_aor_2_active_form(aor_form):
-        return None
     nfc = unicodedata.normalize("NFC", aor_form)
-    if not nfc.endswith("ον"):
+    # Ordinary aor-2 in -ον.
+    if _is_aor_2_active_form(aor_form):
+        if not nfc.endswith("ον"):
+            return None
+        body = nfc[:-2]
+        return _aor2_strip_augment(body)
+    # Mixed-α aor-2 in -α.
+    if _is_aor_2_alpha_form(aor_form, lemma):
+        # Drop trailing α (with combining marks if present).
+        nfd = unicodedata.normalize("NFD", nfc)
+        chars = list(nfd)
+        # Walk back to the last α base char.
+        j = len(chars) - 1
+        while j >= 0:
+            if chars[j] in ("α", "ᾰ"):
+                # Drop this char + any following combining marks.
+                rest = "".join(chars[:j])
+                body = unicodedata.normalize("NFC", rest)
+                if body:
+                    return _aor2_strip_augment(body)
+                return None
+            j -= 1
         return None
-    body = nfc[:-2]  # drop final ον (carries no accent at the very end here)
+    return None
+
+
+def _aor2_strip_augment(body: str) -> Optional[str]:
+    """Helper: strip syllabic / temporal augment from an aor-2 body
+    (the form with the inflectional ending already stripped)."""
+    if not body:
+        return None
+    nfc = unicodedata.normalize("NFC", body)
     # Strip the augment if present.
     nfd = unicodedata.normalize("NFD", body)
     chars = list(nfd)
@@ -288,6 +433,14 @@ def _aorist_stem_from_lemma_and_aor(
     """Build a sigmatic aorist stem by grafting the aor form's
     terminal consonant cluster onto the lemma's present stem.
 
+    Suppletive aorists (where the aor stem differs from the present
+    stem in a way the rules don't predict) return None: e.g. πίπτω
+    has aor ἔπεσον / ἔπεσα which is a different ROOT (πεσ-, not πιπτ-),
+    so we can't graft the σ from ἔπεσα onto πιπτ to get *πίπσω. The
+    detection compares the aor body (ε-augment + σ/ψ/ξ + α stripped)
+    to the lemma stem with its predicted-cluster source consonant
+    stripped; mismatch = suppletive = bail.
+
     The present stem keeps the lemma's accent. The aor form's σ/ψ/ξ
     replaces the present stem's final consonant when the swap is
     consistent with the standard future-stem composition rule:
@@ -326,6 +479,23 @@ def _aorist_stem_from_lemma_and_aor(
         expected_cluster = "σ"
     if expected_cluster is None or expected_cluster != cluster:
         return None
+    # Suppletion guard: verify that the aor form's body (after stripping
+    # the augment + cluster + α) matches the lemma stem with its
+    # cluster-source consonant trimmed. Mismatch = suppletion = bail
+    # (e.g. πίπτω + ἔπεσα: lemma stem πιπτ, expected cluster σ via τ
+    # absorption, but body πε mismatches lemma_root πιπ → suppletive).
+    body_no_aug = _strip_simple_augment(aor_form)
+    if body_no_aug is not None:
+        body_plain = _strip_accents_lower(body_no_aug)
+        if body_plain.endswith(cluster + "α") or \
+                body_plain.endswith(cluster + "ᾰ"):
+            body_root = body_plain[:-2]
+            lemma_root = (
+                plain_pres[:-1] if last not in _GREEK_VOWELS
+                else plain_pres
+            )
+            if body_root and lemma_root and body_root != lemma_root:
+                return None
     # Splice the cluster onto the lemma stem, replacing the final
     # consonant unless the stem ended in a vowel (then we just append
     # the σ).
@@ -685,6 +855,34 @@ _AOR2_MID_IND: Dict[tuple, str] = {
 # them with the ο-thematic pattern by default; corpus / Wiktionary cells
 # carrying the α-form for those specific verbs will not be overwritten,
 # and we leave the discrepancy in the cells where corpus is silent.
+
+
+# Mixed α-aor-2 active indicative endings.
+# Used for verbs whose aor 1sg ends in -α not -ον (πίπτω → ἔπεσα,
+# λέγω → εἶπα, εὑρίσκω → εὗρα). The 3sg cell is left BLANK to mirror
+# jtauber, which doesn't emit a 3sg for these forms (the κ-aorist 3sg
+# is -ε, but its accent placement is irregular and varies by verb).
+_AOR2_ALPHA_ACT_IND: Dict[tuple, str] = {
+    ("1", "sg"): "α",
+    ("2", "sg"): "ας",
+    ("1", "pl"): "αμεν",
+    ("2", "pl"): "ατε",
+    ("3", "pl"): "αν",
+}
+
+# Mixed α-aor-2 middle indicative endings (πίπτω → ἐπεσάμην, etc.).
+# 2sg is omitted from synthesis: jtauber emits -ου for vowel-stems
+# (εἴπου / εὕρου) and -ω for consonant-stems (ἐπέσω) and we can't
+# reliably predict which without inspecting the unaugmented stem's
+# final character. Leave the 2sg cell empty so corpus / Wiktionary
+# supplies it (mirroring jtauber's blank 3sg active for these verbs).
+_AOR2_ALPHA_MID_IND: Dict[tuple, str] = {
+    ("1", "sg"): "άμην",
+    ("3", "sg"): "ατο",
+    ("1", "pl"): "άμεθα",
+    ("2", "pl"): "ασθε",
+    ("3", "pl"): "αντο",
+}
 
 # Aor-2 active subjunctive -- same shape as present subj.
 _AOR2_ACT_SUBJ: Dict[tuple, str] = {
@@ -1441,23 +1639,44 @@ def _recessive_full_form(prefix: str, ending: str) -> str:
     if target < 0:
         target = 0
     base_idx = syllables[target]
-    # For diphthongs (consecutive vowel bases like οι, ει, αυ, etc.),
-    # the accent conventionally sits on the SECOND vowel. Walk forward
-    # past combining marks AND any second vowel that forms a diphthong
-    # with this base.
+    # Determine if the target syllable's vowel is long. Long base
+    # vowels: η, ω. Long diphthongs: αι, ει, οι, υι, αυ, ευ, ηυ, ου
+    # (when followed by another vowel base in the same syllable).
+    target_vowel = chars[base_idx]
+    target_is_diph = False
+    nxt = base_idx + 1
+    while nxt < len(chars) and unicodedata.combining(chars[nxt]):
+        nxt += 1
+    if nxt < len(chars) and chars[nxt] in _GREEK_VOWELS:
+        pair_plain = (target_vowel + chars[nxt]).lower()
+        if pair_plain in ("αι", "ει", "οι", "υι", "αυ", "ευ",
+                           "ηυ", "ου"):
+            target_is_diph = True
+    target_long = (
+        target_vowel.lower() in ("η", "ω") or target_is_diph
+    )
+    # Greek accent rule: circumflex (̃) goes on the penult when the
+    # penult vowel is LONG and the ultimate is SHORT; otherwise we
+    # place an acute (́). The rule applies only to penult/ult, not to
+    # antepenult cells.
+    use_circumflex = (
+        target == n - 2 and target_long and not final_long
+    )
+    # For diphthongs, the accent conventionally sits on the SECOND
+    # vowel of the diphthong. Walk forward past combining marks AND
+    # any second vowel that forms a diphthong with this base.
     k = base_idx + 1
     while k < len(chars) and unicodedata.combining(chars[k]):
         k += 1
-    # If the next base is a vowel that pairs with this one as a diphthong,
-    # advance to it (and past its combining marks) so the accent lands
-    # on the second vowel.
     if k < len(chars) and chars[k] in _GREEK_VOWELS:
         pair_plain = (chars[base_idx] + chars[k]).lower()
-        if pair_plain in ("αι", "ει", "οι", "υι", "αυ", "ευ", "ηυ", "ου"):
+        if pair_plain in ("αι", "ει", "οι", "υι", "αυ", "ευ",
+                           "ηυ", "ου"):
             k += 1
             while k < len(chars) and unicodedata.combining(chars[k]):
                 k += 1
-    chars.insert(k, "́")
+    accent_mark = "͂" if use_circumflex else "́"
+    chars.insert(k, accent_mark)
     return unicodedata.normalize("NFC", "".join(chars))
 
 
@@ -1539,12 +1758,39 @@ def synthesize_aor2_moods(
     if not aor_stem:
         return {}
 
+    # Detect mixed-α aor-2: aor 1sg ends in -α (not -ον), but the form
+    # isn't a clean sigmatic σ-aorist. πίπτω/ἔπεσα, λέγω/εἶπα,
+    # εὑρίσκω/εὗρα. Active and middle indicative cells use α-style
+    # endings on the augmented stem; everything else (subj/opt/imp/inf)
+    # uses regular aor-2 ο-thematic endings on the unaugmented stem.
+    is_alpha = _is_aor_2_alpha_form(aor_form, lemma)
+
     # The augmented stem prefixes the indicative cells. We rebuild it
     # from the bare stem by re-prepending the augment when possible.
     # The aor_form already has the augmented stem, so cut its trailing
-    # ``ον`` to get the augmented stem.
+    # ``ον`` (or ``α`` for mixed-α) to get the augmented stem.
     nfc_aor = unicodedata.normalize("NFC", aor_form)
-    aug_stem = nfc_aor[:-2] if nfc_aor.endswith("ον") else None
+    aug_stem: Optional[str] = None
+    if nfc_aor.endswith("ον"):
+        aug_stem = nfc_aor[:-2]
+    elif is_alpha:
+        # Drop the trailing α (with combining marks if present).
+        nfd_aor = unicodedata.normalize("NFD", nfc_aor)
+        chars_aor = list(nfd_aor)
+        j = len(chars_aor) - 1
+        while j >= 0:
+            if chars_aor[j] in ("α", "ᾰ"):
+                aug_stem = unicodedata.normalize(
+                    "NFC", "".join(chars_aor[:j])
+                )
+                break
+            j -= 1
+        if not aug_stem:
+            aug_stem = None
+
+    # Pick ending tables based on α-pattern detection.
+    act_ind_table = _AOR2_ALPHA_ACT_IND if is_alpha else _AOR2_ACT_IND
+    mid_ind_table = _AOR2_ALPHA_MID_IND if is_alpha else _AOR2_MID_IND
 
     out: Dict[str, str] = {}
 
@@ -1553,7 +1799,7 @@ def synthesize_aor2_moods(
     # full augmented form so multi-syllable forms like ``ἐλίπομεν``
     # land the accent on the antepenult rather than the augment ε.
     if aug_stem:
-        for (p, n), end in _AOR2_ACT_IND.items():
+        for (p, n), end in act_ind_table.items():
             key = f"active_aorist_indicative_{p}{n}"
             out[key] = _recessive_full_form(aug_stem, end)
 
@@ -1571,7 +1817,7 @@ def synthesize_aor2_moods(
     # indic) ----
     # Middle aor-2 indicative is recessive too; compute fresh.
     if aug_stem:
-        for (p, n), end in _AOR2_MID_IND.items():
+        for (p, n), end in mid_ind_table.items():
             key = f"middle_aorist_indicative_{p}{n}"
             out[key] = _recessive_full_form(aug_stem, end)
     for (p, n), end in _AOR2_MID_SUBJ.items():

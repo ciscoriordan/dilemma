@@ -1232,15 +1232,44 @@ candidates is 99.27%.
 
 A separate post-processing pass in `build/build_grc_verb_paradigms.py`
 takes the same parsed principal parts and procedurally synthesises the
-missing finite-mood cells (subjunctive / optative / imperative /
-aorist infinitive) for thematic -ω verbs via
-`build/synth_verb_moods.py`. Stem-templating only fires on plain
-thematic actives (contracts, athematics, mediopassives are skipped),
-and only fills cells that aren't already attested by Wiktionary or
-GLAUx. On the 27K-verb output, this adds ~278K templated cells across
-~12K verbs and brings dilemma's per-mood coverage on shared lemmas vs
-jtauber from subj 27% / opt 16% / imp 19% to subj 59% / opt 44% /
-imp 50%.
+missing finite-mood cells (subjunctive / optative / imperative / aorist
+infinitive) for thematic -ω verbs via `build/synth_verb_moods.py`, plus
+the full case×gender×number declension of every participle slot via
+`build/synth_verb_participles.py`. Stem-templating only fills cells
+that aren't already attested by Wiktionary or GLAUx; real corpus cells
+are never overwritten.
+
+Coverage: on the 27K-verb output the synthesis adds ~278K finite-mood
+cells, ~775K participle cells, ~15K aor-2 cells, and ~430K contract
+cells (active + middle present participle). Comparing against
+jtauber/greek-inflexion's hand-curated paradigms on the 3.6K shared
+lemmas, dilemma's per-mood coverage is currently:
+
+| mood        | dilemma / jtauber | notes                             |
+|-------------|-------------------|-----------------------------------|
+| indicative  | 0.83              | mostly corpus / Wiktionary cells  |
+| subjunctive | 1.17              | full thematic + contract synth    |
+| optative    | 0.95              | full thematic + contract synth    |
+| imperative  | 1.03              | full thematic + contract synth    |
+| infinitive  | 1.49              | over-broad sigmatic synthesis     |
+| participle  | 0.95              | thematic + aor-2 + ε/α-contract   |
+| overall     | 0.97              | well past the 95% full-flip mark  |
+
+Synthesis covers thematic -ω verbs (regular and aor-2 / strong-aorist),
+α-/ε-/ο-contract verbs (present system), and the mixed-α aor-2 class
+(πίπτω → ἔπεσα, λέγω → εἶπα, εὑρίσκω → εὗρα) that uses α-style endings
+on the active and middle indicative but regular ο-thematic endings
+elsewhere. The participle ending tables encode jtauber's macron / breve
+quantity-mark conventions on feminine forms (-ουσᾰ / -ουσᾰν / -ούσᾱς
+present-active, -σᾱσα / -σᾱ́σᾱς aorist-active, -μενᾱς middle-passive,
+-υίᾱς perfect-active) so synthesised cells match jtauber verbatim.
+
+Known limitations: athematic μι-verbs are handled in the upstream LSJ
+expansion (path 2) rather than the synth module; perfect contract
+participles aren't synthesised because they'd need separate perfect-
+stem extraction; ο-contract middle participles are skipped because
+jtauber's pattern is too inconsistent cell-by-cell; and a small set of
+verbs with idiosyncratic accent (e.g. ὁρᾷς) are deferred to corpus.
 
 ### Export to ONNX
 

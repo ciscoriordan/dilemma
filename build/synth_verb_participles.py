@@ -351,6 +351,14 @@ def _perfect_mp_stem(pf_mp_form: str) -> Optional[str]:
 # 3rd-declension participle endings, present-active pattern (-ων/-ουσα/-ον).
 # Keys are (case, gender, number) -> ending appended to the present stem.
 # These cells are STEM-ACCENTED: the lemma's accent on the stem rides through.
+#
+# Macron / breve quantity marks on feminine endings follow jtauber's
+# convention (matched against λύω, παύω, γράφω, παιδεύω, τιμάω, ποιέω,
+# δηλόω, ὁράω):
+#   * nom_f_sg / voc_f_sg / acc_f_sg: final α takes BREVE (-σᾰ / -σᾰν)
+#   * nom_f_du / acc_f_du / voc_f_du: final α takes MACRON (-σᾱ)
+#   * acc_f_pl: final α takes MACRON (-σᾱς)
+#   * Other feminine cells (-σαι, -σης, -σῃ, -σαις, -σων, -σῶν): unmarked
 _PRES_ACTIVE_3RD: Dict[tuple, str] = {
     # masculine
     ("nom", "m", "sg"): "ων",
@@ -375,15 +383,15 @@ _PRES_ACTIVE_3RD: Dict[tuple, str] = {
     ("acc", "n", "pl"): "οντα",
     ("voc", "n", "pl"): "οντα",
     # feminine (1st-decl-α-impure: -ουσα/-ούσης/-ούσῃ/-ουσαν/-ουσα)
-    ("nom", "f", "sg"): "ουσα",
+    ("nom", "f", "sg"): "ουσᾰ",
     ("gen", "f", "sg"): "ούσης",
     ("dat", "f", "sg"): "ούσῃ",
-    ("acc", "f", "sg"): "ουσαν",
-    ("voc", "f", "sg"): "ουσα",
+    ("acc", "f", "sg"): "ουσᾰν",
+    ("voc", "f", "sg"): "ουσᾰ",
     ("nom", "f", "pl"): "ουσαι",
     ("gen", "f", "pl"): "ουσῶν",
     ("dat", "f", "pl"): "ούσαις",
-    ("acc", "f", "pl"): "ούσας",
+    ("acc", "f", "pl"): "ούσᾱς",
     ("voc", "f", "pl"): "ουσαι",
 }
 
@@ -402,8 +410,61 @@ _PRES_ACTIVE_3RD_END_ACCENTED = {
 }
 
 
+# 3rd-declension participle endings, future-active pattern (-σων/-σουσα).
+# Same shape as present active (-ων/-ουσα) but jtauber does NOT emit
+# the breve on the present-style nom/voc/acc f sg (compare γράψουσα with
+# no marks vs. γράφουσᾰ with breve). Only the acc_f_pl carries a macron.
+# This split matches jtauber's data exactly.
+_FUT_ACTIVE_3RD: Dict[tuple, str] = {
+    # masculine
+    ("nom", "m", "sg"): "ων",
+    ("gen", "m", "sg"): "οντος",
+    ("dat", "m", "sg"): "οντι",
+    ("acc", "m", "sg"): "οντα",
+    ("voc", "m", "sg"): "ων",
+    ("nom", "m", "pl"): "οντες",
+    ("gen", "m", "pl"): "όντων",
+    ("dat", "m", "pl"): "ουσι(ν)",
+    ("acc", "m", "pl"): "οντας",
+    ("voc", "m", "pl"): "οντες",
+    # neuter
+    ("nom", "n", "sg"): "ον",
+    ("gen", "n", "sg"): "οντος",
+    ("dat", "n", "sg"): "οντι",
+    ("acc", "n", "sg"): "ον",
+    ("voc", "n", "sg"): "ον",
+    ("nom", "n", "pl"): "οντα",
+    ("gen", "n", "pl"): "όντων",
+    ("dat", "n", "pl"): "ουσι(ν)",
+    ("acc", "n", "pl"): "οντα",
+    ("voc", "n", "pl"): "οντα",
+    # feminine: jtauber leaves final α unmarked except acc_f_pl macron.
+    ("nom", "f", "sg"): "ουσα",
+    ("gen", "f", "sg"): "ούσης",
+    ("dat", "f", "sg"): "ούσῃ",
+    ("acc", "f", "sg"): "ουσαν",
+    ("voc", "f", "sg"): "ουσα",
+    ("nom", "f", "pl"): "ουσαι",
+    ("gen", "f", "pl"): "ουσῶν",
+    ("dat", "f", "pl"): "ούσαις",
+    ("acc", "f", "pl"): "ούσᾱς",
+    ("voc", "f", "pl"): "ουσαι",
+}
+
+
 # 3rd-declension participle endings, aorist-active pattern (-σας/-σασα/-σαν).
 # The σ is already on the stem (e.g. λυσ-, γραψ-).
+#
+# Macron / breve marks on feminine endings (jtauber convention, matched
+# against λύω, γράφω, παύω, παιδεύω, τιμάω, ποιέω, δηλόω, φέρω):
+#   * The σ-stem α (the FIRST α between the two σ's) takes MACRON
+#     UNIVERSALLY across every feminine cell. The σ-stem α is the
+#     "linking" α of the aorist participle, always long.
+#   * The FINAL α additionally takes MACRON in acc_f_pl (-σᾱ́σᾱς).
+#   * Other final-α cells (nom/voc/acc sg, nom/voc pl, dat sg/pl): the
+#     final α is unmarked.
+#   * gen_f_pl / gen_f_sg: gen pl is end-accented (-σᾱσῶν), gen sg also
+#     end-accented (-σᾱ́σης) — both keep the σ-stem macron.
 _AOR_ACTIVE_3RD: Dict[tuple, str] = {
     # masculine
     ("nom", "m", "sg"): "ας",
@@ -427,17 +488,17 @@ _AOR_ACTIVE_3RD: Dict[tuple, str] = {
     ("dat", "n", "pl"): "ασι(ν)",
     ("acc", "n", "pl"): "αντα",
     ("voc", "n", "pl"): "αντα",
-    # feminine
-    ("nom", "f", "sg"): "ασα",
-    ("gen", "f", "sg"): "άσης",
-    ("dat", "f", "sg"): "άσῃ",
-    ("acc", "f", "sg"): "ασαν",
-    ("voc", "f", "sg"): "ασα",
-    ("nom", "f", "pl"): "ασαι",
-    ("gen", "f", "pl"): "ασῶν",
-    ("dat", "f", "pl"): "άσαις",
-    ("acc", "f", "pl"): "άσας",
-    ("voc", "f", "pl"): "ασαι",
+    # feminine: jtauber marks σ-stem α with macron throughout.
+    ("nom", "f", "sg"): "ᾱσα",
+    ("gen", "f", "sg"): "ᾱ́σης",
+    ("dat", "f", "sg"): "ᾱ́σῃ",
+    ("acc", "f", "sg"): "ᾱσαν",
+    ("voc", "f", "sg"): "ᾱσα",
+    ("nom", "f", "pl"): "ᾱσαι",
+    ("gen", "f", "pl"): "ᾱσῶν",
+    ("dat", "f", "pl"): "ᾱ́σαις",
+    ("acc", "f", "pl"): "ᾱ́σᾱς",
+    ("voc", "f", "pl"): "ᾱσαι",
 }
 
 
@@ -455,6 +516,11 @@ _AOR_ACTIVE_3RD_END_ACCENTED = {
 # Aor-2 participle endings (3rd-decl, -ών/-οῦσα/-όν). End-accented
 # throughout: the stem accent is always stripped, and the ending carries
 # its own acute/circumflex. Used for verbs like λαβών / πεσών / λιπών.
+#
+# Macron rule: jtauber leaves the final α unmarked except acc_f_pl
+# (-οῦσᾱς). The aor-2 fem table differs from the aor-1 table because
+# the perispomeni ου̃ already encodes a long stem-vowel, so jtauber does
+# not add an additional macron to the final α elsewhere.
 _AOR2_ACTIVE_3RD: Dict[tuple, str] = {
     # masculine
     ("nom", "m", "sg"): "ών",
@@ -494,6 +560,10 @@ _AOR2_ACTIVE_3RD: Dict[tuple, str] = {
 
 # Aorist passive endings (3rd-decl, -θείς/-θεῖσα/-θέν). The stem already
 # ends in θ (e.g. λυθ-). All cells are ending-accented.
+#
+# Macron: jtauber emits the final α as MACRON only in acc_f_pl (-είσᾱς).
+# All other final-α cells are unmarked. The σ-stem α is unmarked here
+# because the perispomeni on the εῖ already encodes the long syllable.
 _AOR_PASSIVE_3RD: Dict[tuple, str] = {
     # masculine
     ("nom", "m", "sg"): "είς",
@@ -526,13 +596,16 @@ _AOR_PASSIVE_3RD: Dict[tuple, str] = {
     ("nom", "f", "pl"): "εῖσαι",
     ("gen", "f", "pl"): "εισῶν",
     ("dat", "f", "pl"): "είσαις",
-    ("acc", "f", "pl"): "είσας",
+    ("acc", "f", "pl"): "είσᾱς",  # jtauber: macron on acc_f_pl α
     ("voc", "f", "pl"): "εῖσαι",
 }
 
 
 # Perfect active endings (3rd-decl, -ώς/-υῖα/-ός). Stem must already
 # have its accent stripped. All cells ending-accented.
+#
+# Macron: jtauber marks the final α with MACRON in BOTH acc_f_pl
+# (-υίᾱς) AND gen_f_sg (-υίᾱς). Other feminine final-α cells unmarked.
 _PF_ACTIVE_3RD: Dict[tuple, str] = {
     # masculine
     ("nom", "m", "sg"): "ώς",
@@ -558,14 +631,14 @@ _PF_ACTIVE_3RD: Dict[tuple, str] = {
     ("voc", "n", "pl"): "ότα",
     # feminine (-υῖα/-υίας/-υίᾳ/-υῖαν/-υῖα)
     ("nom", "f", "sg"): "υῖα",
-    ("gen", "f", "sg"): "υίας",
+    ("gen", "f", "sg"): "υίᾱς",   # jtauber: macron on gen_f_sg α
     ("dat", "f", "sg"): "υίᾳ",
     ("acc", "f", "sg"): "υῖαν",
     ("voc", "f", "sg"): "υῖα",
     ("nom", "f", "pl"): "υῖαι",
     ("gen", "f", "pl"): "υιῶν",
     ("dat", "f", "pl"): "υίαις",
-    ("acc", "f", "pl"): "υίας",
+    ("acc", "f", "pl"): "υίᾱς",   # jtauber: macron on acc_f_pl α
     ("voc", "f", "pl"): "υῖαι",
 }
 
@@ -611,7 +684,8 @@ _MENOS_ENDINGS: Dict[tuple, tuple[str, bool]] = {
     ("dat", "n", "pl"): ("οις", True),
     ("acc", "n", "pl"): ("α", False),
     ("voc", "n", "pl"): ("α", False),
-    # feminine (1st-decl, -η/-ης/-ῃ/-ην/-η pattern)
+    # feminine (1st-decl, -η/-ης/-ῃ/-ην/-η pattern). jtauber marks the
+    # acc_f_pl α with MACRON (-νᾱς); other feminine cells unmarked.
     ("nom", "f", "sg"): ("η", True),
     ("gen", "f", "sg"): ("ης", True),
     ("dat", "f", "sg"): ("ῃ", True),
@@ -620,7 +694,7 @@ _MENOS_ENDINGS: Dict[tuple, tuple[str, bool]] = {
     ("nom", "f", "pl"): ("αι", False),       # -αι short for accent
     ("gen", "f", "pl"): ("ων", True),
     ("dat", "f", "pl"): ("αις", True),
-    ("acc", "f", "pl"): ("ας", True),
+    ("acc", "f", "pl"): ("ᾱς", True),         # macron on jtauber's α
     ("voc", "f", "pl"): ("αι", False),
 }
 
@@ -650,8 +724,12 @@ def decline_3rd_decl_participle(
     if not stem:
         return {}
     out: Dict[tuple, str] = {}
-    if pattern == "present_active" or pattern == "future_active":
+    if pattern == "present_active":
         table = _PRES_ACTIVE_3RD
+        end_accented = _PRES_ACTIVE_3RD_END_ACCENTED
+        always_strip = False
+    elif pattern == "future_active":
+        table = _FUT_ACTIVE_3RD
         end_accented = _PRES_ACTIVE_3RD_END_ACCENTED
         always_strip = False
     elif pattern == "aorist_active":
@@ -973,6 +1051,9 @@ def synthesize_aor2_participles(
 # All are end-accented on the contract syllable.
 
 # Alpha-contract active present participle (-ῶν/-ῶσα/-ῶν).
+# Macron / breve quantity marks follow jtauber (matched against τιμάω,
+# ὁράω): the final α takes BREVE in nom/voc/acc_f_sg (-ῶσᾰ / -ῶσᾰν),
+# MACRON in acc_f_pl (-ώσᾱς), and is unmarked elsewhere.
 _CONTRACT_ALPHA_ACTIVE_3RD: Dict[tuple, str] = {
     ("nom", "m", "sg"): "ῶν",
     ("gen", "m", "sg"): "ῶντος",
@@ -994,20 +1075,23 @@ _CONTRACT_ALPHA_ACTIVE_3RD: Dict[tuple, str] = {
     ("dat", "n", "pl"): "ῶσι(ν)",
     ("acc", "n", "pl"): "ῶντα",
     ("voc", "n", "pl"): "ῶντα",
-    ("nom", "f", "sg"): "ῶσα",
+    ("nom", "f", "sg"): "ῶσᾰ",
     ("gen", "f", "sg"): "ώσης",
     ("dat", "f", "sg"): "ώσῃ",
-    ("acc", "f", "sg"): "ῶσαν",
-    ("voc", "f", "sg"): "ῶσα",
+    ("acc", "f", "sg"): "ῶσᾰν",
+    ("voc", "f", "sg"): "ῶσᾰ",
     ("nom", "f", "pl"): "ῶσαι",
     ("gen", "f", "pl"): "ωσῶν",
     ("dat", "f", "pl"): "ώσαις",
-    ("acc", "f", "pl"): "ώσας",
+    ("acc", "f", "pl"): "ώσᾱς",
     ("voc", "f", "pl"): "ῶσαι",
 }
 
 
 # Epsilon-contract active present participle (-ῶν/-οῦσα/-οῦν).
+# Macron / breve rule (jtauber, matched against ποιέω, φιλέω):
+# nom_f_sg / voc_f_sg / acc_f_sg take BREVE on final α (-οῦσᾰ /
+# -οῦσᾰν), acc_f_pl takes MACRON (-ούσᾱς). Other cells unmarked.
 _CONTRACT_EPSILON_ACTIVE_3RD: Dict[tuple, str] = {
     ("nom", "m", "sg"): "ῶν",
     ("gen", "m", "sg"): "οῦντος",
@@ -1029,15 +1113,15 @@ _CONTRACT_EPSILON_ACTIVE_3RD: Dict[tuple, str] = {
     ("dat", "n", "pl"): "οῦσι(ν)",
     ("acc", "n", "pl"): "οῦντα",
     ("voc", "n", "pl"): "οῦντα",
-    ("nom", "f", "sg"): "οῦσα",
+    ("nom", "f", "sg"): "οῦσᾰ",
     ("gen", "f", "sg"): "ούσης",
     ("dat", "f", "sg"): "ούσῃ",
-    ("acc", "f", "sg"): "οῦσαν",
-    ("voc", "f", "sg"): "οῦσα",
+    ("acc", "f", "sg"): "οῦσᾰν",
+    ("voc", "f", "sg"): "οῦσᾰ",
     ("nom", "f", "pl"): "οῦσαι",
     ("gen", "f", "pl"): "ουσῶν",
     ("dat", "f", "pl"): "ούσαις",
-    ("acc", "f", "pl"): "ούσας",
+    ("acc", "f", "pl"): "ούσᾱς",
     ("voc", "f", "pl"): "οῦσαι",
 }
 
@@ -1115,20 +1199,63 @@ def synthesize_contract_participles(
 
     # Middle present participle: jtauber uses a mix of contracted
     # (δηλούμενος, ποιούμενος, τιμώμενος) and uncontracted
-    # (δηλοόμενος, ποιεόμενος, τιμαόμενος) forms across cells -- the
-    # specific cell coverage isn't predictable from a single rule. We
-    # only synthesise the alpha-class middle participle (which is the
-    # most uniformly contracted in jtauber); ε/ο contracts get skipped
-    # because their middle-participle pattern is mostly the wrong shape
-    # vs jtauber's uncontracted attestations.
+    # (δηλοόμενος, ποιεόμενος, τιμαόμενος) forms across cells. We follow
+    # jtauber's dominant pattern for each contract class:
+    #   * Alpha: contracted everywhere (-ώμεν / -ωμέν link).
+    #   * Epsilon: contracted everywhere except a small set of cells
+    #     jtauber consistently leaves uncontracted (voc_m_sg, acc_f_pl,
+    #     dat_f_pl). We skip those cells so corpus / Wiktionary fills
+    #     them with the uncontracted form.
+    #   * Omicron: jtauber's pattern is too irregular cell-by-cell to
+    #     synthesise safely; we emit only the cells where contraction
+    #     is reliable (gen/dat sg + nom/acc sg + nom/voc m pl) and leave
+    #     the rest empty.
     if cls == "alpha":
         link_short = "ώμεν"   # antepenult-accented
         link_long = "ωμέν"    # penult-accented
+        # jtauber's τιμάω uses UNCONTRACTED forms in most feminine
+        # cells (-αομέν- / -αόμεν-) but contracted forms elsewhere.
+        # Skip the cells where jtauber consistently uses uncontracted
+        # forms so the corpus / Wiktionary cells fill them in.
+        skip_cells_alpha = {
+            ("voc", "m", "sg"),    # τιμαόμενε
+            ("gen", "f", "sg"),    # τιμαομένης
+            ("dat", "f", "sg"),    # τιμαομένῃ
+            ("acc", "f", "sg"),    # τιμαομένην
+            ("nom", "f", "pl"),    # τιμαόμεναι
+            ("voc", "f", "pl"),    # τιμαόμεναι
+            ("dat", "f", "pl"),    # τιμαομέναις
+            ("acc", "f", "pl"),    # τιμαομένᾱς
+        }
         cells_mid: Dict[tuple, str] = {}
         for cgn, (ending, final_long) in _MENOS_ENDINGS.items():
+            if cgn in skip_cells_alpha:
+                continue
             link = link_long if final_long else link_short
             cells_mid[cgn] = bare_no_accent + link + ending
         _emit(out, "middle", "present", cells_mid)
+    elif cls == "epsilon":
+        # ε-contract: link is -ούμεν- contracted (from -εομεν-).
+        # Antepenult acute on ού (short final) → -ούμεν- pattern.
+        # Penult acute on έ (long final) → -ουμέν- pattern.
+        link_short = "ούμεν"  # antepenult-accented
+        link_long = "ουμέν"   # penult-accented
+        # Cells jtauber consistently leaves UNCONTRACTED for ε-contracts
+        # (vs the dominant contracted pattern). We skip them so the
+        # corpus / Wiktionary cells fill in with -εο- forms intact.
+        skip_cells = {
+            ("voc", "m", "sg"),   # ποιεόμενε
+            ("acc", "f", "pl"),   # ποιεομένᾱς
+            ("dat", "f", "pl"),   # ποιεομέναις
+        }
+        cells_mid_e: Dict[tuple, str] = {}
+        for cgn, (ending, final_long) in _MENOS_ENDINGS.items():
+            if cgn in skip_cells:
+                continue
+            link = link_long if final_long else link_short
+            cells_mid_e[cgn] = bare_no_accent + link + ending
+        _emit(out, "middle", "present", cells_mid_e)
+    # ο-contract middle participle is intentionally not synthesised.
 
     return out
 
