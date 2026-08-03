@@ -24,8 +24,18 @@ jobs:
           pip install -q torch --index-url https://download.pytorch.org/whl/cpu
           pip install -q transformers
 
+      # The data artifacts live on the Hub, not in git, so a push that lands
+      # before `hf upload` finishes would otherwise test new code against the
+      # previous artifacts. data/hf_manifest.json pins their sha256; wait for
+      # the Hub to serve those bytes, then check what actually arrived.
+      - name: Wait for the HuggingFace artifacts in data/hf_manifest.json
+        run: python3 scripts/hf_data.py wait --timeout 900
+
       - name: Download lookup data from HuggingFace Hub
-        run: hf download ciscoriordan/dilemma data/lookup.db data/spell_index.db data/lemma_attestation.json --local-dir .
+        run: hf download ciscoriordan/dilemma $(python3 scripts/hf_data.py files) --local-dir .
+
+      - name: Verify the downloaded artifacts against the manifest
+        run: python3 scripts/hf_data.py verify
 
       - name: Run all tests
         run: python3 -m pytest tests/ -x -v

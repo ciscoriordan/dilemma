@@ -1714,6 +1714,27 @@ Generates ONNX model files so inference works without PyTorch.
 python export_onnx.py                  # exports encoder.onnx + decoder_step.onnx
 ```
 
+### Shipping rebuilt data artifacts
+
+The artifacts CI tests against (`lookup.db`, `spell_index.db`,
+`lemma_attestation.json`) live on HuggingFace, not in git, so the two
+have to be kept in step by hand. `data/hf_manifest.json` pins their
+sha256 and `scripts/hf_data.py` does the bookkeeping:
+
+```bash
+python scripts/hf_data.py push      # upload whatever changed, refresh the manifest
+git add data/hf_manifest.json       # commit it with the code change
+./scripts/install_git_hooks.sh      # once per clone: pre-push sync check
+```
+
+CI waits for the Hub to serve the manifest's bytes before downloading
+(`hf_data.py wait`) and re-checks them afterwards (`hf_data.py verify`).
+That way a `git push` that beats a slow upload just makes the test job
+wait rather than run new tests against the previous artifacts, and an
+upload that never happened fails with a message saying so. The pre-push
+hook catches both cases before they reach CI; `git push --no-verify`
+skips it.
+
 ### Release
 
 Releases are cut by bumping the version and pushing the resulting tag.
@@ -1732,14 +1753,17 @@ bumpver update --patch --dry    # preview without committing
 ```
 
 Before bumping, regenerate and HF-upload any data outputs the new
-version is meant to ship (see CLAUDE.md), so the release tag points at a
-SHA whose data files match what's on HuggingFace.
+version is meant to ship (see CLAUDE.md and the section above), so the
+release tag points at a SHA whose data files match what's on
+HuggingFace.
 
 ### Testing
 
 Tests run automatically via GitHub Actions on push and pull request to
 `main`, using a self-hosted runner with GPU access. CI downloads data
-files from HuggingFace (`lookup.db`, `spell_index.db`, model weights).
+files from HuggingFace (`lookup.db`, `spell_index.db`,
+`lemma_attestation.json`), pinned by sha256 in `data/hf_manifest.json`
+(see [Shipping rebuilt data artifacts](#shipping-rebuilt-data-artifacts)).
 
 ```bash
 python -m pytest tests/ -v                  # run all tests via pytest (recommended)
