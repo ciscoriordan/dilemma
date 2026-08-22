@@ -2447,7 +2447,7 @@ they are the held-out gold corpus). The complete list, with authors, sources, an
 ## License
 
 Dilemma's source code is licensed [MIT](LICENSE) (full text in
-[LICENSE](LICENSE)). © Francisco Riordan.
+[LICENSE](LICENSE)). © 2026 Open Greek.
 
 The data artifacts Dilemma builds - the lookup database, the trained model, the
 frequency tables, and the corpus-attestation databases - are derived from
